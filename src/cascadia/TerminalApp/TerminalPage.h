@@ -646,7 +646,11 @@ namespace winrt::TerminalApp::implementation
         static AgentPaneSettingsBinding _ResolveAgentPaneSettingsBinding(
             const AgentPaneSettingsBindingRequest& request);
         AgentPaneSettingsBinding _ResolveAgentPaneSettingsBindingForTab(
-            const winrt::com_ptr<Tab>& tab);
+            const winrt::com_ptr<Tab>& tab,
+            bool forSettingsUpdate = false);
+        static bool _IsSameAgentPaneBackend(
+            const AgentPaneSettingsBinding& current,
+            const AgentPaneSettingsBinding& target) noexcept;
         static bool _IsAgentPaneSettingsRebindAffected(
             const AgentPaneSettingsBinding& binding,
             bool globalAgentChanged,

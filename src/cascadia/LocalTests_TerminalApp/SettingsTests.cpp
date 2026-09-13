@@ -2271,6 +2271,8 @@ namespace TerminalAppLocalTests
         };
         auto hostCodex = hostCopilot;
         hostCodex.agentId = L"codex";
+        VERIFY_IS_TRUE(Page::_IsSameAgentPaneBackend(hostCopilot, hostCopilot));
+        VERIFY_IS_FALSE(Page::_IsSameAgentPaneBackend(hostCopilot, hostCodex));
         VERIFY_IS_TRUE(Page::_CanSwitchAgentInPlace(hostCopilot, hostCodex, State::Connecting, true));
         VERIFY_IS_TRUE(Page::_CanSwitchAgentInPlace(hostCopilot, hostCodex, State::Connected, true));
         VERIFY_IS_FALSE(Page::_CanSwitchAgentInPlace(hostCopilot, hostCodex, State::Connected, false));
@@ -2281,11 +2283,14 @@ namespace TerminalAppLocalTests
         wslCopilot.agentWslDistro = L"Ubuntu";
         auto wslCodex = wslCopilot;
         wslCodex.agentId = L"codex";
+        VERIFY_IS_FALSE(Page::_IsSameAgentPaneBackend(hostCopilot, wslCopilot));
+        VERIFY_IS_FALSE(Page::_IsSameAgentPaneBackend(wslCopilot, wslCodex));
         VERIFY_IS_TRUE(Page::_CanSwitchAgentInPlace(wslCopilot, wslCodex, State::Connected, true));
         VERIFY_IS_FALSE(Page::_CanSwitchAgentInPlace(hostCopilot, wslCodex, State::Connected, true));
 
         auto otherDistro = wslCodex;
         otherDistro.agentWslDistro = L"Debian";
+        VERIFY_IS_FALSE(Page::_IsSameAgentPaneBackend(wslCopilot, otherDistro));
         VERIFY_IS_FALSE(Page::_CanSwitchAgentInPlace(wslCopilot, otherDistro, State::Connected, true));
 
         auto customAgent = hostCopilot;
