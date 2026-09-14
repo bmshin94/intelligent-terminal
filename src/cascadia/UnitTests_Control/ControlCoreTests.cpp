@@ -8,6 +8,8 @@
 #include "MockConnection.h"
 #include "../../inc/TestUtils.h"
 
+#include <thread>
+
 using namespace Microsoft::Console;
 using namespace WEX::Logging;
 using namespace WEX::TestExecution;
@@ -30,6 +32,9 @@ namespace ControlUnitTests
         TEST_METHOD(TestAdjustAcrylic);
 
         TEST_METHOD(TestFreeAfterClose);
+        TEST_METHOD(TestReentrantCloseClosesConnectionOnce);
+        TEST_METHOD(TestConcurrentCloseClosesConnectionOnce);
+        TEST_METHOD(TestConnectionReplacementClosesEachConnectionOnce);
 
         TEST_METHOD(TestFontInitializedInCtor);
 
@@ -233,6 +238,89 @@ namespace ControlUnitTests
         }
 
         VERIFY_IS_TRUE(true, L"Make sure that the test didn't crash when the core when out of scope");
+    }
+
+    void ControlCoreTests::TestReentrantCloseClosesConnectionOnce()
+    {
+        auto [settings, conn] = _createSettingsAndConnection();
+        auto core = createCore(*settings, *conn);
+        conn->OnClose = [&]() {
+            if (conn->CloseCount.load() == 1)
+            {
+                core->Close();
+            }
+        };
+
+        core->Close();
+        VERIFY_ARE_EQUAL(1u, conn->CloseCount.load());
+        VERIFY_IS_NULL(core->Connection());
+        core->Close();
+        core = nullptr;
+        VERIFY_ARE_EQUAL(1u, conn->CloseCount.load());
+    }
+
+    void ControlCoreTests::TestConcurrentCloseClosesConnectionOnce()
+    {
+        auto [settings, conn] = _createSettingsAndConnection();
+        auto core = createCore(*settings, *conn);
+        auto otherConnection = winrt::make_self<MockConnection>();
+        auto otherCore = createCore(*settings, *otherConnection);
+        wil::unique_event closeEntered{ wil::EventOptions::ManualReset };
+        wil::unique_event allowClose{ wil::EventOptions::ManualReset };
+        std::atomic<DWORD> closeWaitResult{ WAIT_FAILED };
+        conn->OnClose = [&]() {
+            if (conn->CloseCount.load() == 1)
+            {
+                closeEntered.SetEvent();
+                closeWaitResult.store(WaitForSingleObject(allowClose.get(), 5000));
+            }
+        };
+
+        std::thread backgroundClose{ [core]() {
+            auto apartment = wil::CoInitializeEx(COINIT_MULTITHREADED);
+            core->Close();
+        } };
+        const auto finishBackground = wil::scope_exit([&]() {
+            allowClose.SetEvent();
+            if (backgroundClose.joinable())
+            {
+                backgroundClose.join();
+            }
+        });
+        VERIFY_IS_TRUE(closeEntered.wait(5000));
+
+        // Model XAML destruction closing a core while abandoned-pane cleanup
+        // is still inside that same connection's Close on a worker.
+        core->Close();
+        VERIFY_ARE_EQUAL(1u, conn->CloseCount.load());
+        VERIFY_ARE_EQUAL(0u, otherConnection->CloseCount.load());
+        VERIFY_IS_NOT_NULL(otherCore->Connection());
+
+        allowClose.SetEvent();
+        backgroundClose.join();
+        VERIFY_ARE_EQUAL(static_cast<DWORD>(WAIT_OBJECT_0), closeWaitResult.load());
+        VERIFY_IS_NULL(core->Connection());
+        core = nullptr;
+        VERIFY_ARE_EQUAL(1u, conn->CloseCount.load());
+        otherCore->Close();
+        VERIFY_ARE_EQUAL(1u, otherConnection->CloseCount.load());
+    }
+
+    void ControlCoreTests::TestConnectionReplacementClosesEachConnectionOnce()
+    {
+        auto [settings, first] = _createSettingsAndConnection();
+        auto second = winrt::make_self<MockConnection>();
+        auto core = createCore(*settings, *first);
+
+        core->Connection(*second);
+        VERIFY_ARE_EQUAL(1u, first->CloseCount.load());
+        VERIFY_ARE_EQUAL(0u, second->CloseCount.load());
+        VERIFY_IS_NOT_NULL(core->Connection());
+        core->Close();
+        core->Close();
+        core = nullptr;
+        VERIFY_ARE_EQUAL(1u, first->CloseCount.load());
+        VERIFY_ARE_EQUAL(1u, second->CloseCount.load());
     }
 
     void ControlCoreTests::TestFontInitializedInCtor()

@@ -7,6 +7,9 @@
 
 #pragma once
 
+#include <atomic>
+#include <functional>
+
 namespace ControlUnitTests
 {
     class MockConnection : public winrt::implements<MockConnection, winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection>
@@ -21,12 +24,21 @@ namespace ControlUnitTests
             TerminalOutput.raise(data);
         }
         void Resize(uint32_t /*rows*/, uint32_t /*columns*/) noexcept {}
-        void Close() noexcept {}
+        void Close()
+        {
+            ++CloseCount;
+            if (OnClose)
+            {
+                OnClose();
+            }
+        }
 
         winrt::guid SessionId() const noexcept { return {}; }
         winrt::Microsoft::Terminal::TerminalConnection::ConnectionState State() const noexcept { return winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected; }
 
         til::event<winrt::Microsoft::Terminal::TerminalConnection::TerminalOutputHandler> TerminalOutput;
         til::typed_event<winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection, IInspectable> StateChanged;
+        std::atomic<uint32_t> CloseCount{ 0 };
+        std::function<void()> OnClose;
     };
 }

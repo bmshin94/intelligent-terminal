@@ -1892,15 +1892,15 @@ namespace winrt::Microsoft::Terminal::Control::implementation
 
     void ControlCore::Close()
     {
-        // An abandoned, exclusively owned core can be retired after its window
-        // dispatcher is gone. Its queued callbacks must still observe closure.
+        // XAML destruction can race abandoned-pane cleanup on a worker.
+        // Only the first caller may revoke handlers and close the connection.
         if (!_closing.exchange(true))
         {
             // Ensure Close() doesn't hang, waiting for MidiAudio to finish playing an hour long song.
             _midiAudio.BeginSkip();
-        }
 
-        _closeConnection();
+            _closeConnection();
+        }
     }
 
     void ControlCore::PersistTo(HANDLE handle) const

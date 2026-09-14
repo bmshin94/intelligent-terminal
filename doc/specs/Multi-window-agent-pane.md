@@ -464,6 +464,11 @@ deferred stash focus cannot override the final focused pane.
 The request registry serializes claims and expiry, but normal core and XAML
 operations remain UI-thread-affine. Atomic core closure remains the final
 cleanup mechanism for an actual user close, not transfer rollback.
+Window destruction can race the abandoned agent lifetime's background cleanup.
+Only the first core close revokes connection handlers and closes the connection;
+later or reentrant closes do not touch it again. Abandoned cleanup carries the
+helper process handle captured before background dispatch rather than reading
+the connection while XAML may be releasing it.
 
 The drag triggers existing WT mechanics: `ContentId` lookup,
 `AttachContent → _MakePane`, reparent of the existing TermControl into

@@ -167,9 +167,12 @@ namespace winrt::TerminalApp::implementation
     void AgentPaneLifetime::Close() noexcept
     {
         CaptureHelperProcess();
-        auto content = std::exchange(_content, nullptr);
-        auto process = std::move(_helperProcess);
         _lease.Retire();
+        _CloseContent(std::exchange(_content, nullptr), std::move(_helperProcess));
+    }
+
+    void AgentPaneLifetime::_CloseContent(ControlInteractivity content, wil::unique_handle process) noexcept
+    {
         if (!content && !process)
         {
             return;
@@ -220,13 +223,13 @@ namespace winrt::TerminalApp::implementation
 
     winrt::fire_and_forget AgentPaneLifetime::_CloseDetached(ControlInteractivity content, wil::unique_handle process)
     {
-        AgentPaneLifetime detached{ {}, std::move(content) };
-        detached._helperProcess = std::move(process);
         try
         {
             co_await winrt::resume_background();
         }
         CATCH_LOG()
-        detached.Close();
+        // _Abandon captured the process before dispatch. Do not read the
+        // connection again here: XAML may already be closing it on the UI thread.
+        _CloseContent(std::move(content), std::move(process));
     }
 }

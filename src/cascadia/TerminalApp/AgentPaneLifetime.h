@@ -32,6 +32,7 @@ namespace winrt::TerminalApp::implementation
         wil::unique_handle _helperProcess;
 
         void _Abandon() noexcept;
+        static void _CloseContent(Microsoft::Terminal::Control::ControlInteractivity content, wil::unique_handle process) noexcept;
         static winrt::fire_and_forget _CloseDetached(Microsoft::Terminal::Control::ControlInteractivity content, wil::unique_handle process);
     };
 }
