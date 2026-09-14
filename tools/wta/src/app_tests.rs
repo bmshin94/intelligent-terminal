@@ -3535,10 +3535,13 @@ fn model_config_update_before_session_attach_is_applied_on_attach() {
 
 #[test]
 fn initial_load_model_is_published_after_session_attach() {
+    use crate::protocol::acp::client::MasterExtRequest;
+
     let (mut app, mut master_rx) = test_app_with_master_rx();
     let _capture = crate::wt_protocol_events::capture_test_published_events();
     app.owner_tab_id = Some(DEFAULT_TAB_ID.into());
     app.current_agent_id = "copilot".into();
+    app.acp_model = Some("other-model".into());
     app.current_tab_mut().loading_session = true;
     app.current_tab_mut().loading_target_session_id = Some("restored-session".into());
 
@@ -3575,6 +3578,8 @@ fn initial_load_model_is_published_after_session_attach() {
     assert!(!app.current_tab().loading_session);
     assert_eq!(app.agent_current_model_id.as_deref(), Some("saved-model"));
     assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    assert_eq!(app.acp_model.as_deref(), Some("other-model"));
+    assert!(app.current_tab().model_override.is_none());
     assert_eq!(
         app.confirmed_model_display().as_deref(),
         Some("SAVED-MODEL")
@@ -3606,6 +3611,22 @@ fn initial_load_model_is_published_after_session_attach() {
             .len(),
         2
     );
+
+    app.cmd_model("other-model".into());
+    let MasterExtRequest::SetSessionModel {
+        session_id,
+        model,
+        pane_override,
+        ..
+    } = master_rx
+        .try_recv()
+        .expect("the configured default is not the loaded session's model and must be applied")
+    else {
+        panic!("expected SetSessionModel");
+    };
+    assert_eq!(session_id.unwrap().0.as_ref(), "restored-session");
+    assert_eq!(model, "other-model");
+    assert!(pane_override);
 }
 
 #[test]
@@ -3687,7 +3708,7 @@ fn initial_load_model_follows_subsequent_settings_changes() {
         tab_id: DEFAULT_TAB_ID.into(),
         session_id: "restored-session".into(),
         prompt_id: None,
-        available_models: vec![model_info("saved-model"), model_info("new-model")],
+        available_models: vec![model_info("new-model"), model_info("saved-model")],
         current_model_id: Some("saved-model".into()),
     });
     assert_eq!(
@@ -3697,6 +3718,15 @@ fn initial_load_model_follows_subsequent_settings_changes() {
     assert!(
         master_rx.try_recv().is_err(),
         "loading must preserve the saved model"
+    );
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    assert_eq!(app.acp_model.as_deref(), Some("configured-default"));
+    assert!(app.current_tab().model_override.is_none());
+    app.open_model_picker();
+    assert_eq!(
+        app.current_tab().model_picker_selected,
+        1,
+        "a configured default missing from the catalog must not force selection to index zero"
     );
 
     app.handle_event(AppEvent::WtEvent {
@@ -3726,6 +3756,35 @@ fn initial_load_model_follows_subsequent_settings_changes() {
         app.confirmed_model_display().as_deref(),
         Some("SAVED-MODEL")
     );
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    app.set_cloud_models(vec![model_info("new-model"), model_info("saved-model")]);
+    app.switch_tab_session(DEFAULT_TAB_ID.into());
+    app.open_model_picker();
+    assert_eq!(
+        app.current_tab().model_picker_selected,
+        1,
+        "catalog refresh and tab selection must retain the confirmed model while the switch is pending"
+    );
+
+    app.handle_event(AppEvent::ModelSetFailed {
+        request_id,
+        session_id: "restored-session".into(),
+        model: model.clone(),
+        pane_override,
+        message: "provider rejected the model".into(),
+    });
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    assert!(app.current_tab().model_override.is_none());
+    app.set_cloud_models(vec![model_info("new-model"), model_info("saved-model")]);
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+
+    app.send_acp_model_update();
+    let MasterExtRequest::SetSessionModel { request_id, .. } = master_rx
+        .try_recv()
+        .expect("a failed Settings model switch must remain retryable")
+    else {
+        panic!("expected SetSessionModel");
+    };
 
     app.handle_event(AppEvent::ModelSetCompleted {
         request_id,
@@ -3734,6 +3793,9 @@ fn initial_load_model_follows_subsequent_settings_changes() {
         pane_override,
     });
     assert_eq!(app.confirmed_model_display().as_deref(), Some("NEW-MODEL"));
+    assert_eq!(app.current_model_id.as_deref(), Some("new-model"));
+    app.open_model_picker();
+    assert_eq!(app.current_tab().model_picker_selected, 0);
     assert!(app.current_tab().model_override.is_none());
     assert_eq!(
         app.current_tab().session_id.as_deref(),
@@ -5113,7 +5175,7 @@ fn agent_reset_clears_reconcile_state_before_reused_id_attaches() {
 }
 
 #[test]
-fn fresh_session_model_does_not_replace_global_override() {
+fn fresh_session_applies_global_model_without_preempting_confirmation() {
     use crate::protocol::acp::client::MasterExtRequest;
 
     let (mut app, mut master_rx) = test_app_with_master_rx();
@@ -5128,23 +5190,53 @@ fn fresh_session_model_does_not_replace_global_override() {
         current_model_id: Some("agent-default".into()),
     });
 
-    assert_eq!(app.current_model_id.as_deref(), Some("global"));
-    match master_rx
+    assert_eq!(app.current_model_id.as_deref(), Some("agent-default"));
+    assert_eq!(app.acp_model.as_deref(), Some("global"));
+    let MasterExtRequest::SetSessionModel {
+        request_id,
+        session_id,
+        model,
+        pane_override,
+    } = master_rx
         .try_recv()
         .expect("the global override must be re-applied to the fresh session")
-    {
-        MasterExtRequest::SetSessionModel {
-            session_id,
-            model,
-            pane_override,
-            ..
-        } => {
-            assert_eq!(session_id.unwrap().0.to_string(), "sid-fresh");
-            assert_eq!(model, "global");
-            assert!(!pane_override);
-        }
-        other => panic!("expected SetSessionModel, got {other:?}"),
-    }
+    else {
+        panic!("expected SetSessionModel");
+    };
+    assert_eq!(session_id.unwrap().0.as_ref(), "sid-fresh");
+    assert_eq!(model, "global");
+    assert!(!pane_override);
+
+    app.handle_event(AppEvent::ModelSetCompleted {
+        request_id,
+        session_id: "sid-fresh".into(),
+        model,
+        pane_override,
+    });
+    assert_eq!(app.current_model_id.as_deref(), Some("global"));
+    assert_eq!(app.confirmed_model_display().as_deref(), Some("GLOBAL"));
+    assert!(app.current_tab().model_override.is_none());
+}
+
+#[test]
+fn model_selection_uses_global_default_only_until_agent_reports_model() {
+    let mut app = test_app();
+    app.acp_model = Some("configured".into());
+    app.set_cloud_models(vec![model_info("configured"), model_info("reported")]);
+    assert_eq!(app.current_model_id.as_deref(), Some("configured"));
+
+    app.current_tab_mut().session_id = Some("sid-reported".into());
+    app.handle_event(AppEvent::ModelConfigUpdated {
+        session_id: "sid-reported".into(),
+        available_models: vec![model_info("configured"), model_info("reported")],
+        current_model_id: Some("reported".into()),
+    });
+
+    assert_eq!(app.current_model_id.as_deref(), Some("reported"));
+    assert_eq!(app.acp_model.as_deref(), Some("configured"));
+    assert!(app.current_tab().model_override.is_none());
+    app.open_model_picker();
+    assert_eq!(app.current_tab().model_picker_selected, 1);
 }
 
 #[test]

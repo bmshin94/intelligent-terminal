@@ -2106,8 +2106,10 @@ impl App {
         });
         self.current_model_id = self.resolve_current_model_id(
             pane_override
-                .or_else(|| self.acp_model.clone())
                 .or_else(|| self.agent_current_model_id.clone())
+                // Settings is the requested default, not proof that a loaded
+                // session or an in-flight model switch is using that model.
+                .or_else(|| self.acp_model.clone())
                 .or(previous_current),
         );
     }
