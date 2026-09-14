@@ -38,7 +38,8 @@ extends:
     official: ${{ parameters.official }}
     branding: ${{ parameters.branding }}
     buildTerminal: true
-    pgoBuildMode: Optimize
+    # Isolate the release exception-handling crash without changing the build image.
+    pgoBuildMode: None
     codeSign: true
     signingIdentity:
       serviceName: $(SigningServiceName)
@@ -68,4 +69,3 @@ extends:
             buildConfiguration: Release
             buildPlatforms: [x64, x86, arm64]
             environment: production-${{ lower(parameters.branding) }}
-
