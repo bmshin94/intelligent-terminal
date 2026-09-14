@@ -78,11 +78,11 @@ extends:
     - 1ES.PT.ViaStartRight
     pool:
       name: SHINE-INT-L
-      # Temporarily reproduce the 0.2.2395.0 build environment while investigating
-      # the release-only exception-handling crash. Keep PGO unchanged.
+      # Try the oldest retained image while investigating the release-only
+      # exception-handling crash; the known-good 47.0.0 is unavailable.
       demands:
         - ImageOverride -equals SHINE-VS18-Latest
-        - ImageVersionOverride -equals 47.0.0
+        - ImageVersionOverride -equals 52.0.0
       os: windows
     sdl:
       tsa:
@@ -173,7 +173,7 @@ extends:
                   name: SHINE-INT-S
                   demands:
                     - ImageOverride -equals SHINE-VS18-Latest
-                    - ImageVersionOverride -equals 47.0.0
+                    - ImageVersionOverride -equals 52.0.0
                   os: windows
                 outerTemplateContext:
                   outputs:
@@ -196,7 +196,7 @@ extends:
                   name: SHINE-INT-S
                   demands:
                     - ImageOverride -equals SHINE-VS18-Latest
-                    - ImageVersionOverride -equals 47.0.0
+                    - ImageVersionOverride -equals 52.0.0
                   os: windows
                 outerTemplateContext:
                   outputs:
@@ -217,7 +217,7 @@ extends:
                   name: SHINE-INT-S
                   demands:
                     - ImageOverride -equals SHINE-VS18-Latest
-                    - ImageVersionOverride -equals 47.0.0
+                    - ImageVersionOverride -equals 52.0.0
                   os: windows
                 outerTemplateContext:
                   outputs:
@@ -244,7 +244,7 @@ extends:
                 name: SHINE-INT-S
                 demands:
                   - ImageOverride -equals SHINE-VS18-Latest
-                  - ImageVersionOverride -equals 47.0.0
+                  - ImageVersionOverride -equals 52.0.0
                 os: windows
               includePublicSymbolServer: ${{ parameters.publishSymbolsToPublic }}
               symbolExpiryTime: ${{ parameters.symbolExpiryTime }}
