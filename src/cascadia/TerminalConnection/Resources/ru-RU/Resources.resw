@@ -226,4 +226,7 @@
   <data name="FileNotFound" xml:space="preserve">
     <value>Не удается найти указанный файл.</value>
   </data>
+  <data name="LocalizationWorkflowPublicationRetest" xml:space="preserve">
+    <value>Сообщение повторного теста публикации локализации.</value>
+  </data>
 </root>

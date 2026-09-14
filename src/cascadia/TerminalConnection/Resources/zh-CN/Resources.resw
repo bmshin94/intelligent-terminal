@@ -226,4 +226,7 @@
   <data name="FileNotFound" xml:space="preserve">
     <value>系统找不到指定的文件。</value>
   </data>
+  <data name="LocalizationWorkflowPublicationRetest" xml:space="preserve">
+    <value>本地化发布重新测试消息。</value>
+  </data>
 </root>
