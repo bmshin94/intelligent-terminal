@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -225,5 +225,8 @@
   </data>
   <data name="FileNotFound" xml:space="preserve">
     <value>The system cannot find the file specified.</value>
+  </data>
+  <data name="LocalizationWorkflowPublicationRetest" xml:space="preserve">
+    <value>Localization publication retest message.</value>
   </data>
 </root>
