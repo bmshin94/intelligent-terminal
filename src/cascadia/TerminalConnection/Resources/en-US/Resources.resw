@@ -226,4 +226,8 @@
   <data name="FileNotFound" xml:space="preserve">
     <value>The system cannot find the file specified.</value>
   </data>
+  <data name="LocalizationWorkflowSmokeTest" xml:space="preserve">
+    <value>Localization test message.</value>
+    <comment>Temporary customer-facing text used to verify the localization workflow translates a newly added English resource.</comment>
+  </data>
 </root>
