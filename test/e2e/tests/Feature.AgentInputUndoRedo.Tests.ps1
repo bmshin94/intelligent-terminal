@@ -35,6 +35,7 @@ Describe 'Feature: agent input undo and redo' -Tag 'Feature', 'AgentInputUndoRed
         New-Item -ItemType Directory -Force -Path $script:fixtureDir | Out-Null
         $script:fixtureLog = Join-Path $script:evidenceDir 'fixture.log'
         $script:evidenceIndex = 0
+        $script:physicalInputReady = $false
         $package = Get-ItTestPackage
         $script:targetApp = Resolve-ItApp -Package $package
         $binaryHash = (Get-FileHash -LiteralPath $script:targetApp.WtaPath -Algorithm SHA256).Hash
@@ -209,16 +210,22 @@ Describe 'Feature: agent input undo and redo' -Tag 'Feature', 'AgentInputUndoRed
     }
 
     BeforeEach {
+        $script:physicalInputReady = $false
         Invoke-WtCli -App $script:app -Arguments @('focus-pane', '-t', $script:agentPane) | Out-Null
-        Test-WtWindowKeyFocusable -App $script:app |
-            Should -BeTrue -Because 'physical input requires an unlocked foreground desktop'
+        if (-not (Test-WtWindowKeyFocusable -App $script:app)) {
+            Set-ItResult -Skipped -Because 'physical input requires an unlocked foreground desktop'
+            return
+        }
+        $script:physicalInputReady = $true
         # Clearing may itself be undoable: each case seeds identifiable new transactions
         # and never assumes the preceding case left an empty undo stack.
         & $script:clearDraft
     }
 
     AfterEach {
-        if ($script:app -and $script:saveEvidence) { & $script:saveEvidence -Name 'case-final' }
+        if ($script:physicalInputReady -and $script:app -and $script:saveEvidence) {
+            & $script:saveEvidence -Name 'case-final'
+        }
     }
 
     AfterAll {

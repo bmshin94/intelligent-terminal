@@ -96,7 +96,8 @@ Describe 'Feature custom-provider permission baseline' -ForEach $script:PackageC
         Assert-Setting -App $script:app -Key 'agentPane.yoloMode' -Value $true
         Invoke-WtCli -App $script:app -Arguments @('focus-pane', '-t', $script:agentPane) | Out-Null
         if (-not (Set-WtWindowForeground -App $script:app)) {
-            throw 'Physical permission shortcuts require an unlocked foreground desktop.'
+            Set-ItResult -Skipped -Because 'physical permission shortcuts require an unlocked foreground desktop'
+            return
         }
         foreach ($chord in @(
             @{ Name = 'Y'; Vk = 0x59; Ctrl = $false; Outcome = 'allow-once' }

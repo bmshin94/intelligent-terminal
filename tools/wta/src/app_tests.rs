@@ -14305,6 +14305,7 @@ mod input_undo_tests {
             }
             app.current_tab_mut().insert_image_attachment(image.clone());
             let inserted = app.current_tab().input.clone();
+            assert!(!app.current_tab().input_all_selected);
             undo(&mut app);
             assert_eq!(app.current_tab().input, "original draft");
             assert_eq!(app.current_tab().cursor_pos, "original draft".len());
@@ -14312,11 +14313,18 @@ mod input_undo_tests {
             assert!(app.current_tab().attachments.is_empty());
             redo(&mut app);
             assert_eq!(app.current_tab().input, inserted);
+            assert!(!app.current_tab().input_all_selected);
             assert_eq!(
                 app.current_tab().attachments.images().collect::<Vec<_>>(),
                 vec![&image]
             );
             assert_eq!(app.current_tab().attachments.token_ranges().count(), 1);
+            type_text(&mut app, " next");
+            assert_eq!(app.current_tab().input, format!("{inserted} next"));
+            assert_eq!(
+                app.current_tab().attachments.images().collect::<Vec<_>>(),
+                vec![&image]
+            );
         }
     }
 
