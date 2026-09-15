@@ -108,14 +108,13 @@ impl App {
 
         if key.modifiers == KeyModifiers::CONTROL
             && matches!(key.code, KeyCode::Char('z' | 'Z' | 'y' | 'Y'))
+            && self.chat_input_has_edit_focus()
         {
-            if self.chat_input_has_edit_focus() {
-                self.text_selection.clear();
-                if matches!(key.code, KeyCode::Char('z' | 'Z')) {
-                    self.current_tab_mut().undo_input();
-                } else {
-                    self.current_tab_mut().redo_input();
-                }
+            self.text_selection.clear();
+            if matches!(key.code, KeyCode::Char('z' | 'Z')) {
+                self.current_tab_mut().undo_input();
+            } else {
+                self.current_tab_mut().redo_input();
             }
             return;
         }

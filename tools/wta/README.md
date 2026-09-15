@@ -167,7 +167,7 @@ the view clamps to surviving content.
 | Type + Enter | Send prompt to agent |
 | Ctrl+C | Copy selected text; otherwise cancel streaming / quit |
 | Ctrl+Z | Undo the latest edit in the focused chat draft |
-| Ctrl+Y | Redo an undone draft edit |
+| Ctrl+Y | Redo an undone edit in the focused chat draft |
 | Up / Down | Browse prompt input history |
 | Mouse wheel | Scroll chat (hold Alt to scroll one line) |
 | Click a tool header | Expand or collapse that tool's details, live or completed |
@@ -189,6 +189,10 @@ limit; this is separate from submitted prompt history and screen scrollback.
 Browsing prompt history preserves the original draft's edit chain, while editing
 a recalled prompt starts a fresh chain. Submission and session reset discard the
 old edit history: undo does not reverse submitted agent or tool actions.
+
+Undo/redo handles these keys only while the chat draft owns input. Permission
+dialogs retain their existing Y/N and Enter shortcuts, including Ctrl+Y for
+quick allow; a permission choice does not consume the draft's redo history.
 
 WTA automatically selects **Allow once** only when the tool matches the exact MCP
 server currently bound to that ACP session by master. Master overwrites provider

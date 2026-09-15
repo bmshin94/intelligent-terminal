@@ -9944,6 +9944,14 @@ async fn mock_agent_reply_streams_into_app_chat() {
 /// the agent. `expected_keys` is the key sequence the user presses; `want`
 /// is the option id the mock must end up recording.
 async fn run_permission_scenario(expected_keys: &[KeyCode], want: &str) {
+    run_permission_scenario_with_modifiers(expected_keys, KeyModifiers::NONE, want).await;
+}
+
+async fn run_permission_scenario_with_modifiers(
+    expected_keys: &[KeyCode],
+    modifiers: KeyModifiers,
+    want: &str,
+) {
     use crate::protocol::acp::client::mock_agent_tests::connect_mock_agent_asking_permission;
     use agent_client_protocol as acp;
 
@@ -10007,7 +10015,7 @@ async fn run_permission_scenario(expected_keys: &[KeyCode], want: &str) {
 
     // Simulate the user's key choice (e.g. Enter = allow, Right then Enter = reject).
     for key in expected_keys {
-        app.handle_key(KeyEvent::from(*key));
+        app.handle_key(KeyEvent::new(*key, modifiers));
     }
 
     // The choice must round-trip back to the agent.
@@ -10063,6 +10071,19 @@ async fn permission_quick_allow_key_round_trips_to_agent() {
     let local = tokio::task::LocalSet::new();
     local
         .run_until(run_permission_scenario(&[KeyCode::Char('y')], "allow-once"))
+        .await;
+}
+
+#[tokio::test]
+async fn permission_control_y_quick_allow_round_trips_to_agent() {
+    let local = tokio::task::LocalSet::new();
+    local
+        .run_until(async {
+            for key in [KeyCode::Char('y'), KeyCode::Char('Y')] {
+                run_permission_scenario_with_modifiers(&[key], KeyModifiers::CONTROL, "allow-once")
+                    .await;
+            }
+        })
         .await;
 }
 
@@ -14461,14 +14482,19 @@ mod input_undo_tests {
     }
 
     #[test]
-    fn redo_chord_does_not_approve_a_permission_card() {
+    fn redo_chord_preserves_permission_quick_allow_without_consuming_draft_redo() {
         let mut app = test_app();
         type_text(&mut app, "draft");
-        app.current_tab_mut()
-            .permission
-            .push_back(perm_with("permission"));
+        undo(&mut app);
+        let (responder, mut outcome) = tokio::sync::oneshot::channel();
+        let mut permission = perm_with("permission");
+        permission.responder = Some(responder);
+        app.current_tab_mut().permission.push_back(permission);
         redo(&mut app);
-        assert_eq!(app.current_tab().permission.len(), 1);
+        assert!(app.current_tab().permission.is_empty());
+        assert_eq!(outcome.try_recv().unwrap(), "allow_once");
+        assert!(app.current_tab().input.is_empty());
+        redo(&mut app);
         assert_eq!(app.current_tab().input, "draft");
     }
 
