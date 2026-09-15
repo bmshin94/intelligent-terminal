@@ -2426,6 +2426,7 @@ fn agent_connected_does_not_add_disclaimer_while_resuming() {
         load_session_supported: true,
         image_supported: true,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     assert!(!app.tab_sessions["OWNER-TAB"]
@@ -3533,6 +3534,284 @@ fn model_config_update_before_session_attach_is_applied_on_attach() {
 }
 
 #[test]
+fn initial_load_model_is_published_after_session_attach() {
+    use crate::protocol::acp::client::MasterExtRequest;
+
+    let (mut app, mut master_rx) = test_app_with_master_rx();
+    let _capture = crate::wt_protocol_events::capture_test_published_events();
+    app.owner_tab_id = Some(DEFAULT_TAB_ID.into());
+    app.current_agent_id = "copilot".into();
+    app.acp_model = Some("other-model".into());
+    app.current_tab_mut().loading_session = true;
+    app.current_tab_mut().loading_target_session_id = Some("restored-session".into());
+
+    app.handle_event(AppEvent::AgentConnected {
+        name: "GitHub Copilot".into(),
+        model: None,
+        version: Some("v1.0.0".into()),
+        session_id: "restored-session".into(),
+        available_models: Vec::new(),
+        current_model_id: None,
+        load_session_supported: true,
+        image_supported: false,
+        session_capabilities_ready: false,
+        telemetry_byok_binding: None,
+    });
+
+    assert_eq!(app.confirmed_model_display(), None);
+    assert_eq!(
+        app.session_to_tab
+            .get("restored-session")
+            .map(String::as_str),
+        Some(DEFAULT_TAB_ID),
+        "the placeholder must still route replayed history to its owner tab"
+    );
+
+    app.handle_event(AppEvent::SessionAttached {
+        tab_id: DEFAULT_TAB_ID.into(),
+        session_id: "restored-session".into(),
+        prompt_id: None,
+        available_models: vec![model_info("other-model"), model_info("saved-model")],
+        current_model_id: Some("saved-model".into()),
+    });
+
+    assert!(!app.current_tab().loading_session);
+    assert_eq!(app.agent_current_model_id.as_deref(), Some("saved-model"));
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    assert_eq!(app.acp_model.as_deref(), Some("other-model"));
+    assert!(app.current_tab().model_override.is_none());
+    assert_eq!(
+        app.confirmed_model_display().as_deref(),
+        Some("SAVED-MODEL")
+    );
+    assert_eq!(app.available_models.len(), 2);
+    app.open_model_picker();
+    assert_eq!(app.current_tab().model_picker_selected, 1);
+    assert!(
+        master_rx.try_recv().is_err(),
+        "restoring model metadata must not request a model change"
+    );
+
+    let status = crate::wt_protocol_events::take_test_published_events()
+        .into_iter()
+        .map(|event| serde_json::from_str::<serde_json::Value>(&event).expect("valid WT event"))
+        .filter(|event| event["method"] == "agent_status")
+        .last()
+        .expect("loading the session must publish its model to the pane header");
+    assert_eq!(status["params"]["tab_id"], DEFAULT_TAB_ID);
+    assert_eq!(status["params"]["state"], "connected");
+    assert_eq!(status["params"]["name"], "GitHub Copilot");
+    assert_eq!(status["params"]["version"], "v1.0.0");
+    assert_eq!(status["params"]["model"], "SAVED-MODEL");
+    assert_eq!(status["params"]["current_model_id"], "saved-model");
+    assert_eq!(
+        status["params"]["available_models"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    app.cmd_model("other-model".into());
+    let MasterExtRequest::SetSessionModel {
+        session_id,
+        model,
+        pane_override,
+        ..
+    } = master_rx
+        .try_recv()
+        .expect("the configured default is not the loaded session's model and must be applied")
+    else {
+        panic!("expected SetSessionModel");
+    };
+    assert_eq!(session_id.unwrap().0.as_ref(), "restored-session");
+    assert_eq!(model, "other-model");
+    assert!(pane_override);
+}
+
+#[test]
+fn initial_load_model_preserves_config_updates_around_placeholder() {
+    for update_before_connection in [false, true] {
+        for updated_model in [Some("live-model"), None] {
+            let mut app = test_app();
+            app.current_tab_mut().loading_session = true;
+            app.current_tab_mut().loading_target_session_id = Some("restored-session".into());
+            let config_update = || AppEvent::ModelConfigUpdated {
+                session_id: "restored-session".into(),
+                available_models: updated_model.map(model_info).into_iter().collect(),
+                current_model_id: updated_model.map(str::to_string),
+            };
+            if update_before_connection {
+                app.handle_event(config_update());
+            }
+
+            app.handle_event(AppEvent::AgentConnected {
+                name: "Agent".into(),
+                model: None,
+                version: None,
+                session_id: "restored-session".into(),
+                available_models: Vec::new(),
+                current_model_id: None,
+                load_session_supported: true,
+                image_supported: false,
+                session_capabilities_ready: false,
+                telemetry_byok_binding: None,
+            });
+
+            if !update_before_connection {
+                app.handle_event(config_update());
+            }
+            app.handle_event(AppEvent::SessionAttached {
+                tab_id: DEFAULT_TAB_ID.into(),
+                session_id: "restored-session".into(),
+                prompt_id: None,
+                available_models: vec![model_info("saved-model")],
+                current_model_id: Some("saved-model".into()),
+            });
+
+            assert_eq!(app.agent_current_model_id.as_deref(), updated_model);
+            assert_eq!(app.current_model_id.as_deref(), updated_model);
+            assert_eq!(
+                app.available_models.iter().map(|model| model.id.as_str()).collect::<Vec<_>>(),
+                updated_model.into_iter().collect::<Vec<_>>(),
+                "a config update, including removal of the selector, must override the load response"
+            );
+        }
+    }
+}
+
+#[test]
+fn initial_load_model_follows_subsequent_settings_changes() {
+    use crate::protocol::acp::client::MasterExtRequest;
+
+    let (mut app, mut master_rx) = test_app_with_master_rx();
+    let _capture = crate::wt_protocol_events::capture_test_published_events();
+    app.owner_tab_id = Some(DEFAULT_TAB_ID.into());
+    app.current_agent_id = "copilot".into();
+    app.follows_global_acp_model = true;
+    app.acp_model = Some("configured-default".into());
+    app.current_tab_mut().loading_session = true;
+    app.current_tab_mut().loading_target_session_id = Some("restored-session".into());
+    app.handle_event(AppEvent::AgentConnected {
+        name: "GitHub Copilot".into(),
+        model: None,
+        version: None,
+        session_id: "restored-session".into(),
+        available_models: Vec::new(),
+        current_model_id: None,
+        load_session_supported: true,
+        image_supported: false,
+        session_capabilities_ready: false,
+        telemetry_byok_binding: None,
+    });
+    app.handle_event(AppEvent::SessionAttached {
+        tab_id: DEFAULT_TAB_ID.into(),
+        session_id: "restored-session".into(),
+        prompt_id: None,
+        available_models: vec![model_info("new-model"), model_info("saved-model")],
+        current_model_id: Some("saved-model".into()),
+    });
+    assert_eq!(
+        app.confirmed_model_display().as_deref(),
+        Some("SAVED-MODEL")
+    );
+    assert!(
+        master_rx.try_recv().is_err(),
+        "loading must preserve the saved model"
+    );
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    assert_eq!(app.acp_model.as_deref(), Some("configured-default"));
+    assert!(app.current_tab().model_override.is_none());
+    app.open_model_picker();
+    assert_eq!(
+        app.current_tab().model_picker_selected,
+        1,
+        "a configured default missing from the catalog must not force selection to index zero"
+    );
+
+    app.handle_event(AppEvent::WtEvent {
+        method: "agent_config_changed".into(),
+        pane_id: String::new(),
+        tab_id: None,
+        params: json!({
+            "target_agent_id": "copilot",
+            "acp_model": "new-model"
+        }),
+    });
+    let MasterExtRequest::SetSessionModel {
+        request_id,
+        session_id,
+        model,
+        pane_override,
+    } = master_rx
+        .try_recv()
+        .expect("settings must target the restored session")
+    else {
+        panic!("expected SetSessionModel");
+    };
+    assert_eq!(session_id.unwrap().0.as_ref(), "restored-session");
+    assert_eq!(model, "new-model");
+    assert!(!pane_override);
+    assert_eq!(
+        app.confirmed_model_display().as_deref(),
+        Some("SAVED-MODEL")
+    );
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    app.set_cloud_models(vec![model_info("new-model"), model_info("saved-model")]);
+    app.switch_tab_session(DEFAULT_TAB_ID.into());
+    app.open_model_picker();
+    assert_eq!(
+        app.current_tab().model_picker_selected,
+        1,
+        "catalog refresh and tab selection must retain the confirmed model while the switch is pending"
+    );
+
+    app.handle_event(AppEvent::ModelSetFailed {
+        request_id,
+        session_id: "restored-session".into(),
+        model: model.clone(),
+        pane_override,
+        message: "provider rejected the model".into(),
+    });
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    assert!(app.current_tab().model_override.is_none());
+    app.set_cloud_models(vec![model_info("new-model"), model_info("saved-model")]);
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+
+    app.send_acp_model_update();
+    let MasterExtRequest::SetSessionModel { request_id, .. } = master_rx
+        .try_recv()
+        .expect("a failed Settings model switch must remain retryable")
+    else {
+        panic!("expected SetSessionModel");
+    };
+
+    app.handle_event(AppEvent::ModelSetCompleted {
+        request_id,
+        session_id: "restored-session".into(),
+        model,
+        pane_override,
+    });
+    assert_eq!(app.confirmed_model_display().as_deref(), Some("NEW-MODEL"));
+    assert_eq!(app.current_model_id.as_deref(), Some("new-model"));
+    app.open_model_picker();
+    assert_eq!(app.current_tab().model_picker_selected, 0);
+    assert!(app.current_tab().model_override.is_none());
+    assert_eq!(
+        app.current_tab().session_id.as_deref(),
+        Some("restored-session")
+    );
+    let status = crate::wt_protocol_events::take_test_published_events()
+        .into_iter()
+        .map(|event| serde_json::from_str::<serde_json::Value>(&event).expect("valid WT event"))
+        .filter(|event| event["method"] == "agent_status")
+        .last()
+        .expect("successful model change must refresh the pane header");
+    assert_eq!(status["params"]["tab_id"], DEFAULT_TAB_ID);
+    assert_eq!(status["params"]["model"], "NEW-MODEL");
+}
+
+#[test]
 fn session_attach_prunes_replaced_session_model_config() {
     let mut app = test_app();
     app.current_tab_mut().session_id = Some("sid-old".into());
@@ -3648,6 +3927,7 @@ fn slash_model_hot_applies_cloud_model_to_live_session() {
             session_id,
             model,
             pane_override,
+            ..
         } => {
             assert_eq!(session_id.expect("target session").0.as_ref(), "sid-1");
             assert_eq!(model, "gpt-5.4");
@@ -3657,6 +3937,7 @@ fn slash_model_hot_applies_cloud_model_to_live_session() {
     }
 
     app.handle_event(AppEvent::ModelSetCompleted {
+        request_id: uuid::Uuid::new_v4(),
         session_id: "sid-1".into(),
         model: "gpt-5.4".into(),
         pane_override: true,
@@ -3682,6 +3963,7 @@ fn failed_legacy_model_pick_preserves_confirmed_model() {
     app.cmd_model("gpt-5.4".into());
     let _ = master_rx.try_recv().expect("live model switch request");
     app.handle_event(AppEvent::ModelSetFailed {
+        request_id: uuid::Uuid::new_v4(),
         session_id: "sid-1".into(),
         model: "gpt-5.4".into(),
         pane_override: true,
@@ -3798,6 +4080,7 @@ fn fresh_agent_connection_model_replaces_stale_agent_default() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     assert_eq!(app.current_model_id.as_deref(), Some("fresh"));
@@ -3820,6 +4103,7 @@ fn bootstrap_agent_connection_reconciles_global_yolo_state() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     let request = master_rx
@@ -4241,6 +4525,7 @@ fn initial_load_waits_for_attach_then_preserves_provider_restored_yolo() {
         load_session_supported: true,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     assert!(
@@ -4329,6 +4614,7 @@ fn initial_load_placeholder_binds_and_gates_the_helper_owner_tab() {
         load_session_supported: true,
         image_supported: false,
         session_capabilities_ready: false,
+        telemetry_byok_binding: None,
     });
 
     assert_eq!(
@@ -4889,7 +5175,7 @@ fn agent_reset_clears_reconcile_state_before_reused_id_attaches() {
 }
 
 #[test]
-fn fresh_session_model_does_not_replace_global_override() {
+fn fresh_session_applies_global_model_without_preempting_confirmation() {
     use crate::protocol::acp::client::MasterExtRequest;
 
     let (mut app, mut master_rx) = test_app_with_master_rx();
@@ -4904,22 +5190,53 @@ fn fresh_session_model_does_not_replace_global_override() {
         current_model_id: Some("agent-default".into()),
     });
 
-    assert_eq!(app.current_model_id.as_deref(), Some("global"));
-    match master_rx
+    assert_eq!(app.current_model_id.as_deref(), Some("agent-default"));
+    assert_eq!(app.acp_model.as_deref(), Some("global"));
+    let MasterExtRequest::SetSessionModel {
+        request_id,
+        session_id,
+        model,
+        pane_override,
+    } = master_rx
         .try_recv()
         .expect("the global override must be re-applied to the fresh session")
-    {
-        MasterExtRequest::SetSessionModel {
-            session_id,
-            model,
-            pane_override,
-        } => {
-            assert_eq!(session_id.unwrap().0.to_string(), "sid-fresh");
-            assert_eq!(model, "global");
-            assert!(!pane_override);
-        }
-        other => panic!("expected SetSessionModel, got {other:?}"),
-    }
+    else {
+        panic!("expected SetSessionModel");
+    };
+    assert_eq!(session_id.unwrap().0.as_ref(), "sid-fresh");
+    assert_eq!(model, "global");
+    assert!(!pane_override);
+
+    app.handle_event(AppEvent::ModelSetCompleted {
+        request_id,
+        session_id: "sid-fresh".into(),
+        model,
+        pane_override,
+    });
+    assert_eq!(app.current_model_id.as_deref(), Some("global"));
+    assert_eq!(app.confirmed_model_display().as_deref(), Some("GLOBAL"));
+    assert!(app.current_tab().model_override.is_none());
+}
+
+#[test]
+fn model_selection_uses_global_default_only_until_agent_reports_model() {
+    let mut app = test_app();
+    app.acp_model = Some("configured".into());
+    app.set_cloud_models(vec![model_info("configured"), model_info("reported")]);
+    assert_eq!(app.current_model_id.as_deref(), Some("configured"));
+
+    app.current_tab_mut().session_id = Some("sid-reported".into());
+    app.handle_event(AppEvent::ModelConfigUpdated {
+        session_id: "sid-reported".into(),
+        available_models: vec![model_info("configured"), model_info("reported")],
+        current_model_id: Some("reported".into()),
+    });
+
+    assert_eq!(app.current_model_id.as_deref(), Some("reported"));
+    assert_eq!(app.acp_model.as_deref(), Some("configured"));
+    assert!(app.current_tab().model_override.is_none());
+    app.open_model_picker();
+    assert_eq!(app.current_tab().model_picker_selected, 1);
 }
 
 #[test]
@@ -4952,6 +5269,7 @@ fn fresh_session_model_does_not_replace_pane_override_on_new() {
             session_id,
             model,
             pane_override,
+            ..
         } => {
             assert_eq!(session_id.unwrap().0.to_string(), "sid-new");
             assert_eq!(model, "pane-picked");
@@ -5006,6 +5324,7 @@ fn non_overridden_pane_follows_global_model() {
             session_id,
             model,
             pane_override,
+            ..
         } => {
             assert_eq!(model, "global");
             assert_eq!(session_id.unwrap().0.to_string(), "sid-1");
@@ -5495,6 +5814,40 @@ fn settings_agent_rebind_invalidates_completed_older_target_preflight() {
 }
 
 #[test]
+fn model_follow_mode_tracks_valid_agent_rebinds() {
+    let (mut app, _restart_rx) = test_app_with_restart_rx();
+    app.owner_tab_id = Some("owner-tab".into());
+    app.window_id = Some("window-1".into());
+    app.tab_id = Some("owner-tab".into());
+    app.current_agent_id = "copilot".into();
+    app.tab_mut("owner-tab");
+    app.set_master_pipe_acp_params(
+        "master-pipe".into(),
+        "copilot --acp".into(),
+        Some("copilot".into()),
+        None,
+        None,
+        crate::agent_source::AgentSource::Host,
+        None,
+        Some("owner-tab".into()),
+        Arc::clone(&app.shell_mgr),
+        true,
+    );
+
+    for (generation, follows, expected) in [(1, true, true), (2, false, false), (1, true, false)] {
+        let mut event = agent_rebind_event("owner-tab", generation, "copilot");
+        if let AppEvent::WtEvent { params, .. } = &mut event {
+            params["follows_global_acp_model"] = json!(follows);
+        }
+        app.handle_event(event);
+        assert_eq!(
+            app.follows_global_acp_model, expected,
+            "a stale rebind must not restore an obsolete model-follow mode"
+        );
+    }
+}
+
+#[test]
 fn settings_model_rebind_preserves_custom_provider_selection() {
     let (mut app, mut restart_rx) = test_app_with_restart_rx();
     app.owner_tab_id = Some("owner-tab".into());
@@ -5816,6 +6169,169 @@ fn settings_agent_rebind_ignores_stale_generation_and_converges_to_latest_target
 }
 
 #[test]
+fn settings_model_updates_other_restored_panes_after_local_model_pick() {
+    use crate::protocol::acp::client::MasterExtRequest;
+
+    for config_picker in [false, true] {
+        let mut panes = ["local-pane", "following-pane-a", "following-pane-b"].map(|tab_id| {
+            let (mut app, rx) = test_app_with_master_rx();
+            app.owner_tab_id = Some(tab_id.into());
+            app.tab_id = Some(tab_id.into());
+            app.window_id = Some("window-1".into());
+            app.current_agent_id = "copilot".into();
+            let session_id = format!("restored-{tab_id}");
+            app.current_tab_mut().loading_session = true;
+            app.current_tab_mut().loading_target_session_id = Some(session_id.clone());
+            app.handle_event(AppEvent::AgentConnected {
+                name: "Copilot".into(),
+                model: None,
+                version: None,
+                session_id: session_id.clone(),
+                available_models: Vec::new(),
+                current_model_id: None,
+                load_session_supported: true,
+                image_supported: false,
+                session_capabilities_ready: false,
+                telemetry_byok_binding: None,
+            });
+            app.handle_event(AppEvent::SessionAttached {
+                tab_id: tab_id.into(),
+                session_id,
+                prompt_id: None,
+                available_models: ["gpt-5.4", "gpt-5.5", "settings-model", "next-model"]
+                    .into_iter()
+                    .map(model_info)
+                    .collect(),
+                current_model_id: Some("gpt-5.4".into()),
+            });
+            (app, rx)
+        });
+        let (local, local_rx) = &mut panes[0];
+        if config_picker {
+            local.handle_event(AppEvent::SessionConfigSetCompleted {
+                session_id: "restored-local-pane".into(),
+                config_id: "model".into(),
+                value: "gpt-5.5".into(),
+                model_compat: true,
+            });
+        } else {
+            local.cmd_model("gpt-5.5".into());
+            let MasterExtRequest::SetSessionModel {
+                request_id,
+                session_id,
+                model,
+                pane_override,
+            } = local_rx.try_recv().expect("pane-local model request")
+            else {
+                panic!("expected SetSessionModel");
+            };
+            assert_eq!(session_id.unwrap().0.as_ref(), "restored-local-pane");
+            assert!(pane_override);
+            local.handle_event(AppEvent::ModelSetCompleted {
+                request_id,
+                session_id: "restored-local-pane".into(),
+                model,
+                pane_override,
+            });
+        }
+
+        for new_model in ["settings-model", "next-model"] {
+            for target in ["local-pane", "following-pane-a", "following-pane-b"] {
+                for (app, _) in &mut panes {
+                    app.handle_event(AppEvent::WtEvent {
+                        method: "agent_config_changed".into(),
+                        pane_id: String::new(),
+                        tab_id: Some(target.into()),
+                        params: json!({
+                            "window_id": "window-1",
+                            "tab_id": target,
+                            "target_agent_id": "copilot",
+                            "acp_model": new_model,
+                            "follows_global_acp_model": true
+                        }),
+                    });
+                }
+            }
+
+            for (index, (app, rx)) in panes.iter_mut().enumerate() {
+                if index == 0 {
+                    assert!(
+                        rx.try_recv().is_err(),
+                        "only the local model pick stays pinned"
+                    );
+                    assert_eq!(app.confirmed_model_display().as_deref(), Some("GPT-5.5"));
+                    continue;
+                }
+                let MasterExtRequest::SetSessionModel {
+                    request_id,
+                    session_id,
+                    model,
+                    pane_override,
+                } = rx.try_recv().expect("each other restored pane must update")
+                else {
+                    panic!("expected SetSessionModel");
+                };
+                let session_id = session_id.unwrap().to_string();
+                assert_eq!(
+                    Some(session_id.as_str()),
+                    app.current_tab().session_id.as_deref()
+                );
+                assert_eq!(model, new_model);
+                assert!(!pane_override);
+                assert!(
+                    rx.try_recv().is_err(),
+                    "another tab's event must not duplicate the update"
+                );
+                app.handle_event(AppEvent::ModelSetCompleted {
+                    request_id,
+                    session_id,
+                    model,
+                    pane_override,
+                });
+                assert_eq!(
+                    app.confirmed_model_display(),
+                    Some(new_model.to_uppercase())
+                );
+                assert!(app.current_tab().model_override.is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn model_follow_mode_requires_matching_tab_window_and_agent() {
+    let (mut app, mut rx) = test_app_with_master_rx();
+    app.owner_tab_id = Some("owner-tab".into());
+    app.tab_id = Some("owner-tab".into());
+    app.window_id = Some("window-1".into());
+    app.current_agent_id = "copilot".into();
+    app.current_tab_mut().session_id = Some("session-1".into());
+
+    for (window, tab, agent) in [
+        ("window-2", "owner-tab", "copilot"),
+        ("window-1", "other-tab", "copilot"),
+        ("window-1", "owner-tab", "claude"),
+        ("window-1", "", "copilot"),
+        ("", "owner-tab", "copilot"),
+    ] {
+        app.handle_event(AppEvent::WtEvent {
+            method: "agent_config_changed".into(),
+            pane_id: String::new(),
+            tab_id: None,
+            params: json!({
+                "window_id": window,
+                "tab_id": tab,
+                "target_agent_id": agent,
+                "acp_model": "new-model",
+                "follows_global_acp_model": true
+            }),
+        });
+        assert!(!app.follows_global_acp_model);
+        assert!(rx.try_recv().is_err());
+    }
+}
+
+#[test]
 fn global_model_hot_update_is_scoped_to_matching_global_followers() {
     use crate::protocol::acp::client::MasterExtRequest;
 
@@ -5909,6 +6425,7 @@ fn global_model_hot_update_is_scoped_to_matching_global_followers() {
             session_id,
             model,
             pane_override,
+            ..
         } => {
             assert_eq!(session_id.unwrap().0.to_string(), "gemini-session");
             assert_eq!(model, "copilot-only-model");
@@ -5932,6 +6449,7 @@ fn custom_model_catalog_hot_update_rebuilds_picker_without_stale_rows() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
     app.set_custom_model_config(
         vec![
@@ -6146,6 +6664,7 @@ fn same_agent_host_and_wsl_keep_host_catalogs_isolated() {
             load_session_supported: false,
             image_supported: false,
             session_capabilities_ready: true,
+            telemetry_byok_binding: None,
         });
     };
     let host_catalog = || AppEvent::WtEvent {
@@ -6233,6 +6752,7 @@ fn custom_model_hot_update_is_ignored_for_unsupported_profile_backend() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     app.handle_event(AppEvent::WtEvent {
@@ -8378,6 +8898,7 @@ fn agent_connected_restores_proposal_channels() {
         load_session_supported: true,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     assert!(
@@ -8422,6 +8943,8 @@ fn auth_error_routes_to_signin_not_connection_lost() {
 #[test]
 fn soft_stop_appends_system_line_without_changing_state() {
     use crate::protocol::acp::soft_stop::SoftStopReason;
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     bind_test_session(&mut app, DEFAULT_TAB_ID);
@@ -8465,6 +8988,8 @@ fn soft_stop_appends_system_line_without_changing_state() {
 #[test]
 fn soft_stop_reasons_map_to_distinct_localized_lines() {
     use crate::protocol::acp::soft_stop::SoftStopReason;
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     for (reason, key) in [
         (SoftStopReason::MaxTokens, "system.stopped_max_tokens"),
         (
@@ -11139,6 +11664,8 @@ fn render_auth_screen_shows_agent_name() {
 /// hint. Lifts `ui/agents_view.rs` (reached via `View::Agents`).
 #[test]
 fn render_sessions_view_shows_footer_hint() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.current_tab_mut().current_view = View::Agents;
@@ -11160,6 +11687,10 @@ fn render_sessions_view_shows_footer_hint() {
 /// sign-in footer. Covers the `else` arm of `ui/auth.rs`.
 #[test]
 fn render_auth_sign_in_card() {
+    // Pin English through rendering and assertions: wide-glyph buffer padding
+    // breaks substring matches against the original localized strings.
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.mode = AppMode::Auth;
     app.auth = Some(AuthState {
@@ -11247,6 +11778,8 @@ fn copilot_login_failure_surfaces_reason() {
 /// a generic localized message rather than nothing.
 #[test]
 fn copilot_login_failure_without_reason_shows_generic_message() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.mode = AppMode::Auth;
     app.auth = Some(AuthState {
@@ -11934,6 +12467,7 @@ fn successful_outgoing_connection_cancels_pending_replacement() {
         load_session_supported: true,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     assert_eq!(app.mode, AppMode::Chat);
@@ -12103,6 +12637,8 @@ fn duplicate_reconnect_ready_does_not_erase_active_preflight() {
 /// options stay hidden.
 #[test]
 fn render_setup_installing_hides_stale_options() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.mode = AppMode::Setup;
     app.state = ConnectionState::Disconnected;
@@ -12129,11 +12665,14 @@ fn render_setup_installing_hides_stale_options() {
 
     let text = render_to_text(&mut app, 80, 30);
     assert!(
-        text.contains("Installing GitHub Copilot CLI..."),
-        "the setup screen must paint the requested install wording; rendered:\n{text}"
+        text.lines()
+            .any(|line| line.starts_with(" Installing GitHub Copilot CLI  ◜"))
+            && !text.contains("Installing GitHub Copilot CLI..."),
+        "the setup screen must paint the unindented install wording and spinner; rendered:\n{text}"
     );
     assert!(
         !text.contains("STALE_MISSING_TITLE_XYZ")
+            && !text.contains("● Installing GitHub Copilot")
             && !text.contains("Install GitHub Copilot")
             && !text.contains("Try again"),
         "busy setup must hide stale titles and actions; rendered:\n{text}"
@@ -12173,6 +12712,8 @@ fn render_setup_install_error() {
 /// connection-state input row.
 #[test]
 fn render_setup_reconnecting_hides_install_content() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.mode = AppMode::Setup;
     app.state = ConnectionState::Connecting("Reconnecting...".into());
@@ -12194,15 +12735,85 @@ fn render_setup_reconnecting_hides_install_content() {
 
     let text = render_to_text(&mut app, 80, 30);
     assert!(
-        text.contains("Connecting to agent...") && text.contains("connecting"),
+        text.lines()
+            .any(|line| line.starts_with(" Connecting x  ◜"))
+            && text.contains("connecting"),
         "reconnecting and input connection status must both remain visible; rendered:\n{text}"
     );
     assert!(
         !text.contains("STALE_AGENT_NOT_FOUND_XYZ")
+            && !text.contains("Starting GitHub Copilot")
+            && !text.contains("Starting x")
+            && !text.contains("Connecting x...")
             && !text.contains("Install GitHub Copilot")
             && !text.contains("Try again"),
         "reconnecting must hide stale install content; rendered:\n{text}"
     );
+}
+
+#[test]
+fn render_setup_reconnecting_substitutes_copilot_display_name() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
+    let mut app = test_app();
+    app.mode = AppMode::Setup;
+    app.state = ConnectionState::Connecting("Reconnecting...".into());
+    let mut preflight = PreflightResult::passed_for_custom_agent("copilot");
+    preflight.display_name = "GitHub Copilot".into();
+    app.setup = Some(SetupState {
+        reason: SetupReason::AgentMissing,
+        selected_index: 0,
+        preflight,
+        phase: SetupPhase::Reconnecting,
+        options: Vec::new(),
+        title: "STALE_AGENT_NOT_FOUND_XYZ".into(),
+        subtitle: "sub".into(),
+    });
+
+    let text = render_to_text(&mut app, 80, 30);
+    assert!(
+        text.lines()
+            .any(|line| line.starts_with(" Connecting GitHub Copilot  ◜"))
+            && !text.contains("Starting GitHub Copilot")
+            && !text.contains("Connecting GitHub Copilot...")
+            && !text.contains("STALE_AGENT_NOT_FOUND_XYZ"),
+        "the reconnect status must substitute the Copilot display name before the spinner; rendered:\n{text}"
+    );
+}
+
+#[test]
+fn render_setup_busy_spinner_rotates_after_status() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
+
+    for (phase, status) in [
+        (SetupPhase::Installing, "Installing GitHub Copilot CLI"),
+        (SetupPhase::Reconnecting, "Connecting GitHub Copilot"),
+    ] {
+        let mut app = test_app();
+        app.mode = AppMode::Setup;
+        let mut preflight = PreflightResult::passed_for_custom_agent("copilot");
+        preflight.display_name = "GitHub Copilot".into();
+        app.setup = Some(SetupState {
+            reason: SetupReason::AgentMissing,
+            selected_index: 0,
+            preflight,
+            phase,
+            options: Vec::new(),
+            title: "STALE_TITLE_XYZ".into(),
+            subtitle: "STALE_SUBTITLE_XYZ".into(),
+        });
+
+        for (frame, glyph) in ['◜', '◝', '◞', '◟'].into_iter().enumerate() {
+            app.activity_frame = frame as u8;
+            let text = render_to_text(&mut app, 80, 30);
+            assert!(
+                text.lines()
+                    .any(|line| line.starts_with(&format!(" {status}  {glyph}"))),
+                "busy setup frame {frame} must render {glyph} after the unindented status; rendered:\n{text}"
+            );
+        }
+    }
 }
 
 /// Alt+V when the agent did not advertise the `image` prompt capability
@@ -12211,6 +12822,8 @@ fn render_setup_reconnecting_hides_install_content() {
 #[test]
 fn alt_v_without_image_capability_shows_not_supported_message() {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.agent_supports_image = false;
@@ -12466,6 +13079,8 @@ fn image_attachment_ctrl_c_clears_image_only_draft_without_arming_close() {
 #[test]
 fn render_recommendation_card_shows_command() {
     use crate::coordinator::{RecommendationChoice, RecommendationSet, RecommendedAction};
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.current_tab_mut().turn = TurnState::Surfaced {
@@ -14512,6 +15127,8 @@ fn right_click_copies_and_clears_ctrl_a_selection() {
         KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
 
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let _clipboard_guard = crate::clipboard_image::CLIPBOARD_TEST_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -14625,6 +15242,8 @@ fn completed_turn_user_input_multi_click_preserves_turn_state_and_text_selection
 fn right_click_copies_and_clears_text_selection() {
     use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let _clipboard_guard = crate::clipboard_image::CLIPBOARD_TEST_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -15267,6 +15886,8 @@ fn clicking_completed_tool_header_toggles_only_that_tool() {
 
 #[test]
 fn adjacent_successful_reads_render_as_one_compact_group() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.current_tab_mut().messages = [
@@ -15304,6 +15925,8 @@ fn adjacent_successful_reads_render_as_one_compact_group() {
 
 #[test]
 fn generic_read_group_lists_visible_targets_and_remaining_count() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.current_tab_mut().messages = ["first.rs", "second.rs", "third.rs", "fourth.rs"]
@@ -15401,40 +16024,51 @@ fn clicking_completed_read_group_expands_every_member() {
 
 #[test]
 fn pending_tool_in_completed_turn_keeps_clickable_status_marker() {
-    let mut app = test_app();
-    app.state = ConnectionState::Connected;
-    app.current_tab_mut().completed_turns.push(CompletedTurn {
-        prompt: "Interrupted turn".into(),
-        details: vec![ChatMessage::ToolCall {
-            id: "pending-tool".into(),
-            query: None,
-            title: "Pending operation".into(),
-            status: "Pending".into(),
-            kind: ToolCallKind::Other,
-            location: None,
-            location_is_command: false,
-            cwd: None,
-            output: None,
-            exit_code: None,
-            content: Vec::new(),
-            locations: Vec::new(),
-        }],
-        expanded: true,
-        trailing_marker: None,
-    });
+    let _locale = crate::test_support::lock_locale();
+    for locale in ["en-US", "zh-CN", "ja-JP", "ar-SA"] {
+        rust_i18n::set_locale(locale);
+        let mut app = test_app();
+        app.state = ConnectionState::Connected;
+        app.current_tab_mut().completed_turns.push(CompletedTurn {
+            prompt: "Interrupted turn".into(),
+            details: vec![ChatMessage::ToolCall {
+                id: "pending-tool".into(),
+                query: None,
+                title: "Pending operation".into(),
+                status: "Pending".into(),
+                kind: ToolCallKind::Other,
+                location: None,
+                location_is_command: false,
+                cwd: None,
+                output: None,
+                exit_code: None,
+                content: Vec::new(),
+                locations: Vec::new(),
+            }],
+            expanded: true,
+            trailing_marker: None,
+        });
 
-    let rendered = render_to_text(&mut app, 80, 16);
-    assert!(rendered.contains("● Tool · Pending operation"));
-    let hit = app
-        .completed_turn_hits
-        .iter()
-        .find(|hit| matches!(hit.kind, CompletedTurnHitKind::ToolCall { detail_index: 0 }))
-        .expect("pending tool header hit must exist");
-    let rendered_marker = rendered
-        .lines()
-        .nth(hit.row as usize)
-        .and_then(|line| line.chars().nth(hit.start_column as usize));
-    assert_eq!(rendered_marker, Some('●'));
+        let buffer = render_to_buffer(&mut app, 80, 16);
+        let hit = app
+            .completed_turn_hits
+            .iter()
+            .find(|hit| matches!(hit.kind, CompletedTurnHitKind::ToolCall { detail_index: 0 }))
+            .expect("pending tool header hit must exist");
+        // Hit coordinates are terminal cells, not character offsets in translated text.
+        assert_eq!(
+            buffer[(hit.start_column, hit.row)].symbol(),
+            "●",
+            "{locale}: the pending status marker must start the clickable header"
+        );
+        let header: String = (hit.start_column..hit.end_column)
+            .map(|column| buffer[(column, hit.row)].symbol())
+            .collect();
+        assert!(
+            header.contains("Pending operation"),
+            "{locale}: the clickable header must contain the tool's title: {header:?}"
+        );
+    }
 }
 
 #[test]
@@ -15573,6 +16207,8 @@ fn restart_connection_stage_is_localized_and_preserves_draft() {
 /// `ui/chat.rs` + `ui/layout.rs`.
 #[test]
 fn render_chat_welcome_hint() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.show_welcome_hint = true;
@@ -15640,6 +16276,7 @@ fn resuming_pane_shows_connection_stage_then_resume_until_load_completes() {
                 load_session_supported: true,
                 image_supported: false,
                 session_capabilities_ready: false,
+                telemetry_byok_binding: None,
             });
             let resume = t!("system.resuming_session", session_id = "aaaaaaaa").into_owned();
             assert_eq!(app.state, ConnectionState::Connected);
@@ -15676,6 +16313,8 @@ fn resuming_pane_shows_connection_stage_then_resume_until_load_completes() {
 
 #[test]
 fn resuming_pane_does_not_paint_the_first_run_welcome() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     // A restored conversation is not a first run, so the hint must be gone by
     // the time the replayed history lands. `load_session` can arrive after the
     // connect that already decided this was a first run, so the handler has to
@@ -15928,6 +16567,8 @@ fn render_large_mixed_chat_keeps_latest_content_and_width_correct() {
 
 #[test]
 fn repeated_deep_scroll_reuses_intermediate_turn_heights() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     for index in 0..200 {
@@ -19672,6 +20313,8 @@ fn thinking_is_pinned_one_row_above_input() {
     const WIDTH: u16 = 80;
     const HEIGHT: u16 = 24;
 
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     submit_test_prompt(&mut app, "inspect");
@@ -22522,6 +23165,7 @@ fn usage_lifecycle_load_and_new_connection_clear_but_model_change_preserves() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
     assert!(app.current_tab().usage.is_none());
 }

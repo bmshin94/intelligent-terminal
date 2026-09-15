@@ -378,6 +378,7 @@ pub enum MasterExtRequest {
     /// helper's tabs); `session_id == None` fans out to every session this
     /// helper owns.
     SetSessionModel {
+        request_id: uuid::Uuid,
         session_id: Option<acp::schema::v1::SessionId>,
         model: String,
         pane_override: bool,
@@ -3343,6 +3344,14 @@ pub async fn run_acp_client_over_pipe(
             .context("initialize over master pipe failed")
         })?;
     let wta_meta = crate::session_registry::extract_wta_meta(&mut init_resp.meta);
+    let telemetry_byok_binding = match wta_meta.resolved_model_source.as_deref() {
+        Some("byok") => Some(true),
+        Some("provider") => Some(false),
+        _ => {
+            tracing::debug!(target: "telemetry", "master did not report a known model binding category");
+            None
+        }
+    };
     state
         .native_yolo
         .set_resolved_agent_id(wta_meta.resolved_agent_id.as_deref());
@@ -3682,6 +3691,9 @@ pub async fn run_acp_client_over_pipe(
                             .unwrap_or_default();
                         session_config =
                             crate::protocol::acp::session_config::select_options(&config_options);
+                        current_model_id.get_or_insert_with(|| requested_model.clone());
+                    } else {
+                        current_model_id = Some(requested_model.clone());
                     }
                     startup_probe.log(&format!(
                         "ACP session model set to {} (over pipe)",
@@ -3698,6 +3710,7 @@ pub async fn run_acp_client_over_pipe(
                         "Gemini startup model {} already applied by launch command",
                         requested_model
                     ));
+                    current_model_id = Some(requested_model.clone());
                 }
                 Err(error) => {
                     return Err(anyhow::anyhow!(
@@ -3739,6 +3752,7 @@ pub async fn run_acp_client_over_pipe(
         load_session_supported,
         image_supported,
         session_capabilities_ready: has_bootstrap,
+        telemetry_byok_binding,
     });
     for option in &mut session_config {
         option.native_yolo = state
@@ -4185,6 +4199,7 @@ fn dispatch_master_ext_request_with_yolo_timeout(
                 let _ = event_tx.send(AppEvent::MasterMutationCompleted { request_id });
             }
             MasterExtRequest::SetSessionModel {
+                request_id,
                 session_id,
                 model,
                 pane_override,
@@ -4214,6 +4229,7 @@ fn dispatch_master_ext_request_with_yolo_timeout(
                             "set_session_model targeted an unknown/stale session; no live session updated"
                         );
                         let _ = event_tx.send(AppEvent::ModelSetFailed {
+                            request_id,
                             session_id: target.to_string(),
                             model: model.clone(),
                             pane_override,
@@ -4250,6 +4266,7 @@ fn dispatch_master_ext_request_with_yolo_timeout(
                                 });
                             }
                             let _ = event_tx.send(AppEvent::ModelSetCompleted {
+                                request_id,
                                 session_id: sid.to_string(),
                                 model: model.clone(),
                                 pane_override,
@@ -4270,6 +4287,7 @@ fn dispatch_master_ext_request_with_yolo_timeout(
                                 "model hot-update failed"
                             );
                             let _ = event_tx.send(AppEvent::ModelSetFailed {
+                                request_id,
                                 session_id: sid.to_string(),
                                 model: model.clone(),
                                 pane_override,
@@ -4629,7 +4647,12 @@ fn dispatch_load_session_with_aliases(
         // `session/load` may replay history before returning, so on large
         // session stores the call can take a while; the timeout ceiling
         // keeps us from hanging forever if the agent never responds.
+        let load_started = std::time::Instant::now();
         let load_result = tokio::time::timeout(timeout, conn.load_session(load_req)).await;
+        crate::telemetry::log_acp_load_session_complete(
+            elapsed_ms_since(load_started),
+            matches!(load_result, Ok(Ok(_))),
+        );
 
         match load_result {
             Ok(Ok(mut resp)) => {
@@ -5795,6 +5818,24 @@ async fn dispatch_prompt_body(
         let _ = prompt_timing_task.complete(&prompt_session_id_str, false, Some("cancelled"));
         publish_prompt_cancellation_settled(&mut cleanup, &event_tx_task, prompt_id, false);
         return;
+    }
+    let explicit_source = prompt
+        .pane_context
+        .as_ref()
+        .is_some_and(|c| c.source_pane_id.is_some());
+    // Autofix already binds an explicit source in App before dispatch.
+    if resolved_target_pane.is_none()
+        && !prompt.is_agent_command()
+        && wt_connected
+        && !(prompt.is_autofix() && explicit_source)
+    {
+        tracing::warn!(
+            target: "acp.terminal_context",
+            helper_pid = std::process::id(),
+            prompt_id = prompt.id,
+            explicit_source,
+            "prompt_has_no_bound_pane"
+        );
     }
     if proposal_commands_supported {
         match proposal_channels.issue(

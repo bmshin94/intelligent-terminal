@@ -81,9 +81,9 @@ pub(crate) struct Cli {
     #[arg(long)]
     pub(crate) acp_model: Option<String>,
 
-    /// This helper inherited `acp_model` from the global agent settings rather
-    /// than a per-tab/profile pin. Hidden because TerminalPage is the
-    /// authoritative source of this scope.
+    /// This helper inherits the matching global agent's model, independently
+    /// of its agent selection. TerminalPage owns this initial scope and may
+    /// refresh it through a targeted settings update or agent rebind.
     #[arg(long, hide = true)]
     pub(crate) follows_global_acp_model: bool,
 
@@ -303,7 +303,7 @@ pub(crate) enum Command {
         #[arg(short = 't', long)]
         target: Option<String>,
         /// Split horizontally (panes side by side)
-        #[arg(short = 'h', long)]
+        #[arg(short = 'H', long)]
         horizontal: bool,
         /// Split vertically (panes stacked)
         #[arg(short = 'v', long)]

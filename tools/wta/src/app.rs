@@ -1318,14 +1318,16 @@ pub struct App {
     /// lazy-first-prompt sessions stay on the configured model, not just the
     /// bootstrap one. None = "agent default" (no override).
     acp_model: Option<String>,
-    /// Whether this helper was created from the global ACP agent/model
-    /// settings. Per-tab/profile-pinned helpers keep this false so a hot
-    /// global model update cannot inject another tab's model into their CLI.
+    /// Whether the host's current binding inherits the matching global agent's
+    /// model. Seeded at spawn and refreshed by scoped host updates/rebinds;
+    /// choosing an agent alone does not create a pane-local model override.
     follows_global_acp_model: bool,
     /// True after the host has delivered its credential-free cloud/custom
     /// catalogs over `agent_config_changed`. Published in `agent_status` so
     /// C++ can send the catalog once after each helper reaches Connected.
     host_catalog_ready: bool,
+    /// Actual connected process binding, independent of the model picker/catalog.
+    telemetry_byok_binding: Option<bool>,
     /// Shared-provider selection id supplied directly to this helper by WT.
     /// Kept separate from the master-only provider environment because this
     /// process owns the `/model` UI but never receives provider credentials.
@@ -1584,6 +1586,7 @@ impl App {
             acp_model: None,
             follows_global_acp_model: false,
             host_catalog_ready: false,
+            telemetry_byok_binding: None,
             custom_model_selection: None,
             custom_model_catalog: Vec::new(),
             cloud_models: Vec::new(),
@@ -2103,8 +2106,10 @@ impl App {
         });
         self.current_model_id = self.resolve_current_model_id(
             pane_override
-                .or_else(|| self.acp_model.clone())
                 .or_else(|| self.agent_current_model_id.clone())
+                // Settings is the requested default, not proof that a loaded
+                // session or an in-flight model switch is using that model.
+                .or_else(|| self.acp_model.clone())
                 .or(previous_current),
         );
     }
@@ -2184,17 +2189,28 @@ impl App {
     /// this helper owns. No-op on an empty/whitespace model — an empty
     /// override means "agent default", which `set_session_model` can't
     /// express.
-    fn send_session_model(&self, session_id: Option<String>, model: String, pane_override: bool) {
+    fn send_session_model(
+        &self,
+        session_id: Option<String>,
+        model: String,
+        pane_override: bool,
+    ) -> Option<uuid::Uuid> {
         if model.trim().is_empty() {
-            return;
+            return None;
         }
-        let _ = self.master_request_tx.send(
+        let request_id = uuid::Uuid::new_v4();
+        let result = self.master_request_tx.send(
             crate::protocol::acp::client::MasterExtRequest::SetSessionModel {
+                request_id,
                 session_id: session_id.map(agent_client_protocol::schema::v1::SessionId::new),
                 model,
                 pane_override,
             },
         );
+        if result.is_err() {
+            tracing::warn!(target: "acp", "model selection channel closed");
+        }
+        result.ok().map(|()| request_id)
     }
 
     /// The model a given tab should run on: its explicit per-pane override
@@ -2216,6 +2232,12 @@ impl App {
         };
         for tab in self.tab_sessions.values() {
             if tab.model_override.is_some() {
+                tracing::debug!(
+                    target: "acp",
+                    session_id = ?tab.session_id,
+                    model_override = ?tab.model_override,
+                    "keeping pane-local model override during Settings update"
+                );
                 continue;
             }
             if let Some(sid) = tab.session_id.clone() {
@@ -2225,14 +2247,20 @@ impl App {
     }
 
     /// Apply a global `acpModel` settings change only when this helper follows
-    /// that exact global agent. Pane/profile-pinned helpers and pane-local
-    /// `/model` overrides remain untouched. An empty value means "agent
-    /// default"; no live switch is sent because ACP has no portable reset
-    /// operation.
+    /// that exact global agent's model. Profile/explicit-model-pinned helpers
+    /// and pane-local `/model` overrides remain untouched. An empty value means
+    /// "agent default"; no live switch is sent because ACP has no portable reset operation.
     fn apply_global_acp_model(&mut self, target_agent_id: &str, new_model: Option<String>) -> bool {
         if !self.follows_global_acp_model
             || !self.current_agent_id.eq_ignore_ascii_case(target_agent_id)
         {
+            tracing::debug!(
+                target: "acp",
+                target_agent_id,
+                agent_id = %self.current_agent_id,
+                follows_global_acp_model = self.follows_global_acp_model,
+                "ignoring Settings model update outside this helper's model binding"
+            );
             return false;
         }
 
@@ -3819,6 +3847,7 @@ impl App {
         self.agent_supports_load_session = false;
         self.agent_supports_image = false;
         self.host_catalog_ready = false;
+        self.telemetry_byok_binding = None;
         self.cloud_models.clear();
         self.session_id.clear();
         self.session_to_tab.clear();
@@ -3830,6 +3859,8 @@ impl App {
         self.pending_yolo_session_tabs.clear();
         let active_tab_id = self.active_tab_key().to_string();
         for tab in self.tab_sessions.values_mut() {
+            tab.telemetry_model_pending = None;
+            tab.last_telemetry_session_id = None;
             tab.clear_chat_history();
             tab.invalidate_active_prompt_attachment();
             tab.usage = None;
