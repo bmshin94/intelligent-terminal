@@ -3042,4 +3042,16 @@ Alt+Shift+/ 프롬프트 입력; Alt+Shift+B 초기 프롬프트 없이 실행</
     <value>제거</value>
     <comment>Tooltip for the X button that removes a custom agent from the agent list.</comment>
   </data>
+  <data name="AIAgents_RenderAgentMarkdown.Header" xml:space="preserve">
+    <value>에이전트 응답을 Markdown으로 표시</value>
+    <comment>{Locked="Markdown"} Header for the Markdown rendering toggle on the AI Agents settings page. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdown.HelpText" xml:space="preserve">
+    <value>제목, 목록, 표 및 기타 Markdown 스타일을 사용해 AI 에이전트 응답을 서식 지정합니다. 사용하지 않도록 설정하면 원본 Markdown 텍스트를 표시합니다.</value>
+    <comment>{Locked="Markdown"} Description for the Markdown rendering toggle on the AI Agents settings page. Turning it off shows the original Markdown text. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdownToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>에이전트 응답을 Markdown으로 표시</value>
+    <comment>{Locked="Markdown"} Accessible name for the Markdown rendering toggle on the AI Agents settings page. Must match the toggle header. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
 </root>

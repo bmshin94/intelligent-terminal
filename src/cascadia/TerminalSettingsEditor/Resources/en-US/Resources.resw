@@ -3084,4 +3084,16 @@ In this context, "agent" refers to an AI agent (e.g. Copilot, Claude, Gemini), n
     <value>Remove</value>
     <comment>Tooltip for the X button that removes a custom agent from the agent list.</comment>
   </data>
+  <data name="AIAgents_RenderAgentMarkdown.Header" xml:space="preserve">
+    <value>Render agent replies as Markdown</value>
+    <comment>{Locked="Markdown"} Header for the Markdown rendering toggle on the AI Agents settings page. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdown.HelpText" xml:space="preserve">
+    <value>Format agent replies with headings, lists, tables, and other Markdown styles. Turn off to show the original Markdown text.</value>
+    <comment>{Locked="Markdown"} Description for the Markdown rendering toggle on the AI Agents settings page. Turning it off shows the original Markdown text. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdownToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Render agent replies as Markdown</value>
+    <comment>{Locked="Markdown"} Accessible name for the Markdown rendering toggle on the AI Agents settings page. Must match the toggle header. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
 </root>

@@ -37,6 +37,7 @@
 
     // Agent Integration
     "agentPanePosition": "bottom",
+    "renderAgentMarkdown": true,
 
     "profiles":
     [

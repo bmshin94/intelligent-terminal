@@ -2701,4 +2701,16 @@ Alt+Shift+/ введіть запит; Alt+Shift+B запустіть без п�
     <value>Видалити</value>
     <comment>Tooltip for the X button that removes a custom agent from the agent list.</comment>
   </data>
+  <data name="AIAgents_RenderAgentMarkdown.Header" xml:space="preserve">
+    <value>Відображати відповіді агента у форматі Markdown</value>
+    <comment>{Locked="Markdown"} Header for the Markdown rendering toggle on the AI Agents settings page. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdown.HelpText" xml:space="preserve">
+    <value>Форматуйте відповіді агента за допомогою заголовків, списків, таблиць та інших стилів Markdown. Вимкніть, щоб відображався оригінальний текст Markdown.</value>
+    <comment>{Locked="Markdown"} Description for the Markdown rendering toggle on the AI Agents settings page. Turning it off shows the original Markdown text. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdownToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Відображати відповіді агента у форматі Markdown</value>
+    <comment>{Locked="Markdown"} Accessible name for the Markdown rendering toggle on the AI Agents settings page. Must match the toggle header. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
 </root>

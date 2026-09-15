@@ -166,6 +166,7 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         bool HasAgentSessionManagementEnabled() const;
         bool CanConfigureAgentSessionManagement() const;
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(_GlobalSettings, ShowTokenUsageAndCost);
+        PERMANENT_OBSERVABLE_PROJECTED_SETTING(_GlobalSettings, RenderAgentMarkdown);
 
         bool AgentPaneYoloMode() const;
         void AgentPaneYoloMode(bool value);
@@ -260,7 +261,11 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
             const winrt::hstring& settingsId);
         static winrt::hstring _FindCustomCommand(
             const winrt::Windows::Foundation::Collections::IVector<winrt::hstring>& commands,
-            const winrt::hstring& settingsId);
+            const winrt::hstring& settingsId,
+            const winrt::hstring& legacyCommand);
+        winrt::hstring _CommandIdForEntry(
+            const winrt::Windows::Foundation::Collections::IObservableVector<Editor::AgentEntry>& list,
+            const winrt::hstring& settingsId) const;
         void _DeleteCustomAcpAgent(const winrt::hstring& settingsId);
         void _DeleteCustomDelegateAgent(const winrt::hstring& settingsId);
         bool _IsSelectedAcpAgentAvailable() const;
@@ -276,6 +281,8 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
         void _MaybeAppendCustomEntry(
             winrt::Windows::Foundation::Collections::IObservableVector<Editor::AgentEntry>& list,
             const winrt::hstring& customCommand,
+            const winrt::hstring& selectedId,
+            const winrt::hstring& selectedCommand,
             bool isAcpAgent);
         void _RebuildCustomEntries(
             winrt::Windows::Foundation::Collections::IObservableVector<Editor::AgentEntry>& list,

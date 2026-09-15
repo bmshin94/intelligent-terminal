@@ -101,6 +101,7 @@ namespace Microsoft.Terminal.Settings.Editor
         Windows.Foundation.Collections.IObservableVector<EnumEntry> AutoErrorHandlingList { get; };
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(Boolean, AgentSessionManagementEnabled);
         PERMANENT_OBSERVABLE_PROJECTED_SETTING(Boolean, ShowTokenUsageAndCost);
+        PERMANENT_OBSERVABLE_PROJECTED_SETTING(Boolean, RenderAgentMarkdown);
         Boolean CanConfigureAgentSessionManagement { get; };
 
         // Global "Yolo mode" — requests each supported provider's advertised

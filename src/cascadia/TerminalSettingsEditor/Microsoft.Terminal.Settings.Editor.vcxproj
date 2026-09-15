@@ -87,6 +87,7 @@
       <DependentUpon>AIAgentsViewModel.idl</DependentUpon>
       <SubType>Code</SubType>
     </ClInclude>
+    <ClInclude Include="CustomAgentSelection.h" />
     <ClInclude Include="Compatibility.h">
       <DependentUpon>Compatibility.xaml</DependentUpon>
     </ClInclude>

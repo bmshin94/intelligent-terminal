@@ -8,6 +8,7 @@ use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use unicode_segmentation::UnicodeSegmentation;
 
 struct DeferredAcpParams {
     agent_cmd: String,
@@ -76,11 +77,13 @@ fn agent_command_on_enter(input: &str, selected: Option<&AvailableAgent>) -> Opt
     })
 }
 
+mod agent_markdown;
 mod attachments;
 mod autofix;
 mod input_edit;
 mod tab_state;
 mod turn_state;
+pub(crate) use agent_markdown::AgentMarkdownKey;
 use autofix::*;
 
 pub use crate::turn_context::TurnContext;
@@ -1244,6 +1247,7 @@ pub struct App {
     // generation, suggested_pane_id, armed_at, bar_snapshot) lives on
     // `TabSession.autofix`.
     pub autofix_enabled: bool,
+    pub(crate) render_agent_markdown: bool,
     // Per-tab conversation sessions. Keyed by the stable tab GUID WT mints
     // at tab construction. The active tab is `tab_id` — seeded from the
     // `--owner-tab-id` CLI arg before ACP init in the WT-spawned path, or
@@ -1572,6 +1576,7 @@ impl App {
             wt_notifications: VecDeque::new(),
             show_notification_banner: false,
             autofix_enabled,
+            render_agent_markdown: true,
             tab_sessions,
             pending_session_load: None,
             session_to_tab: HashMap::new(),
@@ -1956,6 +1961,24 @@ impl App {
 
     pub fn set_session_hook_tx(&mut self, tx: mpsc::UnboundedSender<QueuedSessionHook>) {
         self.session_hook_tx = Some(tx);
+    }
+
+    pub(crate) fn set_render_agent_markdown(&mut self, enabled: bool) {
+        if self.render_agent_markdown != enabled {
+            tracing::info!(
+                target: "agent_markdown",
+                old = self.render_agent_markdown,
+                new = enabled,
+                "agent reply display mode changed"
+            );
+            self.render_agent_markdown = enabled;
+            for tab in self.tab_sessions.values_mut() {
+                tab.invalidate_agent_display_layout();
+                if !enabled {
+                    tab.clear_agent_markdown_projections();
+                }
+            }
+        }
     }
 
     /// Seed the hot-updatable runtime agent config: the delegate runtime
@@ -5209,9 +5232,9 @@ impl App {
         }
     }
 
-    /// Number of user-visible characters in the active assistant segment.
+    /// Number of extended grapheme clusters in the active visible segment.
     fn tab_visible_stream_len(tab: &TabSession) -> Option<usize> {
-        crate::ui::chat::pending_render_text(tab).map(|text| text.chars().count())
+        crate::ui::chat::pending_render_text(tab).map(|text| text.graphemes(true).count())
     }
 
     /// True iff the current (visible) tab has streaming text that the reveal

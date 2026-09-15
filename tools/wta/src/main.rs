@@ -121,6 +121,7 @@ fn helper_config(cli: Cli) -> helper::config::HelperConfig {
         delegate_agent: cli.delegate_agent,
         delegate_model: cli.delegate_model,
         no_autofix: cli.no_autofix,
+        render_agent_markdown: !cli.no_agent_markdown,
         yolo_mode: cli.yolo_mode,
         yolo_policy_blocked: cli.yolo_policy_blocked,
         setup: cli.setup,

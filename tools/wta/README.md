@@ -57,6 +57,18 @@ the host agent, WTA puts the current package family's alias directory first on
 therefore use short `wta.exe` commands without selecting another installed
 branding or reproducing a protected package path.
 
+### Agent reply Markdown
+
+Agent replies render as Markdown by default, including streaming replies and
+expanded history. Settings > Agents controls this with `renderAgentMarkdown`
+(default `true`). Switching it off shows the original Markdown; changing it
+does not restart the helper, agent process, or conversation.
+
+Parsing and layout come from the reusable `tui-markdown` package, not a second
+WTA parser. Original text remains the stored representation. User prompts,
+thoughts, tool status, and application messages keep their existing display.
+Markdown does not execute code or fetch images or other resources.
+
 ### tmux-like CLI
 
 WTA exposes tmux-equivalent subcommands for controlling Windows Terminal from the shell. Useful for humans and AI agents that can shell out.

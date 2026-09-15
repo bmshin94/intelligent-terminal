@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};
 
-use serde::{Deserialize, Serialize};
-
 use crate::app_contracts::{PermOption, PlanEntry};
 use crate::commands::{CommandSpec, MovePositionSpec};
+use serde::{Deserialize, Serialize};
 
+use super::agent_markdown::AgentMarkdownState;
 use super::input_edit::InputHistory;
 use super::{TabAutofixState, TurnState};
 
@@ -589,6 +589,7 @@ pub struct TabSession {
     pub(crate) active_tool_viewport_anchor: Option<(String, u16)>,
     pub(crate) chat_reading_position: Option<ChatReadingPosition>,
     pub(crate) completed_turn_layout: CompletedTurnLayoutState,
+    pub(crate) agent_markdown: RefCell<AgentMarkdownState>,
     /// Latched after the first prompt or session/load. A pre-warmed session/new
     /// alone must not become resumable; `/clear` keeps the same session resumable.
     pub has_meaningful_conversation: bool,
@@ -833,6 +834,18 @@ impl TabSession {
             .invalidate(index);
     }
 
+    pub(crate) fn invalidate_agent_display_layout(&mut self) {
+        if self.chat_scroll.offset > 0 {
+            self.completed_turn_layout.viewport_anchor =
+                self.completed_turn_layout.visible_anchors.first().copied();
+        }
+        self.completed_turn_layout.height_cache.get_mut().clear();
+    }
+
+    pub(crate) fn clear_agent_markdown_projections(&mut self) {
+        self.agent_markdown.get_mut().clear();
+    }
+
     pub(crate) fn estimated_completed_turn_height(&self, wrap_width: usize) -> usize {
         self.completed_turn_layout
             .height_cache
@@ -858,6 +871,7 @@ impl TabSession {
         self.active_tool_viewport_anchor = None;
         self.chat_reading_position = None;
         self.completed_turn_layout = CompletedTurnLayoutState::default();
+        self.agent_markdown.get_mut().clear_history();
     }
 
     pub(crate) fn completed_tool_call_expanded(&self, id: &str) -> bool {
@@ -1097,6 +1111,7 @@ impl TabSession {
         }
         self.messages.clear();
         self.streaming_thought = None;
+        self.clear_agent_markdown_projections();
         self.permission.clear();
         self.user_input.clear();
         self.activity_frame = 0;
@@ -1347,6 +1362,9 @@ impl TabSession {
                 }
             }
         }
+        self.agent_markdown
+            .get_mut()
+            .move_active_to_history(self.completed_turns.len(), &self.messages);
         std::mem::take(&mut self.messages)
             .into_iter()
             .filter(|message| !matches!(message, ChatMessage::User(_)))
@@ -1420,6 +1438,7 @@ impl TabSession {
         if self.messages.is_empty() {
             return;
         }
+        self.agent_markdown.get_mut().clear_active();
         let drained: Vec<ChatMessage> = std::mem::take(&mut self.messages);
         let mut kept: Vec<ChatMessage> = Vec::new();
         let mut current: Option<(String, Vec<ChatMessage>)> = None;

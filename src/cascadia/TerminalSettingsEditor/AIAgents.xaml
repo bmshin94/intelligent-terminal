@@ -472,6 +472,16 @@
                           Style="{StaticResource ComboBoxSettingStyle}" />
             </local:SettingContainer>
 
+            <local:SettingContainer x:Name="RenderAgentMarkdown"
+                                    x:Uid="AIAgents_RenderAgentMarkdown">
+                <ToggleSwitch x:Name="RenderAgentMarkdownToggle"
+                              x:Uid="AIAgents_RenderAgentMarkdownToggle"
+                              MinWidth="0"
+                              AutomationProperties.AutomationId="RenderAgentMarkdownToggle"
+                              AutomationProperties.AccessibilityView="Content"
+                              IsOn="{x:Bind ViewModel.RenderAgentMarkdown, Mode=TwoWay}" />
+            </local:SettingContainer>
+
             <local:SettingContainer x:Name="AutoErrorHandling"
                                     Style="{StaticResource AutoErrorHandlingSettingContainerStyle}">
                 <local:SettingContainer.Header>

@@ -22,6 +22,7 @@
 #include "WindowListRequest.g.h"
 #include "Toast.h"
 #include "SharedWta.h"
+#include "AgentRuntimeConfig.h"
 
 #include "WindowsPackageManagerFactory.h"
 #include "../inc/CustomModelProviderUtils.h"
@@ -509,20 +510,10 @@ namespace winrt::TerminalApp::implementation
         // changes are reconciled separately so unready helpers can be
         // recreated before the settings snapshot advances. This remains the
         // unified dispatch point for the autofix gate, delegate agent/model,
-        // credential-free model catalogs, and YOLO default/policy.
+        // credential-free model catalogs, YOLO default/policy, and Markdown.
         // `delegateAgent` holds the resolved effective value (custom-command
         // ids already expanded).
-        struct AgentRuntimeConfigSnapshot
-        {
-            std::wstring delegateAgent;
-            std::wstring delegateModel;
-            std::wstring customModelSelection;
-            std::vector<::Microsoft::Terminal::CustomModels::CatalogEntry> customModels;
-            bool autofixEnabled{ false };
-            std::wstring defaultAgentId;
-            bool yoloEnabled{ false };
-            bool yoloPolicyBlocked{ false };
-        };
+        using AgentRuntimeConfigSnapshot = ::TerminalApp::AgentRuntimeConfig::Snapshot;
         AgentRuntimeConfigSnapshot _lastAgentRuntimeConfig{};
         bool _agentRuntimeConfigInitialized{ false };
         // Snapshot of EffectiveAutoErrorDetectionEnabled at last

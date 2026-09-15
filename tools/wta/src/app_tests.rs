@@ -6332,6 +6332,82 @@ fn model_follow_mode_requires_matching_tab_window_and_agent() {
 }
 
 #[test]
+fn agent_markdown_runtime_toggle_preserves_transcript_identity_and_interaction() {
+    let (mut app, mut restart_rx) = test_app_with_restart_rx();
+    assert!(app.render_agent_markdown);
+    app.state = ConnectionState::Connected;
+    app.owner_tab_id = Some("markdown-owner".into());
+    app.window_id = Some("markdown-window".into());
+    app.current_agent_id = "copilot".into();
+    let tab = app.current_tab_mut();
+    tab.session_id = Some("markdown-session".into());
+    tab.messages
+        .push(ChatMessage::Agent("# Current **reply**".into()));
+    tab.completed_turns.push(CompletedTurn {
+        prompt: "earlier prompt".into(),
+        details: vec![ChatMessage::Agent("## Earlier reply".into())],
+        expanded: true,
+        trailing_marker: None,
+    });
+    tab.selected_completed_turn_idx = Some(0);
+    tab.chat_scroll.offset = 7;
+    tab.reveal_chars = 4;
+    let original_messages = tab.messages.clone();
+    let original_history = tab.completed_turns.clone();
+
+    for enabled in [false, true, false] {
+        app.handle_event(AppEvent::WtEvent {
+            method: "agent_config_changed".into(),
+            pane_id: String::new(),
+            tab_id: None,
+            params: json!({
+                "window_id": "markdown-window",
+                "tab_id": "markdown-owner",
+                "render_agent_markdown": enabled,
+            }),
+        });
+        assert_eq!(app.render_agent_markdown, enabled);
+        assert_eq!(app.current_agent_id, "copilot");
+        assert_eq!(app.owner_tab_id.as_deref(), Some("markdown-owner"));
+        assert_eq!(app.window_id.as_deref(), Some("markdown-window"));
+        assert!(matches!(app.state, ConnectionState::Connected));
+        assert!(!app.pending_acp_start);
+        assert!(
+            restart_rx.try_recv().is_err(),
+            "display changes must not restart the agent"
+        );
+        let tab = app.current_tab();
+        assert_eq!(tab.session_id.as_deref(), Some("markdown-session"));
+        assert_eq!(tab.messages, original_messages);
+        assert_eq!(tab.completed_turns, original_history);
+        assert_eq!(tab.selected_completed_turn_idx, Some(0));
+        assert_eq!(tab.chat_scroll.offset, 7);
+        assert_eq!(tab.reveal_chars, 4);
+    }
+}
+
+#[test]
+fn agent_markdown_runtime_update_respects_ownership_and_omitted_fields() {
+    let mut app = test_app();
+    app.render_agent_markdown = false;
+    app.owner_tab_id = Some("owner".into());
+    app.window_id = Some("window".into());
+    for params in [
+        json!({"autofix_enabled": true}),
+        json!({"window_id": "another-window", "render_agent_markdown": true}),
+        json!({"window_id": "window", "tab_id": "another-tab", "render_agent_markdown": true}),
+    ] {
+        app.handle_event(AppEvent::WtEvent {
+            method: "agent_config_changed".into(),
+            pane_id: String::new(),
+            tab_id: None,
+            params,
+        });
+        assert!(!app.render_agent_markdown);
+    }
+}
+
+#[test]
 fn global_model_hot_update_is_scoped_to_matching_global_followers() {
     use crate::protocol::acp::client::MasterExtRequest;
 
@@ -11196,6 +11272,437 @@ fn render_to_buffer(app: &mut App, width: u16, height: u16) -> ratatui::buffer::
     terminal.backend().buffer().clone()
 }
 
+#[test]
+fn markdown_streaming_projection_excludes_unrevealed_network_backlog() {
+    let mut app = test_app();
+    submit_test_prompt(&mut app, "render");
+    assert!(app.turn_observe_chunk(DEFAULT_TAB_ID, ChunkKind::Message, "Hello **world**"));
+    app.current_tab_mut().reveal_chars = 2;
+
+    render_to_text(&mut app, 60, 12);
+
+    let tab = app.current_tab();
+    let index = tab.streaming_agent_message_index().unwrap();
+    assert_eq!(
+        tab.agent_markdown
+            .borrow()
+            .source(AgentMarkdownKey::Active(index)),
+        Some("He")
+    );
+    assert_eq!(
+        tab.messages.get(index),
+        Some(&ChatMessage::Agent("Hello **world**".into()))
+    );
+
+    app.turn_close_terminal_event(DEFAULT_TAB_ID);
+    let completed = render_to_text(&mut app, 60, 12);
+    assert!(completed.contains("Hello world"));
+    assert!(!completed.contains("**world**"));
+    assert_eq!(
+        app.current_tab()
+            .agent_markdown
+            .borrow()
+            .diagnostics()
+            .full_recomputations,
+        1
+    );
+}
+
+#[test]
+fn markdown_tool_barrier_finishes_preceding_agent_segment_in_order() {
+    let mut app = test_app();
+    submit_test_prompt(&mut app, "render");
+    assert!(app.turn_observe_chunk(DEFAULT_TAB_ID, ChunkKind::Message, "Before **tool**"));
+    app.handle_event(AppEvent::ToolCall {
+        session_id: DEFAULT_TAB_ID.into(),
+        id: "tool-1".into(),
+        title: "Read file".into(),
+        status: "Completed".into(),
+        kind: ToolCallKind::Read,
+        query: None,
+        location: None,
+        location_is_command: false,
+        cwd: None,
+        output: None,
+        exit_code: None,
+        content: Vec::new(),
+        locations: Vec::new(),
+    });
+
+    let rendered = render_to_text(&mut app, 60, 12);
+
+    let prose = rendered.find("Before tool").expect("rendered prose");
+    let tool = rendered.find("Read file").expect("rendered tool");
+    assert!(prose < tool);
+    assert!(!rendered.contains("**tool**"));
+    assert_eq!(
+        app.current_tab()
+            .agent_markdown
+            .borrow()
+            .diagnostics()
+            .full_recomputations,
+        1
+    );
+
+    app.turn_close_terminal_event(DEFAULT_TAB_ID);
+    render_to_text(&mut app, 60, 12);
+    assert_eq!(
+        app.current_tab()
+            .agent_markdown
+            .borrow()
+            .diagnostics()
+            .full_recomputations,
+        1,
+        "moving a finalized segment into history must reuse its package snapshot"
+    );
+}
+
+#[test]
+fn markdown_completion_uses_one_fresh_pass_without_resetting_selection() {
+    let mut app = test_app();
+    app.current_tab_mut().completed_turns.push(CompletedTurn {
+        prompt: "older".into(),
+        details: vec![ChatMessage::Agent("Older reply".into())],
+        expanded: false,
+        trailing_marker: None,
+    });
+    app.current_tab_mut().selected_completed_turn_idx = Some(0);
+    submit_test_prompt(&mut app, "render");
+    assert!(app.turn_observe_chunk(
+        DEFAULT_TAB_ID,
+        ChunkKind::Message,
+        "# Final\n\nA **complete** reply."
+    ));
+
+    app.turn_close_terminal_event(DEFAULT_TAB_ID);
+    let rendered = render_to_text(&mut app, 60, 16);
+    let diagnostics = app.current_tab().agent_markdown.borrow().diagnostics();
+    render_to_text(&mut app, 60, 16);
+
+    assert!(rendered.contains("Final"));
+    assert!(rendered.contains("A complete reply."));
+    assert!(!rendered.contains("# Final"));
+    assert_eq!(app.current_tab().selected_completed_turn_idx, Some(0));
+    assert_eq!(diagnostics.full_recomputations, 1);
+    assert_eq!(
+        app.current_tab().agent_markdown.borrow().diagnostics(),
+        diagnostics
+    );
+}
+
+#[test]
+fn markdown_same_length_history_replacement_invalidates_projection_and_height() {
+    let mut app = test_app();
+    app.current_tab_mut().completed_turns.push(CompletedTurn {
+        prompt: "prompt".into(),
+        details: vec![ChatMessage::Agent("**one**".into())],
+        expanded: true,
+        trailing_marker: None,
+    });
+    let first = render_to_text(&mut app, 50, 10);
+    let key = AgentMarkdownKey::History {
+        turn_index: 0,
+        detail_index: 0,
+    };
+    let first_identity = app
+        .current_tab()
+        .agent_markdown
+        .borrow()
+        .identity(key)
+        .unwrap();
+
+    app.current_tab_mut().completed_turns[0].details[0] = ChatMessage::Agent("`two!!`".into());
+    let second = render_to_text(&mut app, 50, 10);
+    let second_identity = app
+        .current_tab()
+        .agent_markdown
+        .borrow()
+        .identity(key)
+        .unwrap();
+
+    assert!(first.contains("one"));
+    assert!(second.contains("two!!"));
+    assert!(!second.contains("one"));
+    assert_ne!(first_identity, second_identity);
+}
+
+#[test]
+fn markdown_unchanged_long_history_frame_does_not_rebuild_all_turns() {
+    let mut app = test_app();
+    app.current_tab_mut()
+        .completed_turns
+        .extend((0..220).map(|index| CompletedTurn {
+            prompt: format!("prompt {index}"),
+            details: vec![ChatMessage::Agent(format!("Reply **{index}**"))],
+            expanded: true,
+            trailing_marker: None,
+        }));
+
+    crate::ui::chat::reset_completed_turn_line_build_count();
+    render_to_text(&mut app, 80, 18);
+    let first_builds = crate::ui::chat::completed_turn_line_build_count();
+    let first_diagnostics = app.current_tab().agent_markdown.borrow().diagnostics();
+
+    crate::ui::chat::reset_completed_turn_line_build_count();
+    render_to_text(&mut app, 80, 18);
+    let second_builds = crate::ui::chat::completed_turn_line_build_count();
+    let second_diagnostics = app.current_tab().agent_markdown.borrow().diagnostics();
+
+    assert!(first_builds < 220);
+    assert!(second_builds < 220);
+    assert_eq!(first_diagnostics, second_diagnostics);
+}
+
+#[test]
+fn markdown_large_live_reply_prepares_only_viewport_rows_and_reuses_them() {
+    let mut app = test_app();
+    app.current_tab_mut()
+        .messages
+        .push(ChatMessage::Agent(format!(
+            "{}VIEWPORT_TAIL",
+            "word ".repeat(1_000)
+        )));
+
+    let first = render_to_text(&mut app, 40, 10);
+    let first_diagnostics = app.current_tab().agent_markdown.borrow().diagnostics();
+    let second = render_to_text(&mut app, 40, 10);
+    let second_diagnostics = app.current_tab().agent_markdown.borrow().diagnostics();
+
+    assert!(first.contains("VIEWPORT_TAIL"));
+    assert_eq!(second, first);
+    assert!(
+        first_diagnostics.materialized_rows <= 50,
+        "host materialization must stay within viewport + existing overscan, got {} rows",
+        first_diagnostics.materialized_rows
+    );
+    assert_eq!(
+        second_diagnostics.materialized_rows, first_diagnostics.materialized_rows,
+        "an unchanged second frame must reuse its prepared viewport rows"
+    );
+
+    app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+    render_to_text(&mut app, 40, 10);
+    let first_scrolled = app.current_tab().agent_markdown.borrow().diagnostics();
+    render_to_text(&mut app, 40, 10);
+    let second_scrolled = app.current_tab().agent_markdown.borrow().diagnostics();
+    assert_eq!(
+        second_scrolled.materialized_rows, first_scrolled.materialized_rows,
+        "an unchanged reading anchor must reuse bounded prepared rows"
+    );
+}
+
+#[test]
+fn markdown_large_completed_reply_prepares_only_viewport_rows() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    let mut app = test_app();
+    let source = (0..20_000)
+        .map(|index| format!("COMPLETED_ROW_{index:05}\n\n"))
+        .collect();
+    app.current_tab_mut().completed_turns.push(CompletedTurn {
+        prompt: "large completed reply".into(),
+        details: vec![ChatMessage::Agent(source)],
+        expanded: true,
+        trailing_marker: None,
+    });
+
+    let rendered = render_to_text(&mut app, 48, 12);
+    let first = app.current_tab().agent_markdown.borrow().diagnostics();
+    render_to_text(&mut app, 48, 12);
+    let second = app.current_tab().agent_markdown.borrow().diagnostics();
+
+    assert!(rendered.contains("COMPLETED_ROW_19999"));
+    assert!(
+        first.materialized_rows <= 64,
+        "completed history must materialize only viewport + existing overscan, got {} rows",
+        first.materialized_rows
+    );
+    assert_eq!(
+        second.materialized_rows, first.materialized_rows,
+        "an unchanged completed viewport must reuse prepared rows"
+    );
+
+    app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+    render_to_text(&mut app, 48, 12);
+    let first_scrolled = app.current_tab().agent_markdown.borrow().diagnostics();
+    let scrolled = render_to_text(&mut app, 48, 12);
+    let second_scrolled = app.current_tab().agent_markdown.borrow().diagnostics();
+    assert_eq!(
+        second_scrolled.materialized_rows, first_scrolled.materialized_rows,
+        "an unchanged completed reading anchor must reuse bounded prepared rows"
+    );
+    let (row, line) = scrolled
+        .lines()
+        .enumerate()
+        .find(|(_, line)| line.contains("COMPLETED_ROW_"))
+        .expect("visible completed row");
+    let start = line.find("COMPLETED_ROW_").unwrap() as u16;
+    let end = start.saturating_add("COMPLETED_ROW_00000".len() as u16);
+    for (kind, column) in [
+        (MouseEventKind::Down(MouseButton::Left), start),
+        (MouseEventKind::Drag(MouseButton::Left), end),
+        (MouseEventKind::Up(MouseButton::Left), end),
+    ] {
+        app.handle_event(AppEvent::Mouse(MouseEvent {
+            kind,
+            column,
+            row: row as u16,
+            modifiers: KeyModifiers::NONE,
+        }));
+    }
+    assert!(
+        app.text_selection
+            .selected_text()
+            .is_some_and(|text| text.contains("COMPLETED_ROW_")),
+        "middle-history selection must copy the rows drawn from the bounded snapshot"
+    );
+}
+
+#[test]
+fn markdown_mixed_completed_turn_and_keyboard_selection_stay_viewport_bounded() {
+    let mut app = test_app();
+    let first = (0..10_000)
+        .map(|index| format!("MIXED_FIRST_{index:05}\n\n"))
+        .collect();
+    let last = (0..10_000)
+        .map(|index| format!("MIXED_LAST_{index:05}\n\n"))
+        .collect();
+    app.current_tab_mut().completed_turns.push(CompletedTurn {
+        prompt: "mixed completed reply".into(),
+        details: vec![
+            ChatMessage::Agent(first),
+            ChatMessage::ToolCall {
+                id: "mixed-tool".into(),
+                title: "Inspect mixed reply".into(),
+                status: "Completed".into(),
+                kind: ToolCallKind::Read,
+                query: None,
+                location: Some("mixed.rs".into()),
+                location_is_command: false,
+                cwd: None,
+                output: None,
+                exit_code: None,
+                content: Vec::new(),
+                locations: Vec::new(),
+            },
+            ChatMessage::Agent(last),
+        ],
+        expanded: true,
+        trailing_marker: Some("(done)".into()),
+    });
+
+    let bottom = render_to_text(&mut app, 52, 12);
+    let bottom_diagnostics = app.current_tab().agent_markdown.borrow().diagnostics();
+    assert!(bottom.contains("MIXED_LAST_09999"));
+    assert!(
+        bottom_diagnostics.materialized_rows <= 80,
+        "mixed history bottom view must stay viewport bounded, got {} rows",
+        bottom_diagnostics.materialized_rows
+    );
+
+    app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+    assert_eq!(app.current_tab().selected_completed_turn_idx, Some(0));
+    let selected = render_to_text(&mut app, 52, 12);
+    let selected_diagnostics = app.current_tab().agent_markdown.borrow().diagnostics();
+    assert!(
+        selected.contains("mixed completed reply"),
+        "selected turn header must remain visible:\n{selected}"
+    );
+    assert!(
+        selected.contains("(done)"),
+        "selected turn marker must remain visible:\n{selected}"
+    );
+    assert!(
+        selected_diagnostics
+            .materialized_rows
+            .saturating_sub(bottom_diagnostics.materialized_rows)
+            <= 80,
+        "keyboard-selected mixed history must prepare only its visible target rows"
+    );
+    render_to_text(&mut app, 52, 12);
+    assert_eq!(
+        app.current_tab().agent_markdown.borrow().diagnostics(),
+        selected_diagnostics,
+        "an unchanged selected mixed turn must reuse its prepared rows"
+    );
+}
+
+#[test]
+fn markdown_manual_scroll_preserves_reading_position_across_append_and_completion() {
+    let mut app = test_app();
+    app.state = ConnectionState::Connected;
+    submit_test_prompt(&mut app, "markdown reading position");
+    app.handle_event(AppEvent::AgentMessageChunk {
+        session_id: DEFAULT_TAB_ID.into(),
+        text: (0..100)
+            .map(|index| format!("MD_READ_{index:03}\n\n"))
+            .collect(),
+    });
+    app.current_tab_mut().reveal_chars = usize::MAX;
+    render_to_text(&mut app, 48, 20);
+    app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE));
+    let before = reading_rows(&render_to_text(&mut app, 48, 20), "MD_READ_");
+    assert!(app.current_tab().chat_scroll.offset > 0);
+
+    app.handle_event(AppEvent::AgentMessageChunk {
+        session_id: DEFAULT_TAB_ID.into(),
+        text: "NEW_MARKDOWN_OUTPUT\n\n".repeat(20),
+    });
+    app.current_tab_mut().reveal_chars = usize::MAX;
+    assert_eq!(
+        reading_rows(&render_to_text(&mut app, 48, 20), "MD_READ_"),
+        before
+    );
+
+    app.handle_event(AppEvent::AgentMessageEnd {
+        session_id: DEFAULT_TAB_ID.into(),
+    });
+    assert_eq!(
+        reading_rows(&render_to_text(&mut app, 48, 20), "MD_READ_"),
+        before
+    );
+}
+
+#[test]
+fn markdown_runtime_toggle_clears_and_lazily_rebuilds_projection() {
+    let mut app = test_app();
+    app.current_tab_mut()
+        .messages
+        .push(ChatMessage::Agent("# Heading".into()));
+    let rich = render_to_text(&mut app, 40, 10);
+    let rich_diagnostics = app.current_tab().agent_markdown.borrow().diagnostics();
+    assert!(rich.contains("Heading"));
+    assert!(!rich.contains("# Heading"));
+
+    app.set_render_agent_markdown(false);
+    assert_eq!(
+        app.current_tab().agent_markdown.borrow().projection_count(),
+        0
+    );
+    assert_eq!(
+        app.current_tab().agent_markdown.borrow().resource_usage(),
+        Default::default()
+    );
+    let raw = render_to_text(&mut app, 40, 10);
+    assert!(raw.contains("# Heading"));
+    assert_eq!(
+        app.current_tab().agent_markdown.borrow().diagnostics(),
+        rich_diagnostics
+    );
+
+    app.set_render_agent_markdown(true);
+    let rich_again = render_to_text(&mut app, 40, 10);
+    assert!(rich_again.contains("Heading"));
+    assert!(!rich_again.contains("# Heading"));
+    assert_eq!(
+        app.current_tab().agent_markdown.borrow().projection_count(),
+        1
+    );
+}
+
 fn buffer_to_text(buf: &ratatui::buffer::Buffer) -> String {
     let w = buf.area.width as usize;
     let mut out = String::new();
@@ -15987,7 +16494,10 @@ fn wrapped_live_message_stops_before_completed_history() {
     crate::ui::chat::reset_completed_turn_line_build_count();
     let rendered = render_to_text(&mut app, 40, 10);
 
-    assert!(rendered.contains("LIVE_WRAP_BOTTOM"));
+    assert!(
+        rendered.contains("LIVE_WRAP_BOTTOM"),
+        "latest live tail must remain visible; rendered:\n{rendered}"
+    );
     assert!(!rendered.contains("OLDER_COMPLETED_TURN"));
     assert_eq!(
         crate::ui::chat::completed_turn_line_build_count(),
@@ -16640,6 +17150,45 @@ fn submit_clears_messages_and_pushes_user_bubble() {
     );
     assert_eq!(tab.messages.len(), 1, "stale System bubble was cleared");
     assert!(matches!(tab.messages[0], ChatMessage::User(ref t) if t == "hello"));
+}
+
+#[test]
+fn agent_markdown_reveal_counts_extended_graphemes() {
+    let mut app = test_app();
+    submit_test_prompt(&mut app, "hi");
+    app.turn_observe_chunk(
+        DEFAULT_TAB_ID,
+        ChunkKind::Message,
+        "e\u{301}\u{1f469}\u{1f3fd}\u{200d}\u{1f4bb}Z",
+    );
+    assert_eq!(App::tab_visible_stream_len(app.current_tab()), Some(3));
+    app.advance_reveal();
+    assert_eq!(app.current_tab().reveal_chars, 3);
+    assert!(!app.has_reveal_backlog());
+}
+
+#[test]
+fn agent_markdown_reveal_keeps_combining_and_emoji_sequences_whole() {
+    for cluster in [
+        "e\u{301}",
+        "\u{1f469}\u{1f3fd}\u{200d}\u{1f4bb}",
+        "\u{1f1e8}\u{1f1f3}",
+    ] {
+        let mut app = test_app();
+        submit_test_prompt(&mut app, "hi");
+        app.turn_observe_chunk(
+            DEFAULT_TAB_ID,
+            ChunkKind::Message,
+            &format!("{cluster}NOT_REVEALED"),
+        );
+        app.current_tab_mut().reveal_chars = 1;
+        let rendered = render_to_text(&mut app, 80, 20);
+        assert!(
+            rendered.contains(cluster),
+            "incomplete grapheme: {rendered}"
+        );
+        assert!(!rendered.contains("NOT_REVEALED"));
+    }
 }
 
 #[test]
@@ -17772,6 +18321,9 @@ fn reading_rows(rendered: &str, marker: &str) -> Vec<(usize, String)> {
 
 fn reading_test_app() -> App {
     let mut app = test_app();
+    // These reading-position regressions predate rich rendering and assert
+    // raw newline geometry. Markdown-specific anchoring is covered separately.
+    app.render_agent_markdown = false;
     app.state = ConnectionState::Connected;
     submit_test_prompt(&mut app, "reading position");
     app.handle_event(AppEvent::AgentMessageChunk {
@@ -21092,11 +21644,51 @@ fn direct_proposal_defers_history_until_tool_updates_finish() {
     });
     app.handle_event(AppEvent::AgentMessageChunk {
         session_id: session_id.into(),
-        text: "Everything is ready.".into(),
+        text: "Everything ".into(),
     });
+    render_to_text(&mut app, 60, 12);
+    let message_index = app
+        .session_tab(session_id)
+        .messages
+        .iter()
+        .position(|message| matches!(message, ChatMessage::Agent(_)))
+        .expect("late direct-proposal agent message");
+    let key = AgentMarkdownKey::Active(message_index);
+    let first_identity = app
+        .session_tab(session_id)
+        .agent_markdown
+        .borrow()
+        .identity(key)
+        .expect("active Markdown document");
+    assert_eq!(
+        app.session_tab(session_id)
+            .agent_markdown
+            .borrow()
+            .diagnostics()
+            .full_recomputations,
+        0,
+        "rendering an in-flight surfaced reply must not finish it"
+    );
+
+    app.handle_event(AppEvent::AgentMessageChunk {
+        session_id: session_id.into(),
+        text: "is ready.".into(),
+    });
+    render_to_text(&mut app, 60, 12);
+    let markdown = app.session_tab(session_id).agent_markdown.borrow();
+    assert_eq!(markdown.identity(key), Some(first_identity));
+    assert_eq!(markdown.source(key), Some("Everything is ready."));
+    assert_eq!(
+        markdown.diagnostics().full_recomputations,
+        0,
+        "ordinary late chunks must append without reopening or replacing the document"
+    );
+    drop(markdown);
+
     app.handle_event(AppEvent::AgentMessageEnd {
         session_id: session_id.into(),
     });
+    render_to_text(&mut app, 60, 12);
 
     let tab = app.session_tab(session_id);
     assert!(tab.messages.is_empty());
@@ -21108,9 +21700,25 @@ fn direct_proposal_defers_history_until_tool_updates_finish() {
                 if id == "tool-1" && status == "Completed"
         )
     }));
-    assert!(tab.completed_turns[0].details.iter().any(
-        |detail| matches!(detail, ChatMessage::Agent(text) if text == "Everything is ready.")
-    ));
+    let detail_index = tab.completed_turns[0]
+        .details
+        .iter()
+        .position(
+            |detail| matches!(detail, ChatMessage::Agent(text) if text == "Everything is ready."),
+        )
+        .expect("completed late agent reply");
+    assert_eq!(
+        tab.agent_markdown
+            .borrow()
+            .counters(AgentMarkdownKey::History {
+                turn_index: 0,
+                detail_index,
+            })
+            .expect("completed Markdown document")
+            .full_recomputations,
+        1,
+        "the package must finish exactly once at the actual document boundary"
+    );
 }
 
 #[test]

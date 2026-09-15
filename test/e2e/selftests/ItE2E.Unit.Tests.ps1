@@ -792,6 +792,14 @@ Describe 'Get-RunnableWtaPath staging' -Tag 'Unit' {
 }
 
 Describe 'Feature suite package selection' -Tag 'Unit' {
+    It 'encodes the Markdown fixture invocation before passing it through ACP command tokenization' {
+        $suitePath = Join-Path $PSScriptRoot '..\tests\Feature.AgentMarkdown.Tests.ps1'
+        $suite = Get-Content -LiteralPath $suitePath -Raw
+        $suite | Should -Match '-EncodedCommand\s+\$encodedInvocation'
+        $suite | Should -Match 'Unicode.GetBytes\(\$fixtureInvocation\)'
+        $suite | Should -Not -Match 'requires whitespace-free test paths'
+    }
+
     It 'resolves the Yolo suite package once and uses it for every app operation' {
         $suitePath = Join-Path $PSScriptRoot '..\tests\Feature.YoloMode.Tests.ps1'
         $suite = Get-Content -LiteralPath $suitePath -Raw

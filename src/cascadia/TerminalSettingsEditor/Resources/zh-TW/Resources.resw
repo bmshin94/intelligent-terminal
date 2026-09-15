@@ -2997,4 +2997,16 @@ Alt+Shift+/ 輸入提問；Alt+Shift+B 不帶初始提問啟動。</value><comme
     <value>移除</value>
     <comment>Tooltip for the X button that removes a custom agent from the agent list.</comment>
   </data>
+  <data name="AIAgents_RenderAgentMarkdown.Header" xml:space="preserve">
+    <value>以 Markdown 呈現 AI 智能體的回覆</value>
+    <comment>{Locked="Markdown"} Header for the Markdown rendering toggle on the AI Agents settings page. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdown.HelpText" xml:space="preserve">
+    <value>使用標題、清單、表格和其他 Markdown 樣式來格式化 AI 智能體的回覆。停用時會顯示原始 Markdown 文字。</value>
+    <comment>{Locked="Markdown"} Description for the Markdown rendering toggle on the AI Agents settings page. Turning it off shows the original Markdown text. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdownToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>以 Markdown 呈現 AI 智能體的回覆</value>
+    <comment>{Locked="Markdown"} Accessible name for the Markdown rendering toggle on the AI Agents settings page. Must match the toggle header. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
 </root>

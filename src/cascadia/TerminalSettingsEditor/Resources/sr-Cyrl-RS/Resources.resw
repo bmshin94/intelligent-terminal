@@ -3044,4 +3044,16 @@ Alt+Shift+/ унесите упит; Alt+Shift+B покрените без по�
     <value>Уклони</value>
     <comment>Tooltip for the X button that removes a custom agent from the agent list.</comment>
   </data>
+  <data name="AIAgents_RenderAgentMarkdown.Header" xml:space="preserve">
+    <value>Прикажи одговоре агента у Markdown формату</value>
+    <comment>{Locked="Markdown"} Header for the Markdown rendering toggle on the AI Agents settings page. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdown.HelpText" xml:space="preserve">
+    <value>Форматирај одговоре агента помоћу наслова, листа, табела и других Markdown стилова. Искључи да би се приказао изворни Markdown текст.</value>
+    <comment>{Locked="Markdown"} Description for the Markdown rendering toggle on the AI Agents settings page. Turning it off shows the original Markdown text. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
+  <data name="AIAgents_RenderAgentMarkdownToggle.[using:Windows.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Прикажи одговоре агента у Markdown формату</value>
+    <comment>{Locked="Markdown"} Accessible name for the Markdown rendering toggle on the AI Agents settings page. Must match the toggle header. Here "agent" refers to an AI intelligent agent, not a proxy or human agent.</comment>
+  </data>
 </root>

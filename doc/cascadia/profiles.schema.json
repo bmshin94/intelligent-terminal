@@ -2382,6 +2382,11 @@
       "description": "Properties that affect the entire window, regardless of the profile settings.",
       "type": "object",
       "properties": {
+        "renderAgentMarkdown": {
+          "default": true,
+          "description": "When set to true, agent replies are formatted as Markdown. When set to false, the original Markdown text is shown. Changes apply to existing agent panes without restarting them.",
+          "type": "boolean"
+        },
         "alwaysOnTop": {
           "default": false,
           "description": "When set to true, the window is created on top of all other windows. If multiple windows are all \"always on top\", the most recently focused one will be the topmost",

@@ -2460,6 +2460,7 @@ namespace winrt::TerminalApp::implementation
             std::wstring{ globals.EffectiveAcpAgent() },
             globals.AgentPaneYoloMode(),
             globals.IsYoloModePolicyLocked(),
+            globals.RenderAgentMarkdown(),
         };
     }
 
@@ -2468,13 +2469,7 @@ namespace winrt::TerminalApp::implementation
         const std::string_view windowId,
         const AgentRuntimeConfigSnapshot& config)
     {
-        Json::Value params{ Json::objectValue };
-        params["tab_id"] = std::string{ tabId };
-        params["window_id"] = std::string{ windowId };
-        params["automatic_yolo_target"] = config.yoloEnabled;
-        params["yolo_enabled"] = config.yoloEnabled;
-        params["yolo_policy_blocked"] = config.yoloPolicyBlocked;
-        return params;
+        return ::TerminalApp::AgentRuntimeConfig::BuildReadyPayload(tabId, windowId, config);
     }
 
     // Hot-propagate runtime agent config to the running wta-helper(s) over the
@@ -2486,6 +2481,7 @@ namespace winrt::TerminalApp::implementation
     //     credential-free picker metadata and its selected entry.
     //   - yolo_enabled + yolo_policy_blocked : the per-tab desired state,
     //     resolved for that tab's current provider, and the administrative gate.
+    //   - render_agent_markdown : presentation only, never agent identity.
     void TerminalPage::_EmitAgentRuntimeConfigIfChanged()
     {
         const auto current = _CaptureAgentRuntimeConfig();
@@ -2502,41 +2498,20 @@ namespace winrt::TerminalApp::implementation
         }
 
         const auto& last = _lastAgentRuntimeConfig;
-        const bool autofixChanged = last.autofixEnabled != current.autofixEnabled;
-        const bool delegateChanged = last.delegateAgent != current.delegateAgent ||
-                                     last.delegateModel != current.delegateModel;
-        const bool customModelsChanged =
-            last.customModelSelection != current.customModelSelection ||
-            last.customModels != current.customModels;
         const bool yoloChanged = last.defaultAgentId != current.defaultAgentId ||
                                  last.yoloEnabled != current.yoloEnabled ||
                                  last.yoloPolicyBlocked != current.yoloPolicyBlocked;
-
-        if (!autofixChanged && !delegateChanged && !customModelsChanged && !yoloChanged)
+        const auto params = ::TerminalApp::AgentRuntimeConfig::BuildDeltaPayload(
+            last,
+            current,
+            std::to_string(_WindowProperties.WindowId()));
+        if (params.empty() && !yoloChanged)
         {
             _lastAgentRuntimeConfig = current;
             return;
         }
 
-        Json::Value params{ Json::objectValue };
-        params["window_id"] = std::to_string(_WindowProperties.WindowId());
-        if (autofixChanged)
-        {
-            params["autofix_enabled"] = current.autofixEnabled;
-        }
-        if (delegateChanged)
-        {
-            params["delegate_agent"] = winrt::to_string(current.delegateAgent);
-            params["delegate_model"] = winrt::to_string(current.delegateModel);
-        }
-        if (customModelsChanged)
-        {
-            params["custom_model_selection"] = winrt::to_string(current.customModelSelection);
-            params["custom_models"] =
-                ::Microsoft::Terminal::CustomModels::CatalogToJson(current.customModels);
-        }
-        const bool commonChanged = autofixChanged || delegateChanged || customModelsChanged;
-        if (commonChanged)
+        if (!params.empty())
         {
             _agentPaneLog("emitting agent_config_changed (hot settings update)");
             _RaiseProtocolEvent("agent_config_changed", params);
@@ -3489,13 +3464,9 @@ namespace winrt::TerminalApp::implementation
             return false;
         }
 
-        // Build the per-process settings the master will inherit.
-        // These are baked at first-spawn time only; subsequent acquires
-        // reuse the same master (settings changes route through
-        // `_ReconcileAgentSettings` → `SharedWta::Restart` instead). Runtime
-        // changes flow over event channels (`autofix_enabled_changed`
-        // is the existing one). See `_BuildSharedWtaExtraArgs` for the
-        // shared arg layout.
+        // Acquire the shared master with its trusted launch configuration.
+        // Runtime settings use agent_config_changed; presentation flags
+        // belong only on each helper's command line.
         auto extraArgs = _BuildSharedWtaExtraArgs();
         auto environment = _BuildSharedWtaEnvironment();
 
@@ -3524,9 +3495,8 @@ namespace winrt::TerminalApp::implementation
 
         // Build the wta-helper cmdline. The helper is a normal conpty
         // child; it connects to the master pipe and speaks ACP JSON-RPC.
-        // Per-process settings (--agent, --acp-model, ...) live on the
-        // master cmdline; the helper only needs identity (--agent-id,
-        // --owner-tab-id), bounded model selection, and view/behavior flags.
+        // The helper declares its per-tab agent identity and model selection
+        // to the master's agent pool and owns local view/behavior settings.
         std::wstring helperCmd;
         helperCmd.reserve(wtaPath.size() + masterPipeName.size() + 256);
         helperCmd.push_back(L'"');
@@ -3536,13 +3506,6 @@ namespace winrt::TerminalApp::implementation
         helperCmd.append(L" --owner-tab-id \"").append(std::wstring_view{ stableId }).append(L"\"");
         helperCmd.append(L" --owner-window-id \"").append(std::to_wstring(_WindowProperties.WindowId())).append(L"\"");
 
-        // The helper-side cmdline mirrors the per-pane subset of the
-        // legacy spawn's cmdline. The master already owns --agent /
-        // --acp-model / --delegate-* / --no-autofix / --language as
-        // process-wide config (passed in `extraArgs` above); the helper
-        // needs them re-stated only to drive its local UI (agent name in
-        // the title bar, autofix toggle in the bar, language for its
-        // own UI strings).
         const auto appendHelperFlagValue = [&helperCmd](const std::wstring_view flag, const std::wstring_view value) {
             if (value.empty())
             {
@@ -3608,6 +3571,7 @@ namespace winrt::TerminalApp::implementation
         }
         appendHelperFlagValue(L"--delegate-agent", _ResolveEffectiveDelegateAgent(globals));
         appendHelperFlagValue(L"--delegate-model", globals.DelegateModel());
+        ::TerminalApp::AgentRuntimeConfig::AppendHelperArguments(helperCmd, globals.RenderAgentMarkdown());
         if (!globals.EffectiveAutoFixEnabled())
         {
             helperCmd.append(L" --no-autofix");
@@ -6941,7 +6905,7 @@ namespace winrt::TerminalApp::implementation
         // command line. Once this specific helper reports Connected without a
         // host catalog, deliver the credential-free catalogs over the existing
         // protocol event channel. Every Connected status resends the current
-        // Yolo default/policy in case this helper missed a one-shot hot update
+        // Yolo default/policy and Markdown mode in case this helper missed a hot update
         // between argv capture and event subscription. Applying unchanged
         // values is idempotent and emits no follow-up status. The tab id scopes
         // the broadcast to the requesting helper; its follow-up status marks
@@ -7009,6 +6973,15 @@ namespace winrt::TerminalApp::implementation
                 content.UpdateAgentStatus(name, version, model, state, backend);
                 if (!helperWasReady)
                 {
+                    // History can be visible before ACP connects. Reconcile
+                    // view settings as soon as the event listener is ready.
+                    if (state != L"connected")
+                    {
+                        _RaiseProtocolEvent("agent_config_changed", _BuildAgentReadyRuntimeConfigPayload(
+                                                                       winrt::to_string(tabImpl->StableId()),
+                                                                       std::to_string(_WindowProperties.WindowId()),
+                                                                       _CaptureAgentRuntimeConfig()));
+                    }
                     // The user can open or switch this pane before the helper
                     // subscribes to WT protocol events. Re-send the locally
                     // applied state when the first agent_status proves the

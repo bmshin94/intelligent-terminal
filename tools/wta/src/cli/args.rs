@@ -116,6 +116,10 @@ pub(crate) struct Cli {
     #[arg(long)]
     pub(crate) no_autofix: bool,
 
+    /// Display raw Markdown in this helper without changing agent identity.
+    #[arg(long, hide = true)]
+    pub(crate) no_agent_markdown: bool,
+
     /// Disable automatic agent hook reconciliation at master startup.
     #[arg(long, hide = true)]
     pub(crate) no_session_management: bool,

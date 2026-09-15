@@ -75,6 +75,7 @@ impl App {
         // grab-bag helper.
         tab.messages.clear();
         tab.streaming_thought = None;
+        tab.agent_markdown.get_mut().clear_active();
         // Dropping any in-flight responders signals Cancelled back to
         // the agent — appropriate when the user starts a new turn.
         tab.permission.clear();

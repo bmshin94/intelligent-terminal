@@ -26,9 +26,10 @@
 
     Target-cfg filtering is delegated to cargo itself via --filter-platform,
     so the script does not maintain its own list of non-Windows tokens.
-    License text is sourced from the local Cargo registry cache (the
-    extracted src/ tree, then the gzipped .crate tarball), with a
-    best-effort fall back to the upstream GitHub raw LICENSE file.
+    License text is sourced first from the resolved package's directory.
+    Registry dependencies can fall back to the Cargo cache and upstream
+    GitHub LICENSE file. Git dependencies require bundled license text and
+    are attributed by their actual repository and immutable commit.
 
     The /NOTICE.md edit is performed atomically and preserves the file's
     original CRLF line endings; every section outside the marker block is
@@ -64,6 +65,8 @@ $wtaRoot        = Join-Path $repoRoot 'tools\wta'
 $noticePath     = Join-Path $repoRoot 'NOTICE.md'
 $cgManifestPath = Join-Path $wtaRoot 'cgmanifest.json'
 $targetTriple   = 'x86_64-pc-windows-msvc'
+
+. (Join-Path $PSScriptRoot 'WtaDependencyProvenance.ps1')
 
 # ---------------------------------------------------------------------------
 # 1. cargo metadata (parsed in memory; --filter-platform delegates the
@@ -267,7 +270,20 @@ function Get-LicenseFromGithub {
 }
 
 function Get-LicenseText {
-    param([string]$Name, [string]$Version, [string]$RepoUrl)
+    param(
+        [string]$Name,
+        [string]$Version,
+        [string]$RepoUrl,
+        [string]$ManifestPath,
+        [bool]$GitSource
+    )
+    if ($ManifestPath) {
+        $found = Get-LicenseFromDir (Split-Path -Parent $ManifestPath)
+        if ($found.Count -gt 0) { return $found }
+    }
+    if ($GitSource) {
+        throw "Git dependency '$Name' must bundle its license text; refusing registry or moving-HEAD substitution."
+    }
     if (Test-Path $srcRoot) {
         foreach ($reg in Get-ChildItem $srcRoot -Directory -ErrorAction SilentlyContinue) {
             $found = Get-LicenseFromDir (Join-Path $reg.FullName "$Name-$Version")
@@ -297,20 +313,14 @@ foreach ($pkg in $attributed) {
     $rawSpdx = if ($pkg.license) { $pkg.license } else { '' }
     $normSpdx = Get-NormalizedSpdx -Raw $rawSpdx
     $atoms = Get-SpdxAtoms -Normalized $normSpdx
-    $repo = if ($pkg.repository) { $pkg.repository }
-            elseif ($pkg.homepage) { $pkg.homepage }
-            else { "https://crates.io/crates/$name" }
+    $provenance = Get-WtaDependencyProvenance -Package $pkg
+    $repo = $provenance.SourceUrl
 
-    $bulletLines.Add("- **$name** v$version -- [$repo]($repo) -- ``$normSpdx``")
+    $revision = if ($provenance.IsGit) { " -- commit ``$($provenance.Component.git.commitHash)``" } else { '' }
+    $bulletLines.Add("- **$name** v$version -- [$repo]($repo)$revision -- ``$normSpdx``")
 
     $registrations += [PSCustomObject]@{
-        component = [PSCustomObject]@{
-            type  = 'cargo'
-            cargo = [PSCustomObject]@{
-                name    = $name
-                version = $version
-            }
-        }
+        component = $provenance.Component
     }
 
     foreach ($atom in $atoms) {
@@ -339,7 +349,8 @@ foreach ($atom in $atomToCrates.Keys) {
         $cratePkg = $attributed | Where-Object { $_.name -eq $cname -and $_.version -eq $cver } | Select-Object -First 1
         if (-not $cratePkg) { continue }
         $crepo = if ($cratePkg.repository) { $cratePkg.repository } else { "https://crates.io/crates/$cname" }
-        $texts = Get-LicenseText -Name $cname -Version $cver -RepoUrl $crepo
+        $texts = Get-LicenseText -Name $cname -Version $cver -RepoUrl $crepo `
+            -ManifestPath $cratePkg.manifest_path -GitSource ($cratePkg.source -like 'git+*')
         foreach ($t in $texts) {
             foreach ($line in ($t.Text -split "`r?`n")) {
                 if ($line -match $copyrightRegex) {
@@ -377,7 +388,8 @@ foreach ($atom in $atomToCrates.Keys) {
         $cratePkg = $attributed | Where-Object { $_.name -eq $cname -and $_.version -eq $cver } | Select-Object -First 1
         if (-not $cratePkg) { continue }
         $crepo = if ($cratePkg.repository) { $cratePkg.repository } else { "https://crates.io/crates/$cname" }
-        $texts = Get-LicenseText -Name $cname -Version $cver -RepoUrl $crepo
+        $texts = Get-LicenseText -Name $cname -Version $cver -RepoUrl $crepo `
+            -ManifestPath $cratePkg.manifest_path -GitSource ($cratePkg.source -like 'git+*')
         if ($texts.Count -eq 0) { continue }
 
         $atomLower = $atom.ToLower()
@@ -415,7 +427,13 @@ foreach ($atom in $atomToCrates.Keys) {
 # ---------------------------------------------------------------------------
 $cgManifest = [PSCustomObject]@{
     '$schema'     = 'https://json.schemastore.org/component-detection-manifest.json'
-    Registrations = @($registrations | Sort-Object { $_.component.cargo.name }, { $_.component.cargo.version })
+    Registrations = @($registrations | Sort-Object {
+        if ($_.component.type -eq 'git') { "git:$($_.component.git.repositoryUrl)" }
+        else { "cargo:$($_.component.cargo.name)" }
+    }, {
+        if ($_.component.type -eq 'git') { $_.component.git.commitHash }
+        else { $_.component.cargo.version }
+    })
     Version       = 1
 }
 $cgJson = $cgManifest | ConvertTo-Json -Depth 10

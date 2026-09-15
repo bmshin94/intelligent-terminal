@@ -16,6 +16,34 @@ fn split_pane_horizontal_uses_uppercase_short_flag() {
     }
 }
 
+#[test]
+fn agent_markdown_disable_flag_is_accepted_by_helper() {
+    let cli = Cli::try_parse_from([
+        "wta",
+        "--connect-master",
+        r"\\.\pipe\markdown-test",
+        "--no-agent-markdown",
+    ]);
+    assert!(cli.is_ok(), "the helper must accept the raw display flag");
+}
+
+#[test]
+fn agent_markdown_disable_flag_is_hidden_from_help() {
+    use clap::CommandFactory;
+
+    let help = Cli::command().render_long_help().to_string();
+    assert!(!help.contains("--no-agent-markdown"));
+}
+
+#[test]
+fn agent_markdown_helper_bootstrap_defaults_on_and_preserves_explicit_off() {
+    let default_cli = Cli::try_parse_from(["wta"]).expect("default CLI");
+    assert!(helper_config(default_cli).render_agent_markdown);
+
+    let raw_cli = Cli::try_parse_from(["wta", "--no-agent-markdown"]).expect("raw helper CLI");
+    assert!(!helper_config(raw_cli).render_agent_markdown);
+}
+
 // Plan-C boot-time initial-load flags: WT bundles a session resume
 // with helper spawn by passing `--initial-load-session-id` (and
 // optionally `--initial-load-cwd`) on the helper's command line.

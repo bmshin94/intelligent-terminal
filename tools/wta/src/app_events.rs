@@ -2878,6 +2878,13 @@ impl App {
                         && !owner_window.is_empty()
                         && target_window == owner_window;
 
+                    if let Some(enabled) = params
+                        .get("render_agent_markdown")
+                        .and_then(serde_json::Value::as_bool)
+                    {
+                        self.set_render_agent_markdown(enabled);
+                    }
+
                     if let Some(enabled) = params.get("autofix_enabled").and_then(|v| v.as_bool()) {
                         tracing::info!(
                             target: "autofix",

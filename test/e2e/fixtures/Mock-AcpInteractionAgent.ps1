@@ -149,6 +149,62 @@ function Send-TextUpdate {
     }
 }
 
+function Wait-MarkdownStage {
+    param(
+        [Parameter(Mandatory)][string]$SessionId,
+        [Parameter(Mandatory)][string]$Stage
+    )
+
+    # Only the synthetic Markdown scenario uses these gates. The test releases
+    # each gate after observing the preceding prefix in the real pane.
+    $releasePath = "$LogPath.markdown-$Stage.release"
+    Write-FixtureLog -Message "markdown-stage|$SessionId|$Stage"
+    $deadline = [DateTime]::UtcNow.AddSeconds(120)
+    while (-not (Test-Path -LiteralPath $releasePath)) {
+        if ([DateTime]::UtcNow -ge $deadline) {
+            throw "Markdown fixture timed out waiting for stage '$Stage': $releasePath"
+        }
+        Start-Sleep -Milliseconds 25
+    }
+    Remove-Item -LiteralPath $releasePath
+    Write-FixtureLog -Message "markdown-released|$SessionId|$Stage"
+}
+
+function Send-MarkdownTool {
+    param([Parameter(Mandatory)][string]$SessionId)
+
+    Send-AcpMessage @{
+        jsonrpc = '2.0'
+        method = 'session/update'
+        params = @{
+            sessionId = $SessionId
+            update = @{
+                sessionUpdate = 'tool_call'
+                toolCallId = 'ite2e-markdown-tool'
+                title = '**MDTOOL**'
+                kind = 'execute'
+                status = 'in_progress'
+                content = @()
+                locations = @()
+            }
+        }
+    }
+    Send-AcpMessage @{
+        jsonrpc = '2.0'
+        method = 'session/update'
+        params = @{
+            sessionId = $SessionId
+            update = @{
+                sessionUpdate = 'tool_call_update'
+                toolCallId = 'ite2e-markdown-tool'
+                status = 'completed'
+                # A nonzero fixture exit keeps output visible under the existing compact-tool policy.
+                rawOutput = @{ stdout = '`MDTOOLOUT`'; exitCode = 7 }
+            }
+        }
+    }
+}
+
 function Invoke-UserInputTool {
     param(
         [Parameter(Mandatory)]$Server
@@ -295,6 +351,65 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                         error = @{ code = -32603; message = $_.Exception.Message }
                     }
                 }
+            }
+            elseif ($promptText -match '(?m)^MARKDOWN_(SAMPLE|TABLE|STREAM|PING)\b') {
+                $scenario = $Matches[1]
+                switch ($scenario) {
+                    'SAMPLE' {
+                        $body = @(
+                            '# MDHEADING'
+                            ''
+                            '**MDBOLD** and `MDINLINE`'
+                            ''
+                            '- MDLISTONE'
+                            '- MDLISTTWO'
+                            ''
+                            '```text'
+                            '# MDCODE **KEEP**'
+                            '```'
+                            ''
+                            '| MDCOL | MDVALUE |'
+                            '| --- | --- |'
+                            '| MDCELL | MDTAIL |'
+                            ''
+                            "MDUNICODE caf`u{e9} `u{754c} e`u{301} `u{1f469}`u{200d}`u{1f4bb}"
+                            ''
+                            'MDEND'
+                        ) -join "`n"
+                        Send-TextUpdate -SessionId $sessionId -Text $body
+                    }
+                    'TABLE' {
+                        $body = @(
+                            '# MDTABLE'
+                            ''
+                            '| Key | Description |'
+                            '| --- | --- |'
+                            '| MDCOPY | alpha beta gamma delta epsilon zeta eta theta |'
+                            "| MDWIDE | `u{754c}`u{754c} caf`u{e9} e`u{301} |"
+                            ''
+                            'MDTABLEEND'
+                        ) -join "`n"
+                        Send-TextUpdate -SessionId $sessionId -Text $body
+                    }
+                    'STREAM' {
+                        Send-TextUpdate -SessionId $sessionId -Text "# MDSTREAM`n`n**MDOPEN"
+                        Wait-MarkdownStage -SessionId $sessionId -Stage 'partial'
+                        Send-TextUpdate -SessionId $sessionId -Text "**`n`nMDPRETOOL"
+                        Wait-MarkdownStage -SessionId $sessionId -Stage 'balanced'
+                        Send-MarkdownTool -SessionId $sessionId
+                        Send-TextUpdate -SessionId $sessionId -Text "# MDAFTER`n`nMDFINAL"
+                        Wait-MarkdownStage -SessionId $sessionId -Stage 'finish'
+                    }
+                    'PING' {
+                        Send-TextUpdate -SessionId $sessionId -Text '# MDSECOND'
+                    }
+                }
+                Send-AcpMessage @{
+                    jsonrpc = '2.0'
+                    id = $request.id
+                    result = @{ stopReason = 'end_turn' }
+                }
+                Write-FixtureLog -Message "markdown-complete|$sessionId|$scenario"
             }
             elseif ($promptText -match 'TOOL_FLOW') {
                 Send-TextUpdate -SessionId $sessionId -Text 'BEFORE_TOOL_MARKER'
