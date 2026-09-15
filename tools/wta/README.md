@@ -313,6 +313,30 @@ A queued session restore shows the actual connection stage first, followed by
 short resume context; once connected, it shows only "Resuming session" until
 the load completes. The pane does not become connected earlier, and these labels
 do not reduce startup time.
+After loading, the pane header and model picker use the restored session's
+agent-reported model, when available, without switching it to the current
+default model. Settings still supplies the requested model for new sessions
+and later model changes; an existing confirmed selection stays visible until
+the agent confirms the switch.
+
+### Diagnosing a missing current-shell pane
+
+Default logs record failures without requiring `WTA_LOG=debug`:
+
+- `terminal-agent-pane.log`: the actual server PID/window/tab, requested source,
+  and why pane selection failed (for example, `active_agent_without_source`,
+  `selected_pane_has_no_session`, or `explicit_source_unresolved`). Exceptions from
+  the page-context query are logged once at the COM boundary with their HRESULT.
+- `wta-main_helper-{pid}.log`: `pane_context_unavailable` reasons distinguish
+  protocol failure, an agent pane, and unresolved legacy lookup.
+  `pane_context_response_contract_error` records invalid responses.
+  `prompt_has_no_bound_pane` identifies the affected helper/prompt;
+  `terminal_action_no_active_target` records rejection at the action check.
+
+Use **Report a bug** to collect these in the existing log ZIP. These new lines
+omit commands, terminal output, titles, and working directories; other existing
+logs may contain private data, so inspect the ZIP before sharing it. These are
+failure-time observations, not a history of how pane/source state changed.
 
 ### Adding a new WT protocol method
 

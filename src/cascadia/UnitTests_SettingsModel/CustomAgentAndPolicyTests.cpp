@@ -86,7 +86,7 @@ namespace SettingsModelUnitTests
         TEST_METHOD(CustomModelProviderMultiModelDisplay);
         TEST_METHOD(AcpRuntimeModelsAreScopedByAgent);
         TEST_METHOD(AgentPanePositionRoundtripsAndDefaults);
-        TEST_METHOD(ShowTokenUsageAndCostRoundtripsAndDefaultsOff);
+        TEST_METHOD(ShowTokenUsageAndCostRoundtripsAndDefaultsOn);
         TEST_METHOD(AgentSessionManagementRoundtripsDefaultsOnAndHonorsPolicy);
         TEST_METHOD(AutoErrorSettingsRoundtrip);
         TEST_METHOD(EffectiveAutoFixFalseWhenDetectionOff);
@@ -657,13 +657,16 @@ namespace SettingsModelUnitTests
         VERIFY_ARE_EQUAL(winrt::hstring{ L"bottom" }, defaulted->GlobalSettings().AgentPanePosition());
     }
 
-    void CustomAgentAndPolicyTests::ShowTokenUsageAndCostRoundtripsAndDefaultsOff()
+    void CustomAgentAndPolicyTests::ShowTokenUsageAndCostRoundtripsAndDefaultsOn()
     {
         const auto enabled = MakeSettings(R"("showTokenUsageAndCost": true)");
         VERIFY_IS_TRUE(enabled->GlobalSettings().ShowTokenUsageAndCost());
 
+        const auto disabled = MakeSettings(R"("showTokenUsageAndCost": false)");
+        VERIFY_IS_FALSE(disabled->GlobalSettings().ShowTokenUsageAndCost());
+
         const auto defaulted = MakeSettings({});
-        VERIFY_IS_FALSE(defaulted->GlobalSettings().ShowTokenUsageAndCost());
+        VERIFY_IS_TRUE(defaulted->GlobalSettings().ShowTokenUsageAndCost());
     }
 
     void CustomAgentAndPolicyTests::AgentSessionManagementRoundtripsDefaultsOnAndHonorsPolicy()
@@ -835,7 +838,7 @@ namespace SettingsModelUnitTests
 
     void CustomAgentAndPolicyTests::EffectiveAgentPaneYoloModeFalseWhenPolicyBlocked()
     {
-        // The AllowYoloMode admin policy overrides the user's toggle: even
+        // The AllowAutomaticApproval admin policy overrides the user's toggle: even
         // with the setting on, a Blocked policy must force the effective
         // value to false, matching the AutoFix policy-gate pattern above.
         const auto settings = MakeSettings(R"("agentPane.yoloMode": true)");
@@ -950,7 +953,7 @@ namespace SettingsModelUnitTests
             static_cast<LSTATUS>(ERROR_SUCCESS),
             RegSetValueExW(
                 policyKey.get(),
-                L"AllowYoloMode",
+                L"AllowAutomaticApproval",
                 0,
                 REG_DWORD,
                 reinterpret_cast<const BYTE*>(&blocked),
@@ -1032,7 +1035,7 @@ namespace SettingsModelUnitTests
             static_cast<LSTATUS>(ERROR_SUCCESS),
             RegSetValueExW(
                 policyKey.get(),
-                L"AllowYoloMode",
+                L"AllowAutomaticApproval",
                 0,
                 REG_DWORD,
                 reinterpret_cast<const BYTE*>(&blocked),

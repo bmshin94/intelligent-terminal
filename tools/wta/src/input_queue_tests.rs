@@ -545,6 +545,13 @@ fn mixed_input_producers_share_one_source_agnostic_fifo() {
 
     enter_text(&mut app, "active");
     prompt_rx.try_recv().unwrap();
+    app.current_agent_id = "copilot".into();
+    app.custom_model_catalog = vec![CustomModelCatalogEntry {
+        selection_id: "custom:queued".into(),
+        model_id: "queued-model".into(),
+        ..Default::default()
+    }];
+    app.custom_model_selection = Some("custom:queued".into());
     enter_text(&mut app, "/plan first");
     enter_text(&mut app, "/fix manual");
     let generation_before = app.current_tab().autofix.generation;
@@ -561,6 +568,7 @@ fn mixed_input_producers_share_one_source_agnostic_fifo() {
         ["/plan first", "manual", "pane-a failed", "normal last"]
     );
     assert!(app.current_tab().autofix.pane_id.is_none());
+    assert!(app.current_tab().autofix.armed_at.is_none());
     assert_eq!(
         app.current_tab().autofix.generation,
         generation_before,
@@ -569,19 +577,34 @@ fn mixed_input_producers_share_one_source_agnostic_fifo() {
     let queued_generation = app.current_tab().pending_inputs[2]
         .autofix_generation()
         .unwrap();
+    app.current_agent_id = "claude".into();
+    app.custom_model_selection = None;
+    app.custom_model_catalog.clear();
+    let assert_metadata = |prompt: &PromptSubmission| {
+        assert!(prompt.is_byok());
+        assert_eq!(prompt.agent_id(), "copilot");
+        assert_eq!(
+            prompt.pane_context.as_ref().unwrap().tab_id.as_deref(),
+            Some(DEFAULT_TAB_ID)
+        );
+    };
 
     app.handle_event(AppEvent::AgentMessageEnd {
         session_id: "session-1".into(),
     });
     handle_scheduled_drain(&mut app, &mut event_rx, "session-1");
-    assert!(prompt_rx.try_recv().unwrap().is_agent_command());
+    let command = prompt_rx.try_recv().unwrap();
+    assert_metadata(&command);
+    assert!(command.is_agent_command());
 
     app.handle_event(AppEvent::AgentMessageEnd {
         session_id: "session-1".into(),
     });
     handle_scheduled_drain(&mut app, &mut event_rx, "session-1");
+    let manual = prompt_rx.try_recv().unwrap();
+    assert_metadata(&manual);
     assert_eq!(
-        prompt_rx.try_recv().unwrap().autofix_text_kind,
+        manual.autofix_text_kind,
         Some(crate::protocol::acp::client::AutofixTextKind::UserRequest)
     );
 
@@ -589,11 +612,14 @@ fn mixed_input_producers_share_one_source_agnostic_fifo() {
         session_id: "session-1".into(),
     });
     handle_scheduled_drain(&mut app, &mut event_rx, "session-1");
+    let automatic = prompt_rx.try_recv().unwrap();
+    assert_metadata(&automatic);
     assert_eq!(
-        prompt_rx.try_recv().unwrap().autofix_text_kind,
+        automatic.autofix_text_kind,
         Some(crate::protocol::acp::client::AutofixTextKind::FailureSummary)
     );
     assert_eq!(app.current_tab().autofix.pane_id.as_deref(), Some("pane-a"));
+    assert!(app.current_tab().autofix.armed_at.is_some());
     assert_eq!(app.current_tab().autofix.generation, queued_generation);
 
     app.handle_event(AppEvent::AgentMessageEnd {
@@ -601,6 +627,7 @@ fn mixed_input_producers_share_one_source_agnostic_fifo() {
     });
     handle_scheduled_drain(&mut app, &mut event_rx, "session-1");
     let normal = prompt_rx.try_recv().unwrap();
+    assert_metadata(&normal);
     assert_eq!(normal.text, "normal last");
     assert!(!normal.is_agent_command());
     assert!(!normal.is_autofix());
@@ -908,8 +935,77 @@ fn existing_session_reset_paths_clear_pending_input() {
     assert!(reset_app.current_tab().pending_inputs.is_empty());
 
     let mut agent_reset_app = app_with_pending_input();
+    agent_reset_app.current_tab_mut().telemetry_model_pending =
+        Some(("session-1".into(), uuid::Uuid::new_v4()));
+    agent_reset_app.current_tab_mut().last_telemetry_session_id = Some("session-1".into());
     agent_reset_app.reset_agent_scoped_state();
     assert!(agent_reset_app.current_tab().pending_inputs.is_empty());
+    assert!(agent_reset_app
+        .current_tab()
+        .telemetry_model_pending
+        .is_none());
+    assert!(agent_reset_app
+        .current_tab()
+        .last_telemetry_session_id
+        .is_none());
+}
+
+#[test]
+fn loaded_session_preserves_telemetry_and_drains_queued_turn_context() {
+    let _capture = crate::wt_protocol_events::capture_test_published_events();
+    let (mut app, mut prompt_rx) = test_app_with_prompt_rx();
+    bind_tab(&mut app, DEFAULT_TAB_ID, "session-1");
+    let mut event_rx = install_app_event_queue(&mut app);
+    app.current_tab_mut().loading_session = true;
+    app.current_tab_mut().loading_target_session_id = Some("saved".into());
+    app.pending_yolo_session_tabs.insert(DEFAULT_TAB_ID.into());
+    app.source_session_id = Some("source-pane".into());
+    app.telemetry_byok_binding = Some(true);
+    enter_text(&mut app, "/fix explain");
+    assert!(prompt_rx.try_recv().is_err());
+    let queued = app.current_tab_mut().pending_inputs.front_mut().unwrap();
+    queued.is_byok = true;
+    queued.agent_id = "copilot".into();
+
+    app.handle_event(AppEvent::SessionAttached {
+        tab_id: DEFAULT_TAB_ID.into(),
+        session_id: "saved".into(),
+        prompt_id: None,
+        available_models: vec![],
+        current_model_id: Some("provider-model".into()),
+    });
+
+    assert_eq!(
+        app.current_tab().last_telemetry_session_id.as_deref(),
+        Some("saved")
+    );
+    let snapshots: Vec<serde_json::Value> = crate::wt_protocol_events::take_test_published_events()
+        .into_iter()
+        .map(|event| serde_json::from_str::<serde_json::Value>(&event).unwrap())
+        .filter_map(|event| event["params"].get("session_started").cloned())
+        .collect();
+    assert_eq!(snapshots.len(), 1);
+    assert_eq!(snapshots[0]["start_kind"], "Load");
+    assert_eq!(snapshots[0]["session_id"], "saved");
+    assert_eq!(snapshots[0]["model_source"], "byok");
+    assert!(prompt_rx.try_recv().is_err());
+    handle_scheduled_drain_for_tab(&mut app, &mut event_rx, DEFAULT_TAB_ID);
+    let prompt = prompt_rx
+        .try_recv()
+        .expect("queued fix dispatched after load");
+    assert!(prompt.is_autofix());
+    assert!(prompt.is_byok());
+    assert_eq!(prompt.agent_id(), "copilot");
+    assert_eq!(
+        app.current_tab()
+            .turn
+            .prompt()
+            .unwrap()
+            .context
+            .target_pane_id(),
+        Some("source-pane")
+    );
+    assert!(app.current_tab().pending_inputs.is_empty());
 }
 
 #[test]

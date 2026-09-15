@@ -263,6 +263,7 @@ namespace winrt::TerminalApp::implementation
         Windows::Foundation::IAsyncOperation<bool> FocusProtocolPane(winrt::guid sessionId);
         void OnAutofixStateChanged(hstring eventJson);
         void OnAgentStatusChanged(hstring eventJson);
+        void OnAgentAvailabilityChanged(hstring eventJson);
         void OnAgentSwitchRequested(hstring eventJson);
         void OnCloseAgentPaneRequested(hstring eventJson);
         void OnDefaultPasteRequested(hstring eventJson);
@@ -488,6 +489,7 @@ namespace winrt::TerminalApp::implementation
             std::wstring agentWslDistro;
             std::wstring acpModel;
             std::wstring customModelSelection;
+            bool followsGlobalAgent{ false };
             bool followsGlobalAcpModel{ false };
             bool launchable{ false };
             bool supportsGlobalHostByok{ false };
@@ -592,6 +594,10 @@ namespace winrt::TerminalApp::implementation
         // between actions, and a flag would let that inner batch clear the
         // suppression out from under the outer one.
         uint32_t _startupActionReplayDepth{ 0 };
+        bool _startupStructureSettleQueued{ false };
+        bool _pendingFreEnsureAgentPaneVisible{ false };
+        bool _pendingFreAutoInstallCopilot{ false };
+        winrt::hstring _freAutoInstallTargetTabId;
         // Tabs that skipped their own pre-warm because a replay was in flight.
         // Drained when the outermost replay finishes. Recording the tabs —
         // rather than re-scanning every tab in the window — is what keeps an
@@ -630,10 +636,21 @@ namespace winrt::TerminalApp::implementation
         static AgentPaneRecreationOptions _GetAgentPaneRecreationOptions(
             bool wasStashed,
             bool isActiveTab) noexcept;
+        static bool _FollowsGlobalAcpModel(
+            bool hasAgentOverride,
+            bool hasProfileBackend,
+            std::wstring_view agentId,
+            std::wstring_view agentSource,
+            std::wstring_view modelOverride,
+            std::wstring_view globalAgentId) noexcept;
         static AgentPaneSettingsBinding _ResolveAgentPaneSettingsBinding(
             const AgentPaneSettingsBindingRequest& request);
         AgentPaneSettingsBinding _ResolveAgentPaneSettingsBindingForTab(
-            const winrt::com_ptr<Tab>& tab);
+            const winrt::com_ptr<Tab>& tab,
+            bool forSettingsUpdate = false);
+        static bool _IsSameAgentPaneBackend(
+            const AgentPaneSettingsBinding& current,
+            const AgentPaneSettingsBinding& target) noexcept;
         static bool _IsAgentPaneSettingsRebindAffected(
             const AgentPaneSettingsBinding& binding,
             bool globalAgentChanged,
@@ -651,6 +668,10 @@ namespace winrt::TerminalApp::implementation
             bool agentConnected) noexcept;
         static Json::Value _BuildAgentPaneSettingsRebindPayload(
             const AgentPaneSettingsBinding& binding);
+        static Json::Value _BuildAgentPaneModelHotUpdatePayload(
+            const AgentPaneSettingsBinding& binding,
+            std::wstring_view tabId,
+            std::wstring_view windowId);
         void _RaiseAgentPaneRebindRequest(
             const winrt::com_ptr<Tab>& tab,
             const AgentPaneSettingsBinding& binding,
@@ -753,7 +774,10 @@ namespace winrt::TerminalApp::implementation
                                               std::wstring_view initialYoloControlOwner = {});
         winrt::hstring _GetAgentPaneIdentity(Tab* tab) const;
         winrt::hstring _GetAgentPaneCustomCommand(Tab* tab) const;
+        void _ScheduleStartupStructureSettled() noexcept;
+        void _OnStartupStructureSettled();
         void _PrewarmAgentPanesAfterStartup();
+        void _CompletePendingFreAgentPaneVisibility();
         // Rebuild an agent pane from a persisted layout entry. `contentArgs`
         // carries only the stable resume command line; everything runtime-bound
         // (the master pipe, the owner ids, the resolved CLI path) is

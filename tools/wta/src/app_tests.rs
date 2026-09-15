@@ -2426,6 +2426,7 @@ fn agent_connected_does_not_add_disclaimer_while_resuming() {
         load_session_supported: true,
         image_supported: true,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     assert!(!app.tab_sessions["OWNER-TAB"]
@@ -3533,6 +3534,284 @@ fn model_config_update_before_session_attach_is_applied_on_attach() {
 }
 
 #[test]
+fn initial_load_model_is_published_after_session_attach() {
+    use crate::protocol::acp::client::MasterExtRequest;
+
+    let (mut app, mut master_rx) = test_app_with_master_rx();
+    let _capture = crate::wt_protocol_events::capture_test_published_events();
+    app.owner_tab_id = Some(DEFAULT_TAB_ID.into());
+    app.current_agent_id = "copilot".into();
+    app.acp_model = Some("other-model".into());
+    app.current_tab_mut().loading_session = true;
+    app.current_tab_mut().loading_target_session_id = Some("restored-session".into());
+
+    app.handle_event(AppEvent::AgentConnected {
+        name: "GitHub Copilot".into(),
+        model: None,
+        version: Some("v1.0.0".into()),
+        session_id: "restored-session".into(),
+        available_models: Vec::new(),
+        current_model_id: None,
+        load_session_supported: true,
+        image_supported: false,
+        session_capabilities_ready: false,
+        telemetry_byok_binding: None,
+    });
+
+    assert_eq!(app.confirmed_model_display(), None);
+    assert_eq!(
+        app.session_to_tab
+            .get("restored-session")
+            .map(String::as_str),
+        Some(DEFAULT_TAB_ID),
+        "the placeholder must still route replayed history to its owner tab"
+    );
+
+    app.handle_event(AppEvent::SessionAttached {
+        tab_id: DEFAULT_TAB_ID.into(),
+        session_id: "restored-session".into(),
+        prompt_id: None,
+        available_models: vec![model_info("other-model"), model_info("saved-model")],
+        current_model_id: Some("saved-model".into()),
+    });
+
+    assert!(!app.current_tab().loading_session);
+    assert_eq!(app.agent_current_model_id.as_deref(), Some("saved-model"));
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    assert_eq!(app.acp_model.as_deref(), Some("other-model"));
+    assert!(app.current_tab().model_override.is_none());
+    assert_eq!(
+        app.confirmed_model_display().as_deref(),
+        Some("SAVED-MODEL")
+    );
+    assert_eq!(app.available_models.len(), 2);
+    app.open_model_picker();
+    assert_eq!(app.current_tab().model_picker_selected, 1);
+    assert!(
+        master_rx.try_recv().is_err(),
+        "restoring model metadata must not request a model change"
+    );
+
+    let status = crate::wt_protocol_events::take_test_published_events()
+        .into_iter()
+        .map(|event| serde_json::from_str::<serde_json::Value>(&event).expect("valid WT event"))
+        .filter(|event| event["method"] == "agent_status")
+        .last()
+        .expect("loading the session must publish its model to the pane header");
+    assert_eq!(status["params"]["tab_id"], DEFAULT_TAB_ID);
+    assert_eq!(status["params"]["state"], "connected");
+    assert_eq!(status["params"]["name"], "GitHub Copilot");
+    assert_eq!(status["params"]["version"], "v1.0.0");
+    assert_eq!(status["params"]["model"], "SAVED-MODEL");
+    assert_eq!(status["params"]["current_model_id"], "saved-model");
+    assert_eq!(
+        status["params"]["available_models"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    app.cmd_model("other-model".into());
+    let MasterExtRequest::SetSessionModel {
+        session_id,
+        model,
+        pane_override,
+        ..
+    } = master_rx
+        .try_recv()
+        .expect("the configured default is not the loaded session's model and must be applied")
+    else {
+        panic!("expected SetSessionModel");
+    };
+    assert_eq!(session_id.unwrap().0.as_ref(), "restored-session");
+    assert_eq!(model, "other-model");
+    assert!(pane_override);
+}
+
+#[test]
+fn initial_load_model_preserves_config_updates_around_placeholder() {
+    for update_before_connection in [false, true] {
+        for updated_model in [Some("live-model"), None] {
+            let mut app = test_app();
+            app.current_tab_mut().loading_session = true;
+            app.current_tab_mut().loading_target_session_id = Some("restored-session".into());
+            let config_update = || AppEvent::ModelConfigUpdated {
+                session_id: "restored-session".into(),
+                available_models: updated_model.map(model_info).into_iter().collect(),
+                current_model_id: updated_model.map(str::to_string),
+            };
+            if update_before_connection {
+                app.handle_event(config_update());
+            }
+
+            app.handle_event(AppEvent::AgentConnected {
+                name: "Agent".into(),
+                model: None,
+                version: None,
+                session_id: "restored-session".into(),
+                available_models: Vec::new(),
+                current_model_id: None,
+                load_session_supported: true,
+                image_supported: false,
+                session_capabilities_ready: false,
+                telemetry_byok_binding: None,
+            });
+
+            if !update_before_connection {
+                app.handle_event(config_update());
+            }
+            app.handle_event(AppEvent::SessionAttached {
+                tab_id: DEFAULT_TAB_ID.into(),
+                session_id: "restored-session".into(),
+                prompt_id: None,
+                available_models: vec![model_info("saved-model")],
+                current_model_id: Some("saved-model".into()),
+            });
+
+            assert_eq!(app.agent_current_model_id.as_deref(), updated_model);
+            assert_eq!(app.current_model_id.as_deref(), updated_model);
+            assert_eq!(
+                app.available_models.iter().map(|model| model.id.as_str()).collect::<Vec<_>>(),
+                updated_model.into_iter().collect::<Vec<_>>(),
+                "a config update, including removal of the selector, must override the load response"
+            );
+        }
+    }
+}
+
+#[test]
+fn initial_load_model_follows_subsequent_settings_changes() {
+    use crate::protocol::acp::client::MasterExtRequest;
+
+    let (mut app, mut master_rx) = test_app_with_master_rx();
+    let _capture = crate::wt_protocol_events::capture_test_published_events();
+    app.owner_tab_id = Some(DEFAULT_TAB_ID.into());
+    app.current_agent_id = "copilot".into();
+    app.follows_global_acp_model = true;
+    app.acp_model = Some("configured-default".into());
+    app.current_tab_mut().loading_session = true;
+    app.current_tab_mut().loading_target_session_id = Some("restored-session".into());
+    app.handle_event(AppEvent::AgentConnected {
+        name: "GitHub Copilot".into(),
+        model: None,
+        version: None,
+        session_id: "restored-session".into(),
+        available_models: Vec::new(),
+        current_model_id: None,
+        load_session_supported: true,
+        image_supported: false,
+        session_capabilities_ready: false,
+        telemetry_byok_binding: None,
+    });
+    app.handle_event(AppEvent::SessionAttached {
+        tab_id: DEFAULT_TAB_ID.into(),
+        session_id: "restored-session".into(),
+        prompt_id: None,
+        available_models: vec![model_info("new-model"), model_info("saved-model")],
+        current_model_id: Some("saved-model".into()),
+    });
+    assert_eq!(
+        app.confirmed_model_display().as_deref(),
+        Some("SAVED-MODEL")
+    );
+    assert!(
+        master_rx.try_recv().is_err(),
+        "loading must preserve the saved model"
+    );
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    assert_eq!(app.acp_model.as_deref(), Some("configured-default"));
+    assert!(app.current_tab().model_override.is_none());
+    app.open_model_picker();
+    assert_eq!(
+        app.current_tab().model_picker_selected,
+        1,
+        "a configured default missing from the catalog must not force selection to index zero"
+    );
+
+    app.handle_event(AppEvent::WtEvent {
+        method: "agent_config_changed".into(),
+        pane_id: String::new(),
+        tab_id: None,
+        params: json!({
+            "target_agent_id": "copilot",
+            "acp_model": "new-model"
+        }),
+    });
+    let MasterExtRequest::SetSessionModel {
+        request_id,
+        session_id,
+        model,
+        pane_override,
+    } = master_rx
+        .try_recv()
+        .expect("settings must target the restored session")
+    else {
+        panic!("expected SetSessionModel");
+    };
+    assert_eq!(session_id.unwrap().0.as_ref(), "restored-session");
+    assert_eq!(model, "new-model");
+    assert!(!pane_override);
+    assert_eq!(
+        app.confirmed_model_display().as_deref(),
+        Some("SAVED-MODEL")
+    );
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    app.set_cloud_models(vec![model_info("new-model"), model_info("saved-model")]);
+    app.switch_tab_session(DEFAULT_TAB_ID.into());
+    app.open_model_picker();
+    assert_eq!(
+        app.current_tab().model_picker_selected,
+        1,
+        "catalog refresh and tab selection must retain the confirmed model while the switch is pending"
+    );
+
+    app.handle_event(AppEvent::ModelSetFailed {
+        request_id,
+        session_id: "restored-session".into(),
+        model: model.clone(),
+        pane_override,
+        message: "provider rejected the model".into(),
+    });
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+    assert!(app.current_tab().model_override.is_none());
+    app.set_cloud_models(vec![model_info("new-model"), model_info("saved-model")]);
+    assert_eq!(app.current_model_id.as_deref(), Some("saved-model"));
+
+    app.send_acp_model_update();
+    let MasterExtRequest::SetSessionModel { request_id, .. } = master_rx
+        .try_recv()
+        .expect("a failed Settings model switch must remain retryable")
+    else {
+        panic!("expected SetSessionModel");
+    };
+
+    app.handle_event(AppEvent::ModelSetCompleted {
+        request_id,
+        session_id: "restored-session".into(),
+        model,
+        pane_override,
+    });
+    assert_eq!(app.confirmed_model_display().as_deref(), Some("NEW-MODEL"));
+    assert_eq!(app.current_model_id.as_deref(), Some("new-model"));
+    app.open_model_picker();
+    assert_eq!(app.current_tab().model_picker_selected, 0);
+    assert!(app.current_tab().model_override.is_none());
+    assert_eq!(
+        app.current_tab().session_id.as_deref(),
+        Some("restored-session")
+    );
+    let status = crate::wt_protocol_events::take_test_published_events()
+        .into_iter()
+        .map(|event| serde_json::from_str::<serde_json::Value>(&event).expect("valid WT event"))
+        .filter(|event| event["method"] == "agent_status")
+        .last()
+        .expect("successful model change must refresh the pane header");
+    assert_eq!(status["params"]["tab_id"], DEFAULT_TAB_ID);
+    assert_eq!(status["params"]["model"], "NEW-MODEL");
+}
+
+#[test]
 fn session_attach_prunes_replaced_session_model_config() {
     let mut app = test_app();
     app.current_tab_mut().session_id = Some("sid-old".into());
@@ -3648,6 +3927,7 @@ fn slash_model_hot_applies_cloud_model_to_live_session() {
             session_id,
             model,
             pane_override,
+            ..
         } => {
             assert_eq!(session_id.expect("target session").0.as_ref(), "sid-1");
             assert_eq!(model, "gpt-5.4");
@@ -3657,6 +3937,7 @@ fn slash_model_hot_applies_cloud_model_to_live_session() {
     }
 
     app.handle_event(AppEvent::ModelSetCompleted {
+        request_id: uuid::Uuid::new_v4(),
         session_id: "sid-1".into(),
         model: "gpt-5.4".into(),
         pane_override: true,
@@ -3682,6 +3963,7 @@ fn failed_legacy_model_pick_preserves_confirmed_model() {
     app.cmd_model("gpt-5.4".into());
     let _ = master_rx.try_recv().expect("live model switch request");
     app.handle_event(AppEvent::ModelSetFailed {
+        request_id: uuid::Uuid::new_v4(),
         session_id: "sid-1".into(),
         model: "gpt-5.4".into(),
         pane_override: true,
@@ -3798,6 +4080,7 @@ fn fresh_agent_connection_model_replaces_stale_agent_default() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     assert_eq!(app.current_model_id.as_deref(), Some("fresh"));
@@ -3820,6 +4103,7 @@ fn bootstrap_agent_connection_reconciles_global_yolo_state() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     let request = master_rx
@@ -4253,6 +4537,7 @@ fn initial_load_waits_for_attach_then_preserves_provider_restored_yolo() {
         load_session_supported: true,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     assert!(
@@ -4342,6 +4627,7 @@ fn initial_load_placeholder_binds_and_gates_the_helper_owner_tab() {
         load_session_supported: true,
         image_supported: false,
         session_capabilities_ready: false,
+        telemetry_byok_binding: None,
     });
 
     assert_eq!(
@@ -4902,7 +5188,7 @@ fn agent_reset_clears_reconcile_state_before_reused_id_attaches() {
 }
 
 #[test]
-fn fresh_session_model_does_not_replace_global_override() {
+fn fresh_session_applies_global_model_without_preempting_confirmation() {
     use crate::protocol::acp::client::MasterExtRequest;
 
     let (mut app, mut master_rx) = test_app_with_master_rx();
@@ -4917,22 +5203,53 @@ fn fresh_session_model_does_not_replace_global_override() {
         current_model_id: Some("agent-default".into()),
     });
 
-    assert_eq!(app.current_model_id.as_deref(), Some("global"));
-    match master_rx
+    assert_eq!(app.current_model_id.as_deref(), Some("agent-default"));
+    assert_eq!(app.acp_model.as_deref(), Some("global"));
+    let MasterExtRequest::SetSessionModel {
+        request_id,
+        session_id,
+        model,
+        pane_override,
+    } = master_rx
         .try_recv()
         .expect("the global override must be re-applied to the fresh session")
-    {
-        MasterExtRequest::SetSessionModel {
-            session_id,
-            model,
-            pane_override,
-        } => {
-            assert_eq!(session_id.unwrap().0.to_string(), "sid-fresh");
-            assert_eq!(model, "global");
-            assert!(!pane_override);
-        }
-        other => panic!("expected SetSessionModel, got {other:?}"),
-    }
+    else {
+        panic!("expected SetSessionModel");
+    };
+    assert_eq!(session_id.unwrap().0.as_ref(), "sid-fresh");
+    assert_eq!(model, "global");
+    assert!(!pane_override);
+
+    app.handle_event(AppEvent::ModelSetCompleted {
+        request_id,
+        session_id: "sid-fresh".into(),
+        model,
+        pane_override,
+    });
+    assert_eq!(app.current_model_id.as_deref(), Some("global"));
+    assert_eq!(app.confirmed_model_display().as_deref(), Some("GLOBAL"));
+    assert!(app.current_tab().model_override.is_none());
+}
+
+#[test]
+fn model_selection_uses_global_default_only_until_agent_reports_model() {
+    let mut app = test_app();
+    app.acp_model = Some("configured".into());
+    app.set_cloud_models(vec![model_info("configured"), model_info("reported")]);
+    assert_eq!(app.current_model_id.as_deref(), Some("configured"));
+
+    app.current_tab_mut().session_id = Some("sid-reported".into());
+    app.handle_event(AppEvent::ModelConfigUpdated {
+        session_id: "sid-reported".into(),
+        available_models: vec![model_info("configured"), model_info("reported")],
+        current_model_id: Some("reported".into()),
+    });
+
+    assert_eq!(app.current_model_id.as_deref(), Some("reported"));
+    assert_eq!(app.acp_model.as_deref(), Some("configured"));
+    assert!(app.current_tab().model_override.is_none());
+    app.open_model_picker();
+    assert_eq!(app.current_tab().model_picker_selected, 1);
 }
 
 #[test]
@@ -4965,6 +5282,7 @@ fn fresh_session_model_does_not_replace_pane_override_on_new() {
             session_id,
             model,
             pane_override,
+            ..
         } => {
             assert_eq!(session_id.unwrap().0.to_string(), "sid-new");
             assert_eq!(model, "pane-picked");
@@ -5019,6 +5337,7 @@ fn non_overridden_pane_follows_global_model() {
             session_id,
             model,
             pane_override,
+            ..
         } => {
             assert_eq!(model, "global");
             assert_eq!(session_id.unwrap().0.to_string(), "sid-1");
@@ -5508,6 +5827,40 @@ fn settings_agent_rebind_invalidates_completed_older_target_preflight() {
 }
 
 #[test]
+fn model_follow_mode_tracks_valid_agent_rebinds() {
+    let (mut app, _restart_rx) = test_app_with_restart_rx();
+    app.owner_tab_id = Some("owner-tab".into());
+    app.window_id = Some("window-1".into());
+    app.tab_id = Some("owner-tab".into());
+    app.current_agent_id = "copilot".into();
+    app.tab_mut("owner-tab");
+    app.set_master_pipe_acp_params(
+        "master-pipe".into(),
+        "copilot --acp".into(),
+        Some("copilot".into()),
+        None,
+        None,
+        crate::agent_source::AgentSource::Host,
+        None,
+        Some("owner-tab".into()),
+        Arc::clone(&app.shell_mgr),
+        true,
+    );
+
+    for (generation, follows, expected) in [(1, true, true), (2, false, false), (1, true, false)] {
+        let mut event = agent_rebind_event("owner-tab", generation, "copilot");
+        if let AppEvent::WtEvent { params, .. } = &mut event {
+            params["follows_global_acp_model"] = json!(follows);
+        }
+        app.handle_event(event);
+        assert_eq!(
+            app.follows_global_acp_model, expected,
+            "a stale rebind must not restore an obsolete model-follow mode"
+        );
+    }
+}
+
+#[test]
 fn settings_model_rebind_preserves_custom_provider_selection() {
     let (mut app, mut restart_rx) = test_app_with_restart_rx();
     app.owner_tab_id = Some("owner-tab".into());
@@ -5829,6 +6182,169 @@ fn settings_agent_rebind_ignores_stale_generation_and_converges_to_latest_target
 }
 
 #[test]
+fn settings_model_updates_other_restored_panes_after_local_model_pick() {
+    use crate::protocol::acp::client::MasterExtRequest;
+
+    for config_picker in [false, true] {
+        let mut panes = ["local-pane", "following-pane-a", "following-pane-b"].map(|tab_id| {
+            let (mut app, rx) = test_app_with_master_rx();
+            app.owner_tab_id = Some(tab_id.into());
+            app.tab_id = Some(tab_id.into());
+            app.window_id = Some("window-1".into());
+            app.current_agent_id = "copilot".into();
+            let session_id = format!("restored-{tab_id}");
+            app.current_tab_mut().loading_session = true;
+            app.current_tab_mut().loading_target_session_id = Some(session_id.clone());
+            app.handle_event(AppEvent::AgentConnected {
+                name: "Copilot".into(),
+                model: None,
+                version: None,
+                session_id: session_id.clone(),
+                available_models: Vec::new(),
+                current_model_id: None,
+                load_session_supported: true,
+                image_supported: false,
+                session_capabilities_ready: false,
+                telemetry_byok_binding: None,
+            });
+            app.handle_event(AppEvent::SessionAttached {
+                tab_id: tab_id.into(),
+                session_id,
+                prompt_id: None,
+                available_models: ["gpt-5.4", "gpt-5.5", "settings-model", "next-model"]
+                    .into_iter()
+                    .map(model_info)
+                    .collect(),
+                current_model_id: Some("gpt-5.4".into()),
+            });
+            (app, rx)
+        });
+        let (local, local_rx) = &mut panes[0];
+        if config_picker {
+            local.handle_event(AppEvent::SessionConfigSetCompleted {
+                session_id: "restored-local-pane".into(),
+                config_id: "model".into(),
+                value: "gpt-5.5".into(),
+                model_compat: true,
+            });
+        } else {
+            local.cmd_model("gpt-5.5".into());
+            let MasterExtRequest::SetSessionModel {
+                request_id,
+                session_id,
+                model,
+                pane_override,
+            } = local_rx.try_recv().expect("pane-local model request")
+            else {
+                panic!("expected SetSessionModel");
+            };
+            assert_eq!(session_id.unwrap().0.as_ref(), "restored-local-pane");
+            assert!(pane_override);
+            local.handle_event(AppEvent::ModelSetCompleted {
+                request_id,
+                session_id: "restored-local-pane".into(),
+                model,
+                pane_override,
+            });
+        }
+
+        for new_model in ["settings-model", "next-model"] {
+            for target in ["local-pane", "following-pane-a", "following-pane-b"] {
+                for (app, _) in &mut panes {
+                    app.handle_event(AppEvent::WtEvent {
+                        method: "agent_config_changed".into(),
+                        pane_id: String::new(),
+                        tab_id: Some(target.into()),
+                        params: json!({
+                            "window_id": "window-1",
+                            "tab_id": target,
+                            "target_agent_id": "copilot",
+                            "acp_model": new_model,
+                            "follows_global_acp_model": true
+                        }),
+                    });
+                }
+            }
+
+            for (index, (app, rx)) in panes.iter_mut().enumerate() {
+                if index == 0 {
+                    assert!(
+                        rx.try_recv().is_err(),
+                        "only the local model pick stays pinned"
+                    );
+                    assert_eq!(app.confirmed_model_display().as_deref(), Some("GPT-5.5"));
+                    continue;
+                }
+                let MasterExtRequest::SetSessionModel {
+                    request_id,
+                    session_id,
+                    model,
+                    pane_override,
+                } = rx.try_recv().expect("each other restored pane must update")
+                else {
+                    panic!("expected SetSessionModel");
+                };
+                let session_id = session_id.unwrap().to_string();
+                assert_eq!(
+                    Some(session_id.as_str()),
+                    app.current_tab().session_id.as_deref()
+                );
+                assert_eq!(model, new_model);
+                assert!(!pane_override);
+                assert!(
+                    rx.try_recv().is_err(),
+                    "another tab's event must not duplicate the update"
+                );
+                app.handle_event(AppEvent::ModelSetCompleted {
+                    request_id,
+                    session_id,
+                    model,
+                    pane_override,
+                });
+                assert_eq!(
+                    app.confirmed_model_display(),
+                    Some(new_model.to_uppercase())
+                );
+                assert!(app.current_tab().model_override.is_none());
+            }
+        }
+    }
+}
+
+#[test]
+fn model_follow_mode_requires_matching_tab_window_and_agent() {
+    let (mut app, mut rx) = test_app_with_master_rx();
+    app.owner_tab_id = Some("owner-tab".into());
+    app.tab_id = Some("owner-tab".into());
+    app.window_id = Some("window-1".into());
+    app.current_agent_id = "copilot".into();
+    app.current_tab_mut().session_id = Some("session-1".into());
+
+    for (window, tab, agent) in [
+        ("window-2", "owner-tab", "copilot"),
+        ("window-1", "other-tab", "copilot"),
+        ("window-1", "owner-tab", "claude"),
+        ("window-1", "", "copilot"),
+        ("", "owner-tab", "copilot"),
+    ] {
+        app.handle_event(AppEvent::WtEvent {
+            method: "agent_config_changed".into(),
+            pane_id: String::new(),
+            tab_id: None,
+            params: json!({
+                "window_id": window,
+                "tab_id": tab,
+                "target_agent_id": agent,
+                "acp_model": "new-model",
+                "follows_global_acp_model": true
+            }),
+        });
+        assert!(!app.follows_global_acp_model);
+        assert!(rx.try_recv().is_err());
+    }
+}
+
+#[test]
 fn global_model_hot_update_is_scoped_to_matching_global_followers() {
     use crate::protocol::acp::client::MasterExtRequest;
 
@@ -5922,6 +6438,7 @@ fn global_model_hot_update_is_scoped_to_matching_global_followers() {
             session_id,
             model,
             pane_override,
+            ..
         } => {
             assert_eq!(session_id.unwrap().0.to_string(), "gemini-session");
             assert_eq!(model, "copilot-only-model");
@@ -5945,6 +6462,7 @@ fn custom_model_catalog_hot_update_rebuilds_picker_without_stale_rows() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
     app.set_custom_model_config(
         vec![
@@ -6159,6 +6677,7 @@ fn same_agent_host_and_wsl_keep_host_catalogs_isolated() {
             load_session_supported: false,
             image_supported: false,
             session_capabilities_ready: true,
+            telemetry_byok_binding: None,
         });
     };
     let host_catalog = || AppEvent::WtEvent {
@@ -6246,6 +6765,7 @@ fn custom_model_hot_update_is_ignored_for_unsupported_profile_backend() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     app.handle_event(AppEvent::WtEvent {
@@ -8391,6 +8911,7 @@ fn agent_connected_restores_proposal_channels() {
         load_session_supported: true,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
 
     assert!(
@@ -8435,6 +8956,8 @@ fn auth_error_routes_to_signin_not_connection_lost() {
 #[test]
 fn soft_stop_appends_system_line_without_changing_state() {
     use crate::protocol::acp::soft_stop::SoftStopReason;
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     bind_test_session(&mut app, DEFAULT_TAB_ID);
@@ -8478,6 +9001,8 @@ fn soft_stop_appends_system_line_without_changing_state() {
 #[test]
 fn soft_stop_reasons_map_to_distinct_localized_lines() {
     use crate::protocol::acp::soft_stop::SoftStopReason;
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     for (reason, key) in [
         (SoftStopReason::MaxTokens, "system.stopped_max_tokens"),
         (
@@ -11108,9 +11633,7 @@ fn render_setup_screen_shows_title() {
         reason: SetupReason::AgentError,
         selected_index: 0,
         preflight: PreflightResult::passed_for_custom_agent("custom:qwen"),
-        install_in_progress: false,
-        install_log: Vec::new(),
-        install_error: None,
+        phase: SetupPhase::Ready,
         options: Vec::new(),
         title: "SETUP_TITLE_XYZ".into(),
         subtitle: "SETUP_SUBTITLE_XYZ".into(),
@@ -11154,6 +11677,8 @@ fn render_auth_screen_shows_agent_name() {
 /// hint. Lifts `ui/agents_view.rs` (reached via `View::Agents`).
 #[test]
 fn render_sessions_view_shows_footer_hint() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.current_tab_mut().current_view = View::Agents;
@@ -11175,6 +11700,10 @@ fn render_sessions_view_shows_footer_hint() {
 /// sign-in footer. Covers the `else` arm of `ui/auth.rs`.
 #[test]
 fn render_auth_sign_in_card() {
+    // Pin English through rendering and assertions: wide-glyph buffer padding
+    // breaks substring matches against the original localized strings.
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.mode = AppMode::Auth;
     app.auth = Some(AuthState {
@@ -11262,6 +11791,8 @@ fn copilot_login_failure_surfaces_reason() {
 /// a generic localized message rather than nothing.
 #[test]
 fn copilot_login_failure_without_reason_shows_generic_message() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.mode = AppMode::Auth;
     app.auth = Some(AuthState {
@@ -11293,6 +11824,8 @@ fn copilot_login_failure_without_reason_shows_generic_message() {
 /// guidance. Regression guard for the "error on the first line" report.
 #[test]
 fn render_auth_copilot_failure_shows_reason_and_guidance_at_bottom() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.mode = AppMode::Auth;
     app.auth = Some(AuthState {
@@ -11552,8 +12085,27 @@ fn agent_status_for_test(
 
 #[test]
 fn diagnostic_setup_options_route_auth_by_agent() {
+    let missing_copilot = agent_status_for_test("copilot", "GitHub Copilot", false);
+    let missing_options = build_setup_options_with_uncertainty(
+        &SetupReason::AgentMissing,
+        Some(&missing_copilot),
+        false,
+    );
+    assert!(
+        matches!(
+            missing_options.as_slice(),
+            [
+                SetupOption::Install { agent_id, .. },
+                SetupOption::Recheck,
+                SetupOption::ChooseAgentSource
+            ] if agent_id == "copilot"
+        ),
+        "missing Copilot must support both bounded install and manual Recheck"
+    );
+
     let copilot = agent_status_for_test("copilot", "GitHub Copilot", true);
-    let copilot_options = build_setup_options(&SetupReason::AgentError, Some(&copilot));
+    let copilot_options =
+        build_setup_options_with_uncertainty(&SetupReason::AgentError, Some(&copilot), false);
     assert!(
         matches!(
             copilot_options.as_slice(),
@@ -11564,7 +12116,8 @@ fn diagnostic_setup_options_route_auth_by_agent() {
     );
 
     let codex = agent_status_for_test("codex", "Codex", true);
-    let codex_options = build_setup_options(&SetupReason::AgentError, Some(&codex));
+    let codex_options =
+        build_setup_options_with_uncertainty(&SetupReason::AgentError, Some(&codex), false);
     assert!(
         matches!(
             codex_options.as_slice(),
@@ -11572,6 +12125,368 @@ fn diagnostic_setup_options_route_auth_by_agent() {
         ),
         "external-auth agents stay on the diagnostic Retry flow"
     );
+
+    let uncertain_options = build_setup_options_with_uncertainty(
+        &SetupReason::AgentMissing,
+        Some(&missing_copilot),
+        true,
+    );
+    assert!(
+        matches!(
+            uncertain_options.as_slice(),
+            [SetupOption::Recheck, SetupOption::ChooseAgentSource]
+        ),
+        "an uncertain prior install must be rechecked before another install starts"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn fre_auto_install_hint_starts_missing_copilot_install() {
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let mut app = test_app();
+            let (event_tx, _event_rx) = tokio::sync::mpsc::unbounded_channel();
+            app.set_event_tx(event_tx);
+            app.owner_tab_id = Some("fre-tab".into());
+            app.tab_id = Some("other-focused-tab".into());
+            app.current_agent_id = "copilot".into();
+            app.mode = AppMode::Setup;
+            app.preflight_setup_active = true;
+            app.setup = Some(SetupState {
+                reason: SetupReason::AgentMissing,
+                selected_index: 0,
+                preflight: PreflightResult::passed_for_custom_agent("copilot"),
+                phase: SetupPhase::Ready,
+                options: vec![SetupOption::Install {
+                    agent_id: "copilot".into(),
+                    display_name: "GitHub Copilot".into(),
+                }],
+                title: "setup".into(),
+                subtitle: "sub".into(),
+            });
+
+            app.handle_event(AppEvent::WtEvent {
+                method: "fre_auto_install_selected_agent".into(),
+                pane_id: String::new(),
+                tab_id: Some("fre-tab".into()),
+                params: json!({
+                    "tab_id": "fre-tab",
+                    "agent_id": "copilot",
+                }),
+            });
+
+            assert!(!app.auto_install_selected_agent);
+            assert_eq!(app.mode, AppMode::Setup);
+            assert!(matches!(
+                app.setup.as_ref().map(|setup| &setup.phase),
+                Some(SetupPhase::Installing)
+            ));
+            assert!(matches!(
+                app.pending_agent_install.as_ref(),
+                Some(PendingAgentInstall { agent_id, .. }) if agent_id == "copilot"
+            ));
+        })
+        .await;
+}
+
+#[test]
+fn fre_auto_install_hint_rejects_active_non_owner_tab() {
+    let mut app = test_app();
+    app.owner_tab_id = Some("owner-tab".into());
+    app.tab_id = Some("other-focused-tab".into());
+    app.current_agent_id = "copilot".into();
+
+    app.handle_event(AppEvent::WtEvent {
+        method: "fre_auto_install_selected_agent".into(),
+        pane_id: String::new(),
+        tab_id: Some("other-focused-tab".into()),
+        params: json!({
+            "tab_id": "other-focused-tab",
+            "agent_id": "copilot",
+        }),
+    });
+
+    assert!(!app.auto_install_selected_agent);
+    assert!(app.pending_agent_install.is_none());
+}
+
+#[test]
+fn availability_notification_uses_stable_owner_tab() {
+    let mut app = test_app();
+    let _capture = crate::wt_protocol_events::capture_test_published_events();
+    app.owner_tab_id = Some("owner-tab".into());
+    app.tab_id = Some("other-focused-tab".into());
+
+    app.notify_confirmed_agent_available("copilot");
+
+    let event = crate::wt_protocol_events::take_test_published_events()
+        .into_iter()
+        .filter_map(|event| serde_json::from_str::<serde_json::Value>(&event).ok())
+        .find(|event| event["method"] == "agent_availability_changed")
+        .expect("availability change must be published");
+    assert_eq!(event["params"]["tab_id"], "owner-tab");
+}
+
+#[test]
+fn missing_copilot_without_fre_hint_remains_manual() {
+    let mut app = test_app();
+    app.mode = AppMode::Setup;
+    app.preflight_setup_active = true;
+    app.setup = Some(SetupState {
+        reason: SetupReason::AgentMissing,
+        selected_index: 0,
+        preflight: PreflightResult::passed_for_custom_agent("copilot"),
+        phase: SetupPhase::Ready,
+        options: vec![SetupOption::Install {
+            agent_id: "copilot".into(),
+            display_name: "GitHub Copilot".into(),
+        }],
+        title: "setup".into(),
+        subtitle: "sub".into(),
+    });
+
+    assert!(app.pending_agent_install.is_none());
+    assert!(matches!(
+        app.setup.as_ref().map(|setup| &setup.phase),
+        Some(SetupPhase::Ready)
+    ));
+}
+
+#[test]
+fn duplicate_startup_preflight_does_not_replace_active_install() {
+    let mut app = test_app();
+    app.current_agent_id = "copilot".into();
+    app.mode = AppMode::Setup;
+    app.pending_agent_install = Some(PendingAgentInstall {
+        request_id: 7,
+        agent_id: "copilot".into(),
+        binding_generation: app.agent_binding_generation,
+        agent_source: app.current_agent_source.clone(),
+    });
+    app.setup = Some(SetupState {
+        reason: SetupReason::AgentMissing,
+        selected_index: 0,
+        preflight: PreflightResult::passed_for_custom_agent("copilot"),
+        phase: SetupPhase::Installing,
+        options: Vec::new(),
+        title: "installing".into(),
+        subtitle: "sub".into(),
+    });
+
+    app.handle_event(AppEvent::PreflightComplete(PreflightResult {
+        agent_id: "copilot".into(),
+        display_name: "GitHub Copilot".into(),
+        cli_status: CheckStatus::Failed("Not found on PATH".into()),
+        cli_path: None,
+        auth_status: CheckStatus::Skipped,
+        install_hint: "Install GitHub Copilot".into(),
+        install_url: String::new(),
+        auth_hint: String::new(),
+    }));
+
+    assert!(matches!(
+        app.pending_agent_install.as_ref(),
+        Some(PendingAgentInstall { request_id: 7, .. })
+    ));
+    assert!(matches!(
+        app.setup.as_ref().map(|setup| &setup.phase),
+        Some(SetupPhase::Installing)
+    ));
+}
+
+#[test]
+fn fre_auto_install_event_is_ignored_for_wsl() {
+    let mut app = test_app();
+    app.tab_id = Some("fre-tab".into());
+    app.current_agent_id = "copilot".into();
+    app.current_agent_source = crate::agent_source::AgentSource::Wsl {
+        distro: "Ubuntu".into(),
+    };
+
+    app.handle_event(AppEvent::WtEvent {
+        method: "fre_auto_install_selected_agent".into(),
+        pane_id: String::new(),
+        tab_id: Some("fre-tab".into()),
+        params: json!({
+            "tab_id": "fre-tab",
+            "agent_id": "copilot",
+        }),
+    });
+
+    assert!(!app.auto_install_selected_agent);
+    assert!(app.pending_agent_install.is_none());
+}
+
+#[test]
+fn late_fre_auto_install_event_is_consumed_after_passed_preflight() {
+    let mut app = test_app();
+    app.tab_id = Some("fre-tab".into());
+    app.current_agent_id = "copilot".into();
+
+    app.handle_event(AppEvent::PreflightComplete(PreflightResult {
+        agent_id: "copilot".into(),
+        display_name: "GitHub Copilot".into(),
+        cli_status: CheckStatus::Passed,
+        cli_path: Some("copilot.exe".into()),
+        auth_status: CheckStatus::Skipped,
+        install_hint: String::new(),
+        install_url: String::new(),
+        auth_hint: String::new(),
+    }));
+
+    app.handle_event(AppEvent::WtEvent {
+        method: "fre_auto_install_selected_agent".into(),
+        pane_id: String::new(),
+        tab_id: Some("fre-tab".into()),
+        params: json!({
+            "tab_id": "fre-tab",
+            "agent_id": "copilot",
+        }),
+    });
+
+    assert!(app.initial_preflight_completed);
+    assert!(!app.auto_install_selected_agent);
+    assert!(app.pending_agent_install.is_none());
+}
+
+#[test]
+fn stale_install_completion_does_not_mutate_current_setup() {
+    let mut app = test_app();
+    app.mode = AppMode::Setup;
+    app.pending_agent_install = Some(PendingAgentInstall {
+        request_id: 2,
+        agent_id: "copilot".into(),
+        binding_generation: app.agent_binding_generation,
+        agent_source: app.current_agent_source.clone(),
+    });
+    app.setup = Some(SetupState {
+        reason: SetupReason::AgentMissing,
+        selected_index: 0,
+        preflight: PreflightResult::passed_for_custom_agent("copilot"),
+        phase: SetupPhase::Installing,
+        options: vec![SetupOption::Recheck],
+        title: "setup".into(),
+        subtitle: "sub".into(),
+    });
+
+    app.handle_event(AppEvent::AgentInstallComplete {
+        request_id: 1,
+        agent_id: "copilot".into(),
+        outcome: crate::agent_check::AgentInstallOutcome::Failed("stale".into()),
+    });
+
+    assert_eq!(
+        app.pending_agent_install,
+        Some(PendingAgentInstall {
+            request_id: 2,
+            agent_id: "copilot".into(),
+            binding_generation: 0,
+            agent_source: crate::agent_source::AgentSource::Host,
+        })
+    );
+    let setup = app.setup.as_ref().expect("setup remains active");
+    assert_eq!(setup.phase, SetupPhase::Installing);
+}
+
+#[test]
+fn install_completion_cannot_reconnect_after_binding_change() {
+    let mut app = test_app();
+    app.mode = AppMode::Setup;
+    app.current_agent_id = "copilot".into();
+    app.pending_agent_install = Some(PendingAgentInstall {
+        request_id: 1,
+        agent_id: "copilot".into(),
+        binding_generation: 0,
+        agent_source: crate::agent_source::AgentSource::Host,
+    });
+    app.agent_binding_generation = 1;
+    app.current_agent_id = "claude".into();
+
+    app.handle_event(AppEvent::AgentInstallComplete {
+        request_id: 1,
+        agent_id: "copilot".into(),
+        outcome: crate::agent_check::AgentInstallOutcome::AlreadyAvailable,
+    });
+
+    assert!(app.pending_agent_install.is_none());
+    assert_eq!(app.current_agent_id, "claude");
+    assert!(!app.pending_acp_start);
+}
+
+#[test]
+fn confirmed_agent_waits_for_outgoing_transport_retirement() {
+    let mut app = test_app();
+    app.mode = AppMode::Setup;
+    app.current_agent_id = "copilot".into();
+    app.setup = Some(SetupState {
+        reason: SetupReason::AgentMissing,
+        selected_index: 0,
+        preflight: PreflightResult::passed_for_custom_agent("copilot"),
+        phase: SetupPhase::Ready,
+        options: vec![SetupOption::Recheck],
+        title: "setup".into(),
+        subtitle: "sub".into(),
+    });
+    app.set_master_pipe_acp_params(
+        "master-pipe".into(),
+        "copilot --acp".into(),
+        Some("copilot".into()),
+        None,
+        None,
+        crate::agent_source::AgentSource::Host,
+        None,
+        Some(DEFAULT_TAB_ID.into()),
+        Arc::clone(&app.shell_mgr),
+        true,
+    );
+
+    app.reconnect_confirmed_available_agent("copilot");
+
+    assert!(!app.pending_acp_start);
+    assert!(app.reconnect_after_transport_retired);
+    assert!(matches!(
+        app.setup.as_ref().map(|setup| &setup.phase),
+        Some(SetupPhase::Reconnecting)
+    ));
+
+    app.handle_event(AppEvent::AgentTransportRetired);
+
+    assert!(app.pending_acp_start);
+    assert!(!app.reconnect_after_transport_retired);
+}
+
+#[test]
+fn successful_outgoing_connection_cancels_pending_replacement() {
+    let mut app = test_app();
+    app.mode = AppMode::Setup;
+    app.reconnect_after_transport_retired = true;
+    app.setup = Some(SetupState {
+        reason: SetupReason::AgentMissing,
+        selected_index: 0,
+        preflight: PreflightResult::passed_for_custom_agent("copilot"),
+        phase: SetupPhase::Reconnecting,
+        options: Vec::new(),
+        title: "setup".into(),
+        subtitle: "sub".into(),
+    });
+
+    app.handle_event(AppEvent::AgentConnected {
+        name: "Copilot".into(),
+        model: None,
+        version: None,
+        session_id: "sid".into(),
+        available_models: Vec::new(),
+        current_model_id: None,
+        load_session_supported: true,
+        image_supported: false,
+        session_capabilities_ready: true,
+        telemetry_byok_binding: None,
+    });
+
+    assert_eq!(app.mode, AppMode::Chat);
+    assert!(app.setup.is_none());
+    assert!(!app.reconnect_after_transport_retired);
+    assert!(!app.pending_acp_start);
 }
 
 #[test]
@@ -11582,9 +12497,7 @@ fn show_copilot_auth_screen_sets_expected_state() {
         reason: SetupReason::AgentError,
         selected_index: 0,
         preflight: PreflightResult::passed_for_custom_agent("copilot"),
-        install_in_progress: false,
-        install_log: Vec::new(),
-        install_error: None,
+        phase: SetupPhase::Ready,
         options: vec![SetupOption::Retry],
         title: "setup".into(),
         subtitle: "sub".into(),
@@ -11606,21 +12519,147 @@ fn show_copilot_auth_screen_sets_expected_state() {
     assert!(auth.status_message.is_empty());
 }
 
-/// Render: a setup screen with a full options list while a winget install
-/// is in progress must paint each option label and the install spinner row.
-/// Covers the `SetupOption` match arms + the install-progress block in
-/// `ui/setup.rs`.
 #[test]
-fn render_setup_options_while_installing() {
+fn initial_startup_failure_uses_setup_without_polluting_chat() {
+    let mut app = test_app();
+    let _capture = crate::wt_protocol_events::capture_test_published_events();
+    app.current_agent_id = "copilot".into();
+
+    app.handle_event(AppEvent::InitialAgentStartupFailed {
+        failure: crate::protocol::acp::failure::AgentFailure::HandshakeFailed {
+            stage: crate::protocol::acp::failure::HandshakeStage::Initialize,
+            detail: "missing executable".into(),
+        },
+        message: "INITIAL_STARTUP_FAILURE_XYZ".into(),
+    });
+
+    assert_eq!(app.mode, AppMode::Setup);
+    assert!(matches!(
+        app.setup.as_ref().map(|setup| &setup.phase),
+        Some(SetupPhase::Failed {
+            kind: SetupFailureKind::Connection,
+            message,
+        }) if message == "INITIAL_STARTUP_FAILURE_XYZ"
+    ));
+    assert!(app.current_tab().messages.is_empty());
+    let status = crate::wt_protocol_events::take_test_published_events()
+        .into_iter()
+        .filter_map(|event| serde_json::from_str::<serde_json::Value>(&event).ok())
+        .find(|event| event["method"] == "agent_status")
+        .expect("startup failure must publish the disconnected status");
+    assert_eq!(status["params"]["state"], "disconnected");
+}
+
+#[test]
+fn wsl_retry_enters_reconnecting_phase() {
+    let mut app = test_app();
+    app.current_agent_id = "copilot".into();
+    app.current_agent_source = crate::agent_source::AgentSource::Wsl {
+        distro: "Ubuntu".into(),
+    };
+    app.mode = AppMode::Setup;
+    app.setup = Some(SetupState {
+        reason: SetupReason::AgentError,
+        selected_index: 0,
+        preflight: PreflightResult::passed_for_custom_agent("copilot"),
+        phase: SetupPhase::Failed {
+            kind: SetupFailureKind::Connection,
+            message: "old failure".into(),
+        },
+        options: vec![SetupOption::RetryConnection],
+        title: "setup".into(),
+        subtitle: "sub".into(),
+    });
+    app.set_master_pipe_acp_params(
+        "master-pipe".into(),
+        "copilot --acp".into(),
+        Some("copilot".into()),
+        None,
+        None,
+        crate::agent_source::AgentSource::Wsl {
+            distro: "Ubuntu".into(),
+        },
+        None,
+        Some("owner-tab".into()),
+        Arc::clone(&app.shell_mgr),
+        true,
+    );
+
+    app.handle_setup_enter(SetupOption::RetryConnection);
+
+    assert!(matches!(
+        app.setup.as_ref().map(|setup| &setup.phase),
+        Some(SetupPhase::Reconnecting)
+    ));
+    assert!(matches!(app.state, ConnectionState::Connecting(_)));
+    assert!(app.pending_acp_start);
+}
+
+#[test]
+fn superseded_initial_startup_failure_does_not_replace_connected_chat() {
+    let mut app = test_app();
+    app.current_agent_id = "copilot".into();
+    app.initial_startup_presentation_eligible = false;
+    app.initial_transport_superseded = true;
+    app.state = ConnectionState::Connected;
+
+    app.handle_event(AppEvent::InitialAgentStartupFailed {
+        failure: crate::protocol::acp::failure::AgentFailure::HandshakeFailed {
+            stage: crate::protocol::acp::failure::HandshakeStage::Initialize,
+            detail: "stale".into(),
+        },
+        message: "STALE_INITIAL_FAILURE_XYZ".into(),
+    });
+
+    assert_eq!(app.mode, AppMode::Chat);
+    assert_eq!(app.state, ConnectionState::Connected);
+    assert!(app.current_tab().messages.is_empty());
+}
+
+#[test]
+fn duplicate_reconnect_ready_does_not_erase_active_preflight() {
+    let mut app = test_app();
+    let request = AgentReconnectRequest {
+        operation_id: "op-duplicate".into(),
+        window_id: "window-1".into(),
+        generation: 7,
+        agent_id: "claude".into(),
+        agent_source: crate::agent_source::AgentSource::Host,
+        acp_model: None,
+        custom_model_selection: None,
+    };
+    app.agent_reconnect_state = AgentReconnectState::Disconnecting(request.clone());
+
+    app.handle_event(AppEvent::AgentTransportRetired);
+    assert!(matches!(
+        &app.agent_reconnect_state,
+        AgentReconnectState::Preflighting(active)
+            if active.operation_id == "op-duplicate"
+    ));
+
+    app.handle_event(AppEvent::AgentReconnectReady(request));
+
+    assert!(matches!(
+        &app.agent_reconnect_state,
+        AgentReconnectState::Preflighting(active)
+            if active.operation_id == "op-duplicate"
+    ));
+}
+
+/// Installing uses one concise progress presentation while the regular Setup
+/// options stay hidden.
+#[test]
+fn render_setup_installing_hides_stale_options() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.mode = AppMode::Setup;
+    app.state = ConnectionState::Disconnected;
     app.setup = Some(SetupState {
         reason: SetupReason::AgentMissing,
         selected_index: 0,
         preflight: PreflightResult::passed_for_custom_agent("custom:x"),
-        install_in_progress: true,
-        install_log: vec!["WINGET_LOG_XYZ".into()],
-        install_error: None,
+        phase: SetupPhase::Installing,
         options: vec![
             SetupOption::Install {
                 agent_id: "copilot".into(),
@@ -11630,25 +12669,34 @@ fn render_setup_options_while_installing() {
                 agent_id: "copilot".into(),
                 display_name: "GitHub Copilot".into(),
             },
+            SetupOption::Recheck,
             SetupOption::Retry,
         ],
-        title: "INSTALLING_TITLE_XYZ".into(),
+        title: "STALE_MISSING_TITLE_XYZ".into(),
         subtitle: "sub".into(),
     });
 
     let text = render_to_text(&mut app, 80, 30);
     assert!(
-        text.contains("INSTALLING_TITLE_XYZ"),
-        "the setup screen must paint its title; rendered:\n{text}"
+        text.lines()
+            .any(|line| line.starts_with(" Installing GitHub Copilot CLI  ◜"))
+            && !text.contains("Installing GitHub Copilot CLI..."),
+        "the setup screen must paint the unindented install wording and spinner; rendered:\n{text}"
     );
     assert!(
-        text.contains("WINGET_LOG_XYZ"),
-        "the install-in-progress block must paint the winget log tail; rendered:\n{text}"
+        !text.contains("STALE_MISSING_TITLE_XYZ")
+            && !text.contains("● Installing GitHub Copilot")
+            && !text.contains("Install GitHub Copilot")
+            && !text.contains("Try again"),
+        "busy setup must hide stale titles and actions; rendered:\n{text}"
+    );
+    assert!(
+        text.contains("disconnected"),
+        "the PM-required input connection status remains visible; rendered:\n{text}"
     );
 }
 
-/// Render: a setup screen carrying an install error must paint the error
-/// message. Covers the `install_error` branch in `ui/setup.rs` (line 186+).
+/// A failed install keeps its actionable options and paints the failure.
 #[test]
 fn render_setup_install_error() {
     let mut app = test_app();
@@ -11657,9 +12705,10 @@ fn render_setup_install_error() {
         reason: SetupReason::AgentError,
         selected_index: 0,
         preflight: PreflightResult::passed_for_custom_agent("custom:x"),
-        install_in_progress: false,
-        install_log: vec!["log-a".into(), "log-b".into()],
-        install_error: Some("INSTALL_ERR_XYZ".into()),
+        phase: SetupPhase::Failed {
+            kind: SetupFailureKind::Install,
+            message: "INSTALL_ERR_XYZ".into(),
+        },
         options: vec![SetupOption::Retry],
         title: "err".into(),
         subtitle: "sub".into(),
@@ -11672,30 +12721,112 @@ fn render_setup_install_error() {
     );
 }
 
-/// Render: a setup screen with a completed-info log (no install running,
-/// no error) must paint the info line. Covers the info-log block in
-/// `ui/setup.rs` (lines 75-85).
+/// Reconnecting replaces the old install content but preserves the normal
+/// connection-state input row.
 #[test]
-fn render_setup_info_log() {
+fn render_setup_reconnecting_hides_install_content() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.mode = AppMode::Setup;
+    app.state = ConnectionState::Connecting("Reconnecting...".into());
     app.setup = Some(SetupState {
-        reason: SetupReason::AgentError,
+        reason: SetupReason::AgentMissing,
         selected_index: 0,
         preflight: PreflightResult::passed_for_custom_agent("custom:x"),
-        install_in_progress: false,
-        install_log: vec!["INFO_LOG_XYZ".into()],
-        install_error: None,
-        options: vec![SetupOption::Retry],
-        title: "info".into(),
+        phase: SetupPhase::Reconnecting,
+        options: vec![
+            SetupOption::Install {
+                agent_id: "copilot".into(),
+                display_name: "GitHub Copilot".into(),
+            },
+            SetupOption::Recheck,
+        ],
+        title: "STALE_AGENT_NOT_FOUND_XYZ".into(),
         subtitle: "sub".into(),
     });
 
     let text = render_to_text(&mut app, 80, 30);
     assert!(
-        text.contains("INFO_LOG_XYZ"),
-        "the setup screen must paint the completed-info log line; rendered:\n{text}"
+        text.lines()
+            .any(|line| line.starts_with(" Connecting x  ◜"))
+            && text.contains("connecting"),
+        "reconnecting and input connection status must both remain visible; rendered:\n{text}"
     );
+    assert!(
+        !text.contains("STALE_AGENT_NOT_FOUND_XYZ")
+            && !text.contains("Starting GitHub Copilot")
+            && !text.contains("Starting x")
+            && !text.contains("Connecting x...")
+            && !text.contains("Install GitHub Copilot")
+            && !text.contains("Try again"),
+        "reconnecting must hide stale install content; rendered:\n{text}"
+    );
+}
+
+#[test]
+fn render_setup_reconnecting_substitutes_copilot_display_name() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
+    let mut app = test_app();
+    app.mode = AppMode::Setup;
+    app.state = ConnectionState::Connecting("Reconnecting...".into());
+    let mut preflight = PreflightResult::passed_for_custom_agent("copilot");
+    preflight.display_name = "GitHub Copilot".into();
+    app.setup = Some(SetupState {
+        reason: SetupReason::AgentMissing,
+        selected_index: 0,
+        preflight,
+        phase: SetupPhase::Reconnecting,
+        options: Vec::new(),
+        title: "STALE_AGENT_NOT_FOUND_XYZ".into(),
+        subtitle: "sub".into(),
+    });
+
+    let text = render_to_text(&mut app, 80, 30);
+    assert!(
+        text.lines()
+            .any(|line| line.starts_with(" Connecting GitHub Copilot  ◜"))
+            && !text.contains("Starting GitHub Copilot")
+            && !text.contains("Connecting GitHub Copilot...")
+            && !text.contains("STALE_AGENT_NOT_FOUND_XYZ"),
+        "the reconnect status must substitute the Copilot display name before the spinner; rendered:\n{text}"
+    );
+}
+
+#[test]
+fn render_setup_busy_spinner_rotates_after_status() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
+
+    for (phase, status) in [
+        (SetupPhase::Installing, "Installing GitHub Copilot CLI"),
+        (SetupPhase::Reconnecting, "Connecting GitHub Copilot"),
+    ] {
+        let mut app = test_app();
+        app.mode = AppMode::Setup;
+        let mut preflight = PreflightResult::passed_for_custom_agent("copilot");
+        preflight.display_name = "GitHub Copilot".into();
+        app.setup = Some(SetupState {
+            reason: SetupReason::AgentMissing,
+            selected_index: 0,
+            preflight,
+            phase,
+            options: Vec::new(),
+            title: "STALE_TITLE_XYZ".into(),
+            subtitle: "STALE_SUBTITLE_XYZ".into(),
+        });
+
+        for (frame, glyph) in ['◜', '◝', '◞', '◟'].into_iter().enumerate() {
+            app.activity_frame = frame as u8;
+            let text = render_to_text(&mut app, 80, 30);
+            assert!(
+                text.lines()
+                    .any(|line| line.starts_with(&format!(" {status}  {glyph}"))),
+                "busy setup frame {frame} must render {glyph} after the unindented status; rendered:\n{text}"
+            );
+        }
+    }
 }
 
 /// Alt+V when the agent did not advertise the `image` prompt capability
@@ -11704,6 +12835,8 @@ fn render_setup_info_log() {
 #[test]
 fn alt_v_without_image_capability_shows_not_supported_message() {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.agent_supports_image = false;
@@ -12373,6 +13506,8 @@ fn image_attachment_ctrl_c_clears_image_only_draft_without_arming_close() {
 #[test]
 fn render_recommendation_card_shows_command() {
     use crate::coordinator::{RecommendationChoice, RecommendationSet, RecommendedAction};
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.current_tab_mut().turn = TurnState::Surfaced {
@@ -13782,6 +14917,8 @@ fn right_click_copies_and_clears_ctrl_a_selection() {
         KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
 
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let _clipboard_guard = crate::clipboard_image::CLIPBOARD_TEST_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -13895,6 +15032,8 @@ fn completed_turn_user_input_multi_click_preserves_turn_state_and_text_selection
 fn right_click_copies_and_clears_text_selection() {
     use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let _clipboard_guard = crate::clipboard_image::CLIPBOARD_TEST_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -14537,6 +15676,8 @@ fn clicking_completed_tool_header_toggles_only_that_tool() {
 
 #[test]
 fn adjacent_successful_reads_render_as_one_compact_group() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.current_tab_mut().messages = [
@@ -14574,6 +15715,8 @@ fn adjacent_successful_reads_render_as_one_compact_group() {
 
 #[test]
 fn generic_read_group_lists_visible_targets_and_remaining_count() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.current_tab_mut().messages = ["first.rs", "second.rs", "third.rs", "fourth.rs"]
@@ -14671,40 +15814,51 @@ fn clicking_completed_read_group_expands_every_member() {
 
 #[test]
 fn pending_tool_in_completed_turn_keeps_clickable_status_marker() {
-    let mut app = test_app();
-    app.state = ConnectionState::Connected;
-    app.current_tab_mut().completed_turns.push(CompletedTurn {
-        prompt: "Interrupted turn".into(),
-        details: vec![ChatMessage::ToolCall {
-            id: "pending-tool".into(),
-            query: None,
-            title: "Pending operation".into(),
-            status: "Pending".into(),
-            kind: ToolCallKind::Other,
-            location: None,
-            location_is_command: false,
-            cwd: None,
-            output: None,
-            exit_code: None,
-            content: Vec::new(),
-            locations: Vec::new(),
-        }],
-        expanded: true,
-        trailing_marker: None,
-    });
+    let _locale = crate::test_support::lock_locale();
+    for locale in ["en-US", "zh-CN", "ja-JP", "ar-SA"] {
+        rust_i18n::set_locale(locale);
+        let mut app = test_app();
+        app.state = ConnectionState::Connected;
+        app.current_tab_mut().completed_turns.push(CompletedTurn {
+            prompt: "Interrupted turn".into(),
+            details: vec![ChatMessage::ToolCall {
+                id: "pending-tool".into(),
+                query: None,
+                title: "Pending operation".into(),
+                status: "Pending".into(),
+                kind: ToolCallKind::Other,
+                location: None,
+                location_is_command: false,
+                cwd: None,
+                output: None,
+                exit_code: None,
+                content: Vec::new(),
+                locations: Vec::new(),
+            }],
+            expanded: true,
+            trailing_marker: None,
+        });
 
-    let rendered = render_to_text(&mut app, 80, 16);
-    assert!(rendered.contains("● Tool · Pending operation"));
-    let hit = app
-        .completed_turn_hits
-        .iter()
-        .find(|hit| matches!(hit.kind, CompletedTurnHitKind::ToolCall { detail_index: 0 }))
-        .expect("pending tool header hit must exist");
-    let rendered_marker = rendered
-        .lines()
-        .nth(hit.row as usize)
-        .and_then(|line| line.chars().nth(hit.start_column as usize));
-    assert_eq!(rendered_marker, Some('●'));
+        let buffer = render_to_buffer(&mut app, 80, 16);
+        let hit = app
+            .completed_turn_hits
+            .iter()
+            .find(|hit| matches!(hit.kind, CompletedTurnHitKind::ToolCall { detail_index: 0 }))
+            .expect("pending tool header hit must exist");
+        // Hit coordinates are terminal cells, not character offsets in translated text.
+        assert_eq!(
+            buffer[(hit.start_column, hit.row)].symbol(),
+            "●",
+            "{locale}: the pending status marker must start the clickable header"
+        );
+        let header: String = (hit.start_column..hit.end_column)
+            .map(|column| buffer[(column, hit.row)].symbol())
+            .collect();
+        assert!(
+            header.contains("Pending operation"),
+            "{locale}: the clickable header must contain the tool's title: {header:?}"
+        );
+    }
 }
 
 #[test]
@@ -14843,6 +15997,8 @@ fn restart_connection_stage_is_localized_and_preserves_draft() {
 /// `ui/chat.rs` + `ui/layout.rs`.
 #[test]
 fn render_chat_welcome_hint() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.show_welcome_hint = true;
@@ -14910,6 +16066,7 @@ fn resuming_pane_shows_connection_stage_then_resume_until_load_completes() {
                 load_session_supported: true,
                 image_supported: false,
                 session_capabilities_ready: false,
+                telemetry_byok_binding: None,
             });
             let resume = t!("system.resuming_session", session_id = "aaaaaaaa").into_owned();
             assert_eq!(app.state, ConnectionState::Connected);
@@ -14946,6 +16103,8 @@ fn resuming_pane_shows_connection_stage_then_resume_until_load_completes() {
 
 #[test]
 fn resuming_pane_does_not_paint_the_first_run_welcome() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     // A restored conversation is not a first run, so the hint must be gone by
     // the time the replayed history lands. `load_session` can arrive after the
     // connect that already decided this was a first run, so the handler has to
@@ -15198,6 +16357,8 @@ fn render_large_mixed_chat_keeps_latest_content_and_width_correct() {
 
 #[test]
 fn repeated_deep_scroll_reuses_intermediate_turn_heights() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     for index in 0..200 {
@@ -19016,6 +20177,8 @@ fn thinking_is_pinned_one_row_above_input() {
     const WIDTH: u16 = 80;
     const HEIGHT: u16 = 24;
 
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     submit_test_prompt(&mut app, "inspect");
@@ -21905,6 +23068,7 @@ fn usage_lifecycle_load_and_new_connection_clear_but_model_change_preserves() {
         load_session_supported: false,
         image_supported: false,
         session_capabilities_ready: true,
+        telemetry_byok_binding: None,
     });
     assert!(app.current_tab().usage.is_none());
 }

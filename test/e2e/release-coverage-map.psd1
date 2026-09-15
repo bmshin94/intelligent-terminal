@@ -21,7 +21,7 @@
     'Yolo setting persists'             = 'Feature provider-native Yolo with Copilot\.Yolo setting persists'
     'Settings hides unsupported automatic approval and forces it off' = 'Settings hides unsupported automatic approval and forces it off'
     'Settings explains Gemini automatic approval restrictions' = 'Settings explains Gemini automatic approval restrictions'
-    'AllowYoloMode hides automatic approval and turns it off' = 'AllowYoloMode hides automatic approval and turns it off'
+    'AllowAutomaticApproval hides automatic approval and turns it off' = 'AllowAutomaticApproval hides automatic approval and turns it off'
     'Esc/back navigation works'         = 'Esc/back navigation works|TRIGGERS the selected option'
     # §2/§5 WT accelerators + delegation palette (Feature.AgentHotkeys) — driven via window-level
     # OS keystrokes (Send-WtWindowKey), which reach WT's keybinding layer (the conpty path can't).
@@ -105,7 +105,8 @@
     # §0 FRE flow
     'FRE can be skipped or closed safely' = 'FRE can be closed safely'
     'FRE privacy / help links work'     = 'FRE privacy / help link'
-    'FRE save progress works'           = 'FRE save progress'
+    'FRE save progress works'           = 'Session management on installs agent hooks \(FRE Save\)'
+    'FRE execution-policy remediation is correct' = 'Feature §0 FRE automatic execution-policy remediation'
 
     # §4 session view switching
     # 'Ended state is correct' (C121-adjacent) — see below.

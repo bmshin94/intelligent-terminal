@@ -19,6 +19,7 @@
 
 #include "AgentPaneContent.h"
 #include "AgentPaneLog.h"
+#include "ShellIntegrationSweep.h"
 #include "SharedWta.h"
 #include "TabRowControl.h"
 #include "DebugTapConnection.h"
@@ -244,7 +245,8 @@ namespace winrt::TerminalApp::implementation
             // Read now, not in the callback: by the time the low-priority tick
             // runs, the replay may have finished even though this tab's own
             // agent pane is still queued behind it.
-            const auto deferPrewarm = _startupActionReplayDepth > 0;
+            const auto deferPrewarm =
+                _startupActionReplayDepth > 0 || _pendingFreEnsureAgentPaneVisible;
             if (deferPrewarm)
             {
                 // Queue synchronously. The low-priority callback below runs
@@ -367,6 +369,12 @@ namespace winrt::TerminalApp::implementation
                     CATCH_LOG()
                 }
             });
+            ShellIntegrationSweep::QueueNewTabWslInstallWork<winrt::TerminalApp::TerminalPaneContent>(
+                _settings.GlobalSettings(),
+                pane,
+                get_strong(),
+                _shellIntegrationDesiredEnabled,
+                _shellIntegrationReconcileMutex);
             auto newTabImpl = winrt::make_self<Tab>(pane);
             if (_receivingContentTransfer)
             {

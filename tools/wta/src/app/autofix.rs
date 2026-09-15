@@ -21,8 +21,8 @@ pub struct TabAutofixState {
     /// (Esc), the error resolves (exit 0 on the same pane), or the fix
     /// is executed.
     pub pane_id: Option<String>,
-    /// Monotonic timestamp captured when `pane_id` is armed, used for
-    /// ErrorFixResolved telemetry elapsed time.
+    /// Monotonic analysis-start timestamp captured when `pane_id` is armed.
+    /// This does not indicate that a fix has been applied.
     pub armed_at: Option<std::time::Instant>,
     /// Failing pane for the Suggested terminal state (a non-actionable
     /// explanation in chat — distinct from `pane_id` so the two

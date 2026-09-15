@@ -17,7 +17,8 @@ authenticated ACP agents. Current status (run on the Store package):
 | `Feature.WtcliPublishStdin.Tests.ps1` | PR #652: WTA/wtcli stdin transport delivers command-line-limit-sized events intact and preserves positional compatibility | 3 |
 | `Feature.Settings.Tests.ps1` | §1 Settings>AI Agents + §0 FRE settings/positions/auto-error/session-mgmt | 18 |
 | `Feature.FreFlow.Tests.ps1` | §0 FRE overlay click-through (Next→Save, privacy link, close-safety) | 5 |
-| `Feature.FreExecutionPolicy.Tests.ps1` | §0 FRE execution-policy verdict (deterministic via registry; **Dev**, auto-skips) | 3 (1 conditional skip) |
+| `Feature.FreExecutionPolicy.Tests.ps1` | §0 FRE automatic CurrentUser execution-policy remediation (**Dev**, auto-skips) | 4 (1 conditional skip) |
+| `Feature.FreHooks.Tests.ps1` | §0 FRE progressive setup ordering, session hook installation, failure, and retry (**Dev**, auto-skips) | 3 |
 | `Feature.AgentPaneInteraction.Tests.ps1` | open/hide/focus, input/rendering, slash, Copilot chat | 14 |
 | `Feature.AgentProtocolExperience.Tests.ps1` | PRs #599/#601/#606/#610/#611/#612/#616/#634/#683: intent-based terminal actions (including empty workspaces and configured delegation), ACP tool/transcript rendering, clarification input, session configuration, model title, and replacement cleanup across the deployed helper/master boundary | 8 |
 | `Feature.AgentImageAttachmentEditing.Tests.ps1` | PR #536: inline image tokens move and delete atomically while preserving adjacent prompt text | 1 |
@@ -50,6 +51,7 @@ authenticated ACP agents. Current status (run on the Store package):
 | `Feature.AgentMatrix.Tests.ps1` | §2 non-Copilot built-in agents (Claude/Codex/Gemini) connect+chat through the ACP adapter — ONE consolidated case (Copilot is the in-depth suite); skips when none installed+authed | 1 |
 | `Feature.HookTrace.Tests.ps1` | C190 + PR #571 C267-C269, C272: every shipped bundle's guarded command still delivers, `tool_input` survives only for interactive prompts, shells outside Terminal are ignored, and the broadcast envelope stays inside its budget | 5 |
 | `Feature.SessionHookRouting.Tests.ps1` | PR #761: master consumes one `wtcli agent-hook` COM broadcast directly while multiple helpers update only local pane bindings, a terminal hook for an unseen session fabricates no row, and `agent.error` still records the failure | 3 |
+| `Feature.SessionOwnershipRestore.Tests.ps1` | PR #950: a UUID-shaped nested-agent prompt cannot replace the resumable root session persisted for its pane | 1 |
 | `Feature.HookBridgeCli.Tests.ps1` | PR #571 C274, C265, C266: a real agent CLI fires the bundled `hooks.json` command through its own shell, and neither an unreachable protocol server nor an uninstalled Terminal blocks the CLI; skips when the CLI isn't installed+authed | 3 (environment-gated) |
 | `Feature.LegacyHookBundle.Tests.ps1` | PR #571 C270-C271: a pre-#571 PowerShell hook bundle still delivers against a post-#571 Terminal, and degrades quietly when `WT_COM_CLSID` is unset | 2 |
 | `Feature.OpenCodeHookBridge.Tests.ps1` | PR #571 C273: OpenCode's JS plugin spawns `wtcli` through an argv array with no shell, so it resolves the bridge via `WTCLI_PATH` rather than the `PATH` alias | 1 (environment-gated) |
@@ -64,11 +66,11 @@ authenticated ACP agents. Current status (run on the Store package):
 | `Feature.AgentChat.Tests.ps1` / `Feature.AgentPopup.Tests.ps1` | agent chat + `/` popup/menu interaction | 1 + 3 |
 | `Feature.AgentPaneMove.Tests.ps1` | PR #429: `/move` stays per-tab, preserves global position, and restores agent input focus | 1 |
 
-**Coverage: 155 of 157 automatable `[E2E]` checklist items are implemented.**
-**Test status: 135 baseline feature cases pass + 3 documented skips** (`wta sessions list` is
+**Coverage: 156 of 158 automatable `[E2E]` checklist items are implemented.**
+**Test status: 136 baseline feature cases pass + 3 documented skips** (`wta sessions list` is
 identity-gated — see `Feature.SessionList.Tests.ps1`), plus 2 PR #481 WSL-backend cases and 2
 PR #488 delegate-source cases that run only when a runnable distro (and, for the #481 chat
-case, an installed+authenticated native agent) is available. The 155 implemented checklist
+case, an installed+authenticated native agent) is available. The 156 implemented checklist
 items map to the baseline cases plus the deterministic settings/persistence assertions. The
 remaining new items are the two profile agent picker UIs; they stay explicit E2E work rather
 than being falsely credited by the JSON-level runtime tests. Other
