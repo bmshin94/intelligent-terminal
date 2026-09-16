@@ -262,3 +262,56 @@ system.config_update_failed: "%{option} の更新に失敗しました: %{error}
 system.yolo_disable_pending: "エージェント プロバイダーは、必要な非特権セッション状態をまだ確認していません"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: 組織のポリシーにより自動承認が無効になっています。"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "不明なモデル %{model} — 利用可能な一覧を表示するには /model と入力してください。"  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "作業項目"
+agent_center.activity: "アクティビティ · 会話"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "作業項目: %{work} | プロジェクト: %{project}"
+agent_center.welcome: "プロジェクトを選択するか、/project use <id> を指定してください。 目標または /help を入力してください。" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: 送信 · Shift+Enter: 改行 · Tab: 補完 · F2: 作業項目の切り替え · Ctrl+C: 終了 · PgUp/PgDn: 読む · Ctrl+End: 最新" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "対応が必要: %{count}"
+agent_center.sending: "取り込んだ要求を送信中…"
+agent_center.confirm_title: "取り込んだ操作の確認"
+agent_center.confirm_prompt: "正確な対象、バージョン、範囲、影響を確認してください。 操作を確認してください。Ctrl+Enter: 確定 · Esc: キャンセル" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "操作がキャンセルされました。 入力内容は保持されています。"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "更新: %{kind} · 作業項目: %{work}"
+agent_center.status_ok: "要求は成功しました。"
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "受け付けました。処理はまだ続いています。 保留中の操作: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "入力が必要です: %{id}. 記録された質問を開いてください。"
+agent_center.status_conflict: "対象が変更されました。新しいコマンドを送信する前に更新してください。"
+agent_center.status_unsupported: "この操作はサポートされていません。"
+agent_center.status_error: "要求に失敗しました. 失敗の詳細を確認してください。"
+agent_center.service_unavailable: "Agent Centerを利用できません。wta center serve で起動してください。 別のターミナルでコマンドを実行してください。" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — 要求に失敗しました: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "イベント ストリームが切断されました。"
+agent_center.unsupported: "サポートされていないコマンド: %{command}"
+agent_center.console_only: "このコマンドはAgent Centerのコンソールで使用してください。" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "コマンド内の引用符を閉じてください。"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} の値がありません。"
+agent_center.duplicate_argument: "引数が重複しています: %{argument}"
+agent_center.target_required: "対象の識別子を指定してください。"
+agent_center.invalid_version: "バージョンは正の整数で指定してください。"
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} を更新するか、正確なバージョンを指定してください。"
+agent_center.work_required: "作業項目を選択するか、--work <id> を指定してください。" # {Locked="--work","<id>"}
+agent_center.project_required: "プロジェクトを選択するか、/project use <id> / --project <id> を指定してください。" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "予期しない引数: %{arguments}"
+agent_center.empty_message: "メッセージを入力してください。"
+agent_center.findings_required: "納品基準に関連付け、要求する変更を記載した修正指摘オブジェクトを少なくとも 1 つ指定してください。"
+agent_center.command_id_mutation_only: "--command-id は状態を変更するコマンドでのみ使用できます。" # {Locked="--command-id"}
+agent_center.confirmation_required: "正確な対象、バージョン、範囲、影響を確認してください。 操作を確認してから、--confirm を追加してください。" # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Centerの要求を構築できませんでした。" # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Centerの応答を読み取れませんでした。" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "応答フィールドが存在しないか無効です: %{field}"
+agent_center.invalid_command_id: "--command-id は UUID である必要があります。" # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "要求用の接続が停止しました。"
+agent_center.host_unavailable: "%{command} に使用できるシェルホストアダプターがありません。ホストのキーボード操作を使用してください。"

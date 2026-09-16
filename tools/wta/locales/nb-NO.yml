@@ -267,3 +267,56 @@ system.config_update_failed: "Klarte ikke å oppdatere %{option}: %{error}"
 system.yolo_disable_pending: "AI-agentleverandøren har ikke bekreftet at økten er i den påkrevde ikke-privilegerte tilstanden"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Automatisk godkjenning er deaktivert av organisasjonens policy."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Ukjent modell %{model} — skriv /model for å se den tilgjengelige listen."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Arbeidselementer"
+agent_center.activity: "Aktivitet · Samtale"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Arbeidselement: %{work} | Prosjekt: %{project}"
+agent_center.welcome: "Velg et prosjekt eller angi /project use <id>. Skriv et mål eller /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: send · Shift+Enter: ny linje · Tab: fullfør · F2: bytt arbeidselement · Ctrl+C: avslutt · PgUp/PgDn: les · Ctrl+End: nyeste" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Krever oppmerksomhet: %{count}"
+agent_center.sending: "Sender den registrerte forespørselen…"
+agent_center.confirm_title: "Bekreft den registrerte handlingen"
+agent_center.confirm_prompt: "Se gjennom det nøyaktige målet, versjonene, omfanget og virkningene. Se gjennom handlingen. Ctrl+Enter: bekreft · Esc: avbryt" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Handlingen ble avbrutt. Inndataene dine beholdes."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Oppdatering: %{kind} · Arbeidselement: %{work}"
+agent_center.status_ok: "Forespørselen lyktes."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Godtatt; behandlingen pågår fortsatt. Ventende operasjon: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Inndata kreves: %{id}. Åpne det registrerte spørsmålet."
+agent_center.status_conflict: "Målet er endret. Oppdater det før du sender en ny kommando."
+agent_center.status_unsupported: "Denne operasjonen støttes ikke."
+agent_center.status_error: "Forespørselen mislyktes. Se gjennom feildetaljene."
+agent_center.service_unavailable: "Agent Center er ikke tilgjengelig. Start det med wta center serve. Kjør kommandoen i en annen terminal." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Forespørselen mislyktes: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Hendelsesstrømmen ble frakoblet."
+agent_center.unsupported: "Kommandoen støttes ikke: %{command}"
+agent_center.console_only: "Bruk denne kommandoen i konsollen til Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Lukk anførselstegnet i kommandoen."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Mangler verdi for %{argument}."
+agent_center.duplicate_argument: "Argument gjentatt: %{argument}"
+agent_center.target_required: "Angi en målidentifikator."
+agent_center.invalid_version: "Versjonen må være et positivt heltall."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Oppdater %{kind} %{id}, eller angi den nøyaktige versjonen."
+agent_center.work_required: "Velg et arbeidselement eller angi --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Velg et prosjekt eller angi /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Uventede argumenter: %{arguments}"
+agent_center.empty_message: "Skriv en melding."
+agent_center.findings_required: "Oppgi minst ett objekt med et revisjonsfunn, knyttet til et leveransekriterium, som beskriver den ønskede endringen."
+agent_center.command_id_mutation_only: "--command-id er bare gyldig for kommandoer som endrer tilstanden." # {Locked="--command-id"}
+agent_center.confirmation_required: "Se gjennom det nøyaktige målet, versjonene, omfanget og virkningene. Se gjennom handlingen, og legg deretter til --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Kunne ikke opprette forespørselen til Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Kunne ikke lese svaret fra Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Manglende eller ugyldig svarfelt: %{field}"
+agent_center.invalid_command_id: "--command-id må være en UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Forespørselsforbindelsen har stoppet."
+agent_center.host_unavailable: "Ingen skallvertsadapter er tilgjengelig for %{command}. Bruk vertens tastaturhandlinger."

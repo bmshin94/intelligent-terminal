@@ -268,3 +268,56 @@ system.config_update_failed: "%{option} अद्ययावत करपाक
 system.yolo_disable_pending: "एजंट प्रदात्यान विशेषाधिकार मोड बंद आशिल्ली गरजेची सत्र स्थिती अजून मान्य केल्ली ना"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: तुमच्या संघटनेच्या धोरणान स्वयंचलित मान्यताय बंद केल्या आसात."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "अज्ञात मॉडेल %{model} — उपलब्ध वळेरी पळोवपाक /model टायप करात."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "कामाचे घटक"
+agent_center.activity: "हालचाल · संवाद"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "काम: %{work} | प्रकल्प: %{project}"
+agent_center.welcome: "प्रकल्प वेंचात वा /project use <id> सांगात. ध्येय वा /help टायप करात." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: धाडात · Shift+Enter: नवी ओळ · Tab: पुराय करात · F2: काम बदलात · Ctrl+C: भायर सरात · PgUp/PgDn: वाचात · Ctrl+End: सगळ्यांत नवें" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "लक्ष दिवप गरजेचें: %{count}"
+agent_center.sending: "नोंद केल्ली विनंती धाडटा…"
+agent_center.confirm_title: "नोंद केल्ल्या कृतीची खात्री करात"
+agent_center.confirm_prompt: "अचूक लक्ष्य, आवृत्त्यो, व्याप्ती आनी परिणाम तपासात. कृती तपासात. Ctrl+Enter: खात्री करात · Esc: रद्द करात" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "कृती रद्द केली. तुमी बरयल्लो मजकूर सांबाळून दवरला."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "अद्यतन: %{kind} · काम: %{work}"
+agent_center.status_ok: "विनंती येसस्वी जाली."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "मान्य केलां; प्रक्रिया अजून चालू आसा. प्रलंबित कृती: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "इनपुट गरजेचें: %{id}. नोंद केल्लो प्रस्न उगडात."
+agent_center.status_conflict: "लक्ष्य बदललां. नवी कमांड धाडचे पयलीं तें रिफ्रेश करात."
+agent_center.status_unsupported: "ह्या कृतीक आदार ना."
+agent_center.status_error: "विनंती अपेशी जाली. अपेशाचे तपशील तपासात."
+agent_center.service_unavailable: "Agent Center उपलब्ध ना. wta center serve वापरून तें सुरू करात. कमांड दुसऱ्या टर्मिनलांत चलयात." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — विनंती अपेशी जाली: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "घडणूक प्रवाहाचें कनेक्शन तुटलें."
+agent_center.unsupported: "ह्या कमांडाक आदार ना: %{command}"
+agent_center.console_only: "ही कमांड Agent Center कन्सोलांत वापरात." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "कमांडांतलें अवतरण चिन्न बंद करात."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} खातीर मोल दिल्लें ना."
+agent_center.duplicate_argument: "आर्ग्युमेंट परत दिलां: %{argument}"
+agent_center.target_required: "लक्ष्याचें वळख चिन्न सांगात."
+agent_center.invalid_version: "आवृत्ती धन पूर्णांक आसपाक जाय."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} रिफ्रेश करात वा ताची अचूक आवृत्ती सांगात."
+agent_center.work_required: "कामाचो घटक वेंचात वा --work <id> सांगात." # {Locked="--work","<id>"}
+agent_center.project_required: "प्रकल्प वेंचात वा /project use <id> / --project <id> सांगात." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "अनपेक्षित आर्ग्युमेंटां: %{arguments}"
+agent_center.empty_message: "संदेश बरयात."
+agent_center.findings_required: "सुपूर्दगीच्या निकशाक जोडिल्ली आनी मागिल्लो बदल स्पश्ट करपी सुधारणेच्या तपासणेंतल्या निष्कर्शाची किमान एक नोंद दियात."
+agent_center.command_id_mutation_only: "--command-id फकत स्थिती बदलपी कमांडां खातीर वैध आसा." # {Locked="--command-id"}
+agent_center.confirmation_required: "अचूक लक्ष्य, आवृत्त्यो, व्याप्ती आनी परिणाम तपासात. कृती तपासात, मागीर --confirm जोडात." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center खातीर विनंती तयार करपाक जमलें ना." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center चो प्रतिसाद वाचपाक जमलें ना." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "प्रतिसादांतलें क्षेत्र ना वा अवैध आसा: %{field}"
+agent_center.invalid_command_id: "--command-id हें UUID आसपाक जाय." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "विनंतीचें कनेक्शन बंद जालां."
+agent_center.host_unavailable: "%{command} खातीर शेल होस्ट अडॅप्टर उपलब्ध ना. होस्टाच्या कीबोर्ड कृती वापरात."

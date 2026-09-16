@@ -265,3 +265,64 @@ system.config_update_failed: "[!! Fai_led to update %{option}: %{error} !!]"
 system.yolo_disable_pending: "[!! the_ provider has not acknowledged the required nonprivileged session state !!]"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: [!! Aut_omatic approval is dis_abled by your org_anization's policy. !!]"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "[!! Unk_nown model %{model} — type /model to see the available list. !!]"  # {Locked="%{model}","/model"}
+
+# Agent Center is the invariant product name. Work is a durable user-goal
+# record, not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "[!! \u202eWorks\u202c !!]"
+agent_center.activity: "[!! \u202eConversation and activity\u202c !!]"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "[!! \u202eCurrent work: \u202c%{work}\u202e · Project: \u202c%{project} !!]"
+agent_center.welcome: "[!! \u202eChoose a project with \u202c/project use\u202e \u202c<id>\u202e, then enter a goal or \u202c/help\u202e.\u202c !!]" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "[!! Enter\u202e send · \u202cShift+Enter\u202e newline · \u202cTab\u202e complete · \u202cF2\u202e switch work · \u202cPgUp/PgDn\u202e read · \u202cCtrl+End\u202e latest · \u202cCtrl+C\u202e exit\u202c !!]" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "[!! \u202eNeeds attention: \u202c%{count} !!]"
+agent_center.sending: "[!! \u202eSending the captured request…\u202c !!]"
+# The action preview pins the target, entity versions, scope and effects.
+agent_center.confirm_title: "[!! \u202eConfirm the captured action\u202c !!]"
+agent_center.confirm_prompt: "[!! \u202eReview the exact target, versions, scope and effects. \u202cCtrl+Enter\u202e confirms; \u202cEsc\u202e cancels.\u202c !!]" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "[!! \u202eConfirmation cancelled. Your input is preserved.\u202c !!]"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "[!! %{kind}\u202e · Work \u202c%{work} !!]"
+# Request success does NOT mean execution finished or a task/result was accepted.
+agent_center.status_ok: "[!! \u202eRequest succeeded.\u202c !!]"
+# %{id} is an operation identifier. The service accepted the operation; it is still running.
+agent_center.status_pending: "[!! \u202eAccepted; operation \u202c%{id}\u202e is still pending.\u202c !!]"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "[!! \u202eInput required for \u202c%{id}\u202e. Open the recorded question.\u202c !!]"
+agent_center.status_conflict: "[!! \u202eThe target changed. Refresh it before submitting a new command.\u202c !!]"
+agent_center.status_unsupported: "[!! \u202eThis operation is unavailable.\u202c !!]"
+agent_center.status_error: "[!! \u202eRequest failed. Review the failure details.\u202c !!]"
+agent_center.service_unavailable: "[!! Agent Center\u202e is unavailable. Run \u202cwta center serve\u202e in another terminal.\u202c !!]" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "[!! Agent Center\u202e request failed: \u202c%{method} !!]" # {Locked="Agent Center"}
+agent_center.stream_failed: "[!! \u202eThe live update stream stopped.\u202c !!]"
+agent_center.unsupported: "[!! \u202eThis experiment does not support \u202c%{command}\u202e.\u202c !!]"
+agent_center.console_only: "[!! \u202eThis command requires an interactive \u202cAgent Center\u202e Console.\u202c !!]" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "[!! \u202eClose the quoted argument before submitting.\u202c !!]"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "[!! \u202eMissing argument: \u202c%{argument}\u202e.\u202c !!]"
+agent_center.duplicate_argument: "[!! \u202eRepeated argument: \u202c%{argument}\u202e.\u202c !!]"
+agent_center.target_required: "[!! \u202eSpecify the target ID.\u202c !!]"
+agent_center.invalid_version: "[!! \u202eVersion must be a positive integer.\u202c !!]"
+# %{kind} is a service record type; %{id} is its opaque identifier.
+# The exact version guards the captured entity against intervening changes.
+agent_center.version_required: "[!! \u202eRefresh \u202c%{kind}\u202e \u202c%{id}\u202e, or specify its exact version.\u202c !!]"
+agent_center.work_required: "[!! \u202eSelect a work, or specify \u202c--work\u202e \u202c<id>\u202e.\u202c !!]" # {Locked="--work","<id>"}
+agent_center.project_required: "[!! \u202eChoose a project with \u202c/project use\u202e \u202c<id>\u202e, or specify \u202c--project\u202e \u202c<id>\u202e.\u202c !!]" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "[!! \u202eUnexpected arguments: \u202c%{arguments}\u202e.\u202c !!]"
+agent_center.empty_message: "[!! \u202eEnter a goal, question, or command.\u202c !!]"
+# A revision finding states a requested change mapped to an explicit delivery criterion.
+agent_center.findings_required: "[!! \u202eProvide at least one criterion-bound revision finding.\u202c !!]"
+# Mutation means a command that changes service state, not a biological mutation.
+agent_center.command_id_mutation_only: "[!! --command-id\u202e is only valid for a mutation.\u202c !!]" # {Locked="--command-id"}
+agent_center.confirmation_required: "[!! \u202eSpecify \u202c--confirm\u202e after reviewing the exact target and versions.\u202c !!]" # {Locked="--confirm"}
+agent_center.invalid_request: "[!! \u202eUnable to construct the \u202cAgent Center\u202e request.\u202c !!]" # {Locked="Agent Center"}
+agent_center.invalid_response: "[!! \u202eUnable to read the \u202cAgent Center\u202e response.\u202c !!]" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "[!! \u202eThe service view is missing a valid \u202c%{field}\u202e.\u202c !!]"
+agent_center.invalid_command_id: "[!! --command-id\u202e must be a \u202cUUID\u202e.\u202c !!]" # {Locked="--command-id","UUID"}
+# Client request-processing task/channel closed, not an AI execution worker.
+agent_center.worker_stopped: "[!! \u202eThe request connection has stopped.\u202c !!]"
+# %{command} is a literal shell-presentation command. No host adapter is available;
+# suggest the host's keyboard actions without implying successful execution.
+agent_center.host_unavailable: "[!! \u202eNo shell host adapter is available for \u202c%{command}\u202e. Use the host keyboard actions.\u202c !!]"

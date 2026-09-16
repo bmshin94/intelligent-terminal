@@ -267,3 +267,56 @@ system.config_update_failed: "%{option}-ის განახლება ვ�
 system.yolo_disable_pending: "აგენტის პროვაიდერს არ დაუდასტურებია, რომ სესია მოთხოვნილ არაპრივილეგირებულ მდგომარეობაშია"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: ავტომატური დადასტურება გამორთულია თქვენი ორგანიზაციის პოლიტიკით."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "უცნობი მოდელი %{model} — აკრიფეთ /model ხელმისაწვდომი სიის სანახავად."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "სამუშაო ელემენტები"
+agent_center.activity: "აქტივობა · საუბარი"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "სამუშაო ელემენტი: %{work} | პროექტი: %{project}"
+agent_center.welcome: "აირჩიეთ პროექტი ან მიუთითეთ /project use <id>. აკრიფეთ მიზანი ან /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: გაგზავნა · Shift+Enter: ახალი ხაზი · Tab: შევსება · F2: სამუშაო ელემენტის შეცვლა · Ctrl+C: გასვლა · PgUp/PgDn: წაკითხვა · Ctrl+End: უახლესი" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "საჭიროებს ყურადღებას: %{count}"
+agent_center.sending: "ჩაწერილი მოთხოვნა იგზავნება…"
+agent_center.confirm_title: "ჩაწერილი მოქმედების დადასტურება"
+agent_center.confirm_prompt: "შეამოწმეთ ზუსტი სამიზნე, ვერსიები, ფარგლები და შედეგები. გადახედეთ მოქმედებას. Ctrl+Enter: დადასტურება · Esc: გაუქმება" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "მოქმედება გაუქმდა. თქვენი შეყვანილი ტექსტი შენარჩუნებულია."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "განახლება: %{kind} · სამუშაო ელემენტი: %{work}"
+agent_center.status_ok: "მოთხოვნა წარმატებით შესრულდა."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "მიღებულია; დამუშავება ჯერ კიდევ მიმდინარეობს. მომლოდინე ოპერაცია: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "საჭიროა მონაცემების შეყვანა: %{id}. გახსენით ჩაწერილი კითხვა."
+agent_center.status_conflict: "სამიზნე შეიცვალა. განაახლეთ იგი ახალი ბრძანების გაგზავნამდე."
+agent_center.status_unsupported: "ეს ოპერაცია მხარდაჭერილი არ არის."
+agent_center.status_error: "მოთხოვნა ვერ შესრულდა. გაეცანით შეცდომის დეტალებს."
+agent_center.service_unavailable: "Agent Center მიუწვდომელია. გაუშვით ის ბრძანებით wta center serve. ბრძანება სხვა ტერმინალში გაუშვით." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — მოთხოვნა ვერ შესრულდა: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "მოვლენების ნაკადის კავშირი გაწყდა."
+agent_center.unsupported: "ბრძანება მხარდაჭერილი არ არის: %{command}"
+agent_center.console_only: "ეს ბრძანება მოითხოვს Agent Center-ის ინტერაქტიულ კონსოლს." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "დახურეთ ბრჭყალი ბრძანებაში."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument}-ის მნიშვნელობა აკლია."
+agent_center.duplicate_argument: "განმეორებული არგუმენტი: %{argument}"
+agent_center.target_required: "მიუთითეთ სამიზნის იდენტიფიკატორი."
+agent_center.invalid_version: "ვერსია უნდა იყოს დადებითი მთელი რიცხვი."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "განაახლეთ %{kind} %{id}, ან მიუთითეთ მისი ზუსტი ვერსია."
+agent_center.work_required: "აირჩიეთ სამუშაო ელემენტი ან მიუთითეთ --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "აირჩიეთ პროექტი ან მიუთითეთ /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "მოულოდნელი არგუმენტები: %{arguments}"
+agent_center.empty_message: "შეიყვანეთ შეტყობინება."
+agent_center.findings_required: "მიუთითეთ მიწოდების კრიტერიუმთან დაკავშირებული და მოთხოვნილი ცვლილების აღმწერი შესწორების შენიშვნის სულ მცირე ერთი ობიექტი."
+agent_center.command_id_mutation_only: "--command-id მოქმედებს მხოლოდ იმ ბრძანებებისთვის, რომლებიც მდგომარეობას ცვლის." # {Locked="--command-id"}
+agent_center.confirmation_required: "შეამოწმეთ ზუსტი სამიზნე, ვერსიები, ფარგლები და შედეგები. გადახედეთ მოქმედებას, შემდეგ დაამატეთ --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center-ის მოთხოვნის შექმნა ვერ მოხერხდა." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center-ის პასუხის წაკითხვა ვერ მოხერხდა." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "პასუხის ველი აკლია ან არასწორია: %{field}"
+agent_center.invalid_command_id: "--command-id უნდა იყოს UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "მოთხოვნების კავშირი შეწყდა."
+agent_center.host_unavailable: "%{command}-ისთვის გარსის ჰოსტის ადაპტერი მიუწვდომელია. გამოიყენეთ ჰოსტის კლავიატურის მოქმედებები."

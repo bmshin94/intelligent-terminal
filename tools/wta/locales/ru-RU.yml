@@ -267,3 +267,56 @@ system.config_update_failed: "Не удалось обновить %{option}: %{
 system.yolo_disable_pending: "поставщик не подтвердил требуемое непривилегированное состояние сеанса"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Автоматическое одобрение отключено политикой вашей организации."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Неизвестная модель %{model} — введите /model, чтобы увидеть доступный список."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Рабочие элементы"
+agent_center.activity: "Активность · Беседа"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Рабочий элемент: %{work} | Проект: %{project}"
+agent_center.welcome: "Выберите проект или укажите /project use <id>. Введите цель или /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: отправить · Shift+Enter: новая строка · Tab: дополнить · F2: сменить рабочий элемент · Ctrl+C: выйти · PgUp/PgDn: чтение · Ctrl+End: последнее" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Требует внимания: %{count}"
+agent_center.sending: "Отправка зафиксированного запроса…"
+agent_center.confirm_title: "Подтверждение зафиксированного действия"
+agent_center.confirm_prompt: "Проверьте точную цель, версии, область действия и последствия. Просмотрите действие. Ctrl+Enter: подтвердить · Esc: отменить" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Действие отменено. Введённый текст сохранён."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Обновление: %{kind} · Рабочий элемент: %{work}"
+agent_center.status_ok: "Запрос выполнен успешно."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Принято; обработка ещё продолжается. Ожидающая операция: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Требуется ввод: %{id}. Откройте сохранённый вопрос."
+agent_center.status_conflict: "Цель изменилась. Обновите её перед отправкой новой команды."
+agent_center.status_unsupported: "Эта операция не поддерживается."
+agent_center.status_error: "Не удалось выполнить запрос. Просмотрите сведения об ошибке."
+agent_center.service_unavailable: "Agent Center недоступен. Запустите его с помощью wta center serve. Выполните команду в другом терминале." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Не удалось выполнить запрос: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Поток событий отключён."
+agent_center.unsupported: "Команда не поддерживается: %{command}"
+agent_center.console_only: "Используйте эту команду в консоли Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Закройте кавычки в команде."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Не указано значение для %{argument}."
+agent_center.duplicate_argument: "Повторяющийся аргумент: %{argument}"
+agent_center.target_required: "Укажите идентификатор цели."
+agent_center.invalid_version: "Версия должна быть положительным целым числом."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Обновите %{kind} %{id} или укажите точную версию."
+agent_center.work_required: "Выберите рабочий элемент или укажите --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Выберите проект или укажите /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Непредвиденные аргументы: %{arguments}"
+agent_center.empty_message: "Введите сообщение."
+agent_center.findings_required: "Укажите хотя бы один объект замечания к доработке, связанный с критерием поставки и содержащий требуемое изменение."
+agent_center.command_id_mutation_only: "--command-id допустим только для команд, изменяющих состояние." # {Locked="--command-id"}
+agent_center.confirmation_required: "Проверьте точную цель, версии, область действия и последствия. Просмотрите действие, затем добавьте --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Не удалось сформировать запрос к Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Не удалось прочитать ответ Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Поле ответа отсутствует или недопустимо: %{field}"
+agent_center.invalid_command_id: "--command-id должен быть UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Соединение для запросов остановлено."
+agent_center.host_unavailable: "Для %{command} недоступен адаптер узла оболочки. Используйте клавиатурные действия узла."

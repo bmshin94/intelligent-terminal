@@ -267,3 +267,56 @@ system.config_update_failed: "%{option} güncelleştirilemedi: %{error}"
 system.yolo_disable_pending: "AI aracı sağlayıcısı oturumun gerekli ayrıcalıksız durumda olduğunu onaylamadı"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Otomatik onay, kuruluşunuzun ilkesi tarafından devre dışı bırakıldı."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Bilinmeyen model %{model} — kullanılabilir listeyi görmek için /model yazın."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "İş öğeleri"
+agent_center.activity: "Etkinlik · Konuşma"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "İş: %{work} | Proje: %{project}"
+agent_center.welcome: "Bir proje seçin veya /project use <id> belirtin. Bir hedef veya /help yazın." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: gönder · Shift+Enter: yeni satır · Tab: tamamla · F2: iş öğesini değiştir · Ctrl+C: çık · PgUp/PgDn: oku · Ctrl+End: en yeni" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "İlgilenilmesi gerekiyor: %{count}"
+agent_center.sending: "Yakalanan istek gönderiliyor…"
+agent_center.confirm_title: "Yakalanan eylemi onaylayın"
+agent_center.confirm_prompt: "Tam hedefi, sürümleri, kapsamı ve etkileri gözden geçirin. Eylemi gözden geçirin. Ctrl+Enter: onayla · Esc: iptal et" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Eylem iptal edildi. Girdiğiniz metin korunur."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Güncelleme: %{kind} · İş: %{work}"
+agent_center.status_ok: "İstek başarılı oldu."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Kabul edildi; işleme devam ediyor. Bekleyen işlem: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Girdi gerekli: %{id}. Kaydedilen soruyu açın."
+agent_center.status_conflict: "Hedef değişti. Yeni komut göndermeden önce yenileyin."
+agent_center.status_unsupported: "Bu işlem desteklenmiyor."
+agent_center.status_error: "İstek başarısız oldu. Hata ayrıntılarını gözden geçirin."
+agent_center.service_unavailable: "Agent Center kullanılamıyor. wta center serve ile başlatın. Komutu başka bir terminalde çalıştırın." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — İstek başarısız oldu: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Olay akışının bağlantısı kesildi."
+agent_center.unsupported: "Komut desteklenmiyor: %{command}"
+agent_center.console_only: "Bu komut etkileşimli bir Agent Center konsolu gerektirir." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Komuttaki tırnak işaretini kapatın."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} için değer eksik."
+agent_center.duplicate_argument: "Yinelenen bağımsız değişken: %{argument}"
+agent_center.target_required: "Bir hedef tanımlayıcısı belirtin."
+agent_center.invalid_version: "Sürüm pozitif bir tam sayı olmalıdır."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} kaydını yenileyin veya tam sürümünü belirtin."
+agent_center.work_required: "Bir iş öğesi seçin veya --work <id> belirtin." # {Locked="--work","<id>"}
+agent_center.project_required: "Bir proje seçin veya /project use <id> / --project <id> belirtin." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Beklenmeyen bağımsız değişkenler: %{arguments}"
+agent_center.empty_message: "Bir ileti girin."
+agent_center.findings_required: "Bir teslim ölçütüyle ilişkilendirilmiş ve istenen değişikliği açıklayan en az bir revizyon bulgusu nesnesi sağlayın."
+agent_center.command_id_mutation_only: "--command-id yalnızca durumu değiştiren komutlar için geçerlidir." # {Locked="--command-id"}
+agent_center.confirmation_required: "Tam hedefi, sürümleri, kapsamı ve etkileri gözden geçirin. Eylemi gözden geçirin, ardından --confirm ekleyin." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center isteği oluşturulamadı." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center yanıtı okunamadı." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Eksik veya geçersiz yanıt alanı: %{field}"
+agent_center.invalid_command_id: "--command-id bir UUID olmalıdır." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "İstek bağlantısı durdu."
+agent_center.host_unavailable: "%{command} için kullanılabilir kabuk konağı bağdaştırıcısı yok. Konağın klavye eylemlerini kullanın."

@@ -18,7 +18,7 @@ namespace winrt::TerminalApp::implementation
         {
             return _dispatch.DoAction(cmd.ActionAndArgs());
         }
-        return false;
+        return _fallbackHandler && !_actionMap.IsKeyChordExplicitlyUnbound(kc) && _fallbackHandler(kc);
     }
 
     bool AppKeyBindings::IsKeyChordExplicitlyUnbound(const KeyChord& kc)
@@ -34,5 +34,10 @@ namespace winrt::TerminalApp::implementation
     void AppKeyBindings::SetActionMap(const winrt::Microsoft::Terminal::Settings::Model::IActionMapView& actionMap)
     {
         _actionMap = actionMap;
+    }
+
+    void AppKeyBindings::SetFallbackHandler(std::function<bool(const KeyChord&)> handler)
+    {
+        _fallbackHandler = std::move(handler);
     }
 }

@@ -267,3 +267,56 @@ system.config_update_failed: "อัปเดต %{option} ไม่สำเร
 system.yolo_disable_pending: "ผู้ให้บริการเอเจนต์ AI ยังไม่ได้ยืนยันว่าเซสชันอยู่ในสถานะที่ไม่มีสิทธิ์พิเศษตามที่กำหนด"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: การอนุมัติอัตโนมัติถูกปิดใช้งานโดยนโยบายขององค์กรคุณ"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "ไม่รู้จักโมเดล %{model} — พิมพ์ /model เพื่อดูรายการที่มีอยู่"  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "รายการงาน"
+agent_center.activity: "กิจกรรม · การสนทนา"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "รายการงาน: %{work} | โครงการ: %{project}"
+agent_center.welcome: "เลือกโครงการหรือระบุ /project use <id> พิมพ์เป้าหมายหรือ /help" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: ส่ง · Shift+Enter: ขึ้นบรรทัดใหม่ · Tab: เติมข้อความให้สมบูรณ์ · F2: สลับรายการงาน · Ctrl+C: ออก · PgUp/PgDn: อ่าน · Ctrl+End: ล่าสุด" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "ต้องดำเนินการ: %{count}"
+agent_center.sending: "กำลังส่งคำขอที่บันทึกไว้…"
+agent_center.confirm_title: "ยืนยันการดำเนินการที่บันทึกไว้"
+agent_center.confirm_prompt: "ตรวจสอบเป้าหมายที่แน่นอน รุ่น ขอบเขต และผลกระทบ ตรวจสอบการดำเนินการ Ctrl+Enter: ยืนยัน · Esc: ยกเลิก" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "ยกเลิกการดำเนินการแล้ว ข้อความที่คุณป้อนไว้ยังคงอยู่"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "การอัปเดต: %{kind} · รายการงาน: %{work}"
+agent_center.status_ok: "คำขอสำเร็จ"
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "ยอมรับแล้ว ยังอยู่ระหว่างการประมวลผล การดำเนินการที่รอดำเนินการ: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "ต้องป้อนข้อมูล: %{id}. เปิดคำถามที่บันทึกไว้"
+agent_center.status_conflict: "เป้าหมายเปลี่ยนไปแล้ว รีเฟรชก่อนส่งคำสั่งใหม่"
+agent_center.status_unsupported: "ไม่รองรับการดำเนินการนี้"
+agent_center.status_error: "คำขอล้มเหลว. ตรวจสอบรายละเอียดของความล้มเหลว"
+agent_center.service_unavailable: "Agent Centerไม่พร้อมใช้งาน เริ่มต้นด้วย wta center serve เรียกใช้คำสั่งในเทอร์มินัลอื่น" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — คำขอล้มเหลว: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "สตรีมเหตุการณ์ถูกตัดการเชื่อมต่อ"
+agent_center.unsupported: "ไม่รองรับคำสั่ง: %{command}"
+agent_center.console_only: "ใช้คำสั่งนี้ในคอนโซลAgent Center" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "ปิดเครื่องหมายอัญประกาศในคำสั่ง"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "ไม่มีค่าสำหรับ %{argument}"
+agent_center.duplicate_argument: "อาร์กิวเมนต์ซ้ำ: %{argument}"
+agent_center.target_required: "ระบุตัวระบุเป้าหมาย"
+agent_center.invalid_version: "เวอร์ชันต้องเป็นจำนวนเต็มบวก"
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "รีเฟรช %{kind} %{id} หรือระบุรุ่นที่แน่นอน"
+agent_center.work_required: "เลือกรายการงานหรือระบุ --work <id>" # {Locked="--work","<id>"}
+agent_center.project_required: "เลือกโครงการหรือระบุ /project use <id> / --project <id>" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "อาร์กิวเมนต์ที่ไม่คาดคิด: %{arguments}"
+agent_center.empty_message: "ป้อนข้อความ"
+agent_center.findings_required: "ระบุออบเจ็กต์ข้อค้นพบเพื่อแก้ไขอย่างน้อยหนึ่งรายการ ที่เชื่อมโยงกับเกณฑ์การส่งมอบและอธิบายการเปลี่ยนแปลงที่ร้องขอ"
+agent_center.command_id_mutation_only: "--command-id ใช้ได้กับคำสั่งที่เปลี่ยนสถานะเท่านั้น" # {Locked="--command-id"}
+agent_center.confirmation_required: "ตรวจสอบเป้าหมายที่แน่นอน รุ่น ขอบเขต และผลกระทบ ตรวจสอบการดำเนินการ แล้วเพิ่ม --confirm" # {Locked="--confirm"}
+agent_center.invalid_request: "ไม่สามารถสร้างคำขอของAgent Centerได้" # {Locked="Agent Center"}
+agent_center.invalid_response: "ไม่สามารถอ่านการตอบกลับของAgent Centerได้" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "ฟิลด์การตอบกลับขาดหายไปหรือไม่ถูกต้อง: %{field}"
+agent_center.invalid_command_id: "--command-id ต้องเป็น UUID" # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "การเชื่อมต่อคำขอหยุดแล้ว"
+agent_center.host_unavailable: "ไม่มีอะแดปเตอร์โฮสต์เชลล์สำหรับ %{command} ใช้การทำงานด้วยแป้นพิมพ์ของโฮสต์"

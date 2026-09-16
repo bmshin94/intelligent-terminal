@@ -267,3 +267,56 @@ system.config_update_failed: "Bijwerken van %{option} is mislukt: %{error}"
 system.yolo_disable_pending: "de leverancier van de AI-agent heeft niet bevestigd dat de sessie zich in de vereiste niet-geprivilegieerde status bevindt"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Automatische goedkeuring is uitgeschakeld door het beleid van uw organisatie."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Onbekend model %{model} — typ /model om de beschikbare lijst te zien."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Werkitems"
+agent_center.activity: "Activiteit · Gesprek"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Werkitem: %{work} | Project: %{project}"
+agent_center.welcome: "Selecteer een project of geef /project use <id> op. Typ een doel of /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: verzenden · Shift+Enter: nieuwe regel · Tab: aanvullen · F2: werkitem wisselen · Ctrl+C: afsluiten · PgUp/PgDn: lezen · Ctrl+End: nieuwste" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Aandacht vereist: %{count}"
+agent_center.sending: "Vastgelegde aanvraag wordt verzonden…"
+agent_center.confirm_title: "Vastgelegde actie bevestigen"
+agent_center.confirm_prompt: "Controleer het exacte doel, de versies, het bereik en de effecten. Controleer de actie. Ctrl+Enter: bevestigen · Esc: annuleren" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Actie geannuleerd. Uw invoer blijft behouden."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Bijwerking: %{kind} · Werkitem: %{work}"
+agent_center.status_ok: "Aanvraag geslaagd."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Geaccepteerd; wordt nog verwerkt. Bewerking in behandeling: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Invoer vereist: %{id}. Open de opgeslagen vraag."
+agent_center.status_conflict: "Het doel is gewijzigd. Vernieuw het voordat u een nieuwe opdracht verzendt."
+agent_center.status_unsupported: "Deze bewerking wordt niet ondersteund."
+agent_center.status_error: "Aanvraag mislukt. Bekijk de foutdetails."
+agent_center.service_unavailable: "Agent Center is niet beschikbaar. Start het met wta center serve. Voer de opdracht uit in een andere terminal." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Aanvraag mislukt: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Verbinding met de gebeurtenisstroom verbroken."
+agent_center.unsupported: "Opdracht wordt niet ondersteund: %{command}"
+agent_center.console_only: "Gebruik deze opdracht in de console van Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Sluit het aanhalingsteken in de opdracht."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Waarde voor %{argument} ontbreekt."
+agent_center.duplicate_argument: "Argument herhaald: %{argument}"
+agent_center.target_required: "Geef een doel-id op."
+agent_center.invalid_version: "De versie moet een positief geheel getal zijn."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Vernieuw %{kind} %{id} of geef de exacte versie op."
+agent_center.work_required: "Selecteer een werkitem of geef --work <id> op." # {Locked="--work","<id>"}
+agent_center.project_required: "Selecteer een project of geef /project use <id> / --project <id> op." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Onverwachte argumenten: %{arguments}"
+agent_center.empty_message: "Voer een bericht in."
+agent_center.findings_required: "Geef ten minste één object met een revisiebevinding op dat aan een opleveringscriterium is gekoppeld en de gevraagde wijziging beschrijft."
+agent_center.command_id_mutation_only: "--command-id is alleen geldig voor opdrachten die de status wijzigen." # {Locked="--command-id"}
+agent_center.confirmation_required: "Controleer het exacte doel, de versies, het bereik en de effecten. Controleer de actie en voeg vervolgens --confirm toe." # {Locked="--confirm"}
+agent_center.invalid_request: "De aanvraag voor Agent Center kon niet worden samengesteld." # {Locked="Agent Center"}
+agent_center.invalid_response: "Het antwoord van Agent Center kon niet worden gelezen." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Ontbrekend of ongeldig antwoordveld: %{field}"
+agent_center.invalid_command_id: "--command-id moet een UUID zijn." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "De aanvraagverbinding is gestopt."
+agent_center.host_unavailable: "Er is geen shellhostadapter beschikbaar voor %{command}. Gebruik de toetsenbordacties van de host."

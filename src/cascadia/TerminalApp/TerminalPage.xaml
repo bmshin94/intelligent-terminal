@@ -89,6 +89,19 @@
             </Grid.Background>
         </Grid>
 
+        <!-- Only populated in the opt-in Agent Center experiment. TabContent
+             is moved here at runtime; the default tab layout is unchanged. -->
+        <Grid x:Name="WindowWorkspaceHost"
+              Grid.Row="2"
+              Grid.ColumnSpan="2"
+              Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition x:Name="ShellWorkspaceRow" Height="0" />
+            </Grid.RowDefinitions>
+            <Grid x:Name="AgentConsoleHost" />
+        </Grid>
+
         <!-- Bottom Bar: window-level AI agent toolbar. Always visible as
              window chrome, but its state reflects the *active tab*'s agent
              pane (toggle lit when active tab has an AgentPaneContent,

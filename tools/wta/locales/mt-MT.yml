@@ -266,3 +266,56 @@ system.config_update_failed: "Naqas milli jaġġorna %{option}: %{error}"
 system.yolo_disable_pending: "il-fornitur tal-aġent għadu ma kkonfermax l-istat meħtieġ tas-sessjoni mingħajr privileġġi"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: L-approvazzjoni awtomatika hija diżattivata mill-politika tal-organizzazzjoni tiegħek."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Mudell mhux magħruf %{model} — ittajpja /model biex tara l-lista disponibbli."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Elementi tax-xogħol"
+agent_center.activity: "Attività · Konversazzjoni"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Xogħol: %{work} | Proġett: %{project}"
+agent_center.welcome: "Agħżel proġett jew speċifika /project use <id>. Ittajpja għan jew /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: ibgħat · Shift+Enter: linja ġdida · Tab: ikkompleta · F2: ibdel l-element tax-xogħol · Ctrl+C: oħroġ · PgUp/PgDn: aqra · Ctrl+End: l-aktar reċenti" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Jeħtieġ attenzjoni: %{count}"
+agent_center.sending: "Qed tintbagħat it-talba maqbuda…"
+agent_center.confirm_title: "Ikkonferma l-azzjoni maqbuda"
+agent_center.confirm_prompt: "Irrevedi l-mira eżatta, il-verżjonijiet, l-ambitu u l-effetti. Irrevedi l-azzjoni. Ctrl+Enter: ikkonferma · Esc: ikkanċella" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "L-azzjoni ġiet ikkanċellata. It-test li daħħalt jinżamm."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Aġġornament: %{kind} · Xogħol: %{work}"
+agent_center.status_ok: "It-talba rnexxiet."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Aċċettata; l-ipproċessar għadu għaddej. Operazzjoni pendenti: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Meħtieġa data tad-dħul: %{id}. Iftaħ il-mistoqsija rreġistrata."
+agent_center.status_conflict: "Il-mira nbidlet. Aġġornaha qabel tibgħat kmand ġdid."
+agent_center.status_unsupported: "Din l-operazzjoni mhijiex appoġġjata."
+agent_center.status_error: "It-talba falliet. Irrevedi d-dettalji tal-falliment."
+agent_center.service_unavailable: "Agent Center mhuwiex disponibbli. Ħaddem wta center serve f’terminal ieħor." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — It-talba falliet: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Il-fluss tal-avvenimenti ġie skonnettjat."
+agent_center.unsupported: "Kmand mhux appoġġjat: %{command}"
+agent_center.console_only: "Dan il-kmand jeħtieġ console interattiva ta’ Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Agħlaq il-virgoletti fil-kmand."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Valur nieqes għal %{argument}."
+agent_center.duplicate_argument: "Argument ripetut: %{argument}"
+agent_center.target_required: "Speċifika identifikatur tal-mira."
+agent_center.invalid_version: "Il-verżjoni trid tkun numru sħiħ pożittiv."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Aġġorna %{kind} %{id}, jew speċifika l-verżjoni eżatta tiegħu."
+agent_center.work_required: "Agħżel element tax-xogħol jew speċifika --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Agħżel proġett jew speċifika /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Argumenti mhux mistennija: %{arguments}"
+agent_center.empty_message: "Daħħal messaġġ."
+agent_center.findings_required: "Agħti mill-inqas oġġett wieħed ta’ sejba ta’ reviżjoni, marbut ma’ kriterju ta’ kunsinna u li jiddeskrivi l-bidla mitluba."
+agent_center.command_id_mutation_only: "--command-id huwa validu biss għal kmandi li jibdlu l-istat." # {Locked="--command-id"}
+agent_center.confirmation_required: "Irrevedi l-mira eżatta, il-verżjonijiet, l-ambitu u l-effetti. Irrevedi l-azzjoni, imbagħad żid --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Ma setgħetx tinbena t-talba ta’ Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Ma setgħetx tinqara t-tweġiba ta’ Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Qasam tat-tweġiba nieqes jew invalidu: %{field}"
+agent_center.invalid_command_id: "--command-id irid ikun UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Il-konnessjoni tat-talbiet waqfet."
+agent_center.host_unavailable: "M’hemm l-ebda adapter tal-host tax-shell disponibbli għal %{command}. Uża l-azzjonijiet tat-tastiera tal-host."

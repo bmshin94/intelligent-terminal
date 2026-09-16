@@ -267,3 +267,56 @@ system.config_update_failed: "Bigo sa pag-update ng %{option}: %{error}"
 system.yolo_disable_pending: "hindi pa kinukumpirma ng tagapagbigay ng agent ang kinakailangang hindi pribilehiyadong estado ng session"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Naka-disable ang awtomatikong pag-apruba ayon sa patakaran ng iyong organisasyon."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Hindi kilalang modelo %{model} — i-type ang /model para makita ang available na listahan."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Mga item ng trabaho"
+agent_center.activity: "Aktibidad · Pag-uusap"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Item ng trabaho: %{work} | Proyekto: %{project}"
+agent_center.welcome: "Pumili ng proyekto o tukuyin ang /project use <id>. Mag-type ng layunin o /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: ipadala · Shift+Enter: bagong linya · Tab: kumpletuhin · F2: lumipat ng item ng trabaho · Ctrl+C: lumabas · PgUp/PgDn: basahin · Ctrl+End: pinakabago" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Kailangan ng pansin: %{count}"
+agent_center.sending: "Ipinapadala ang nakuhang kahilingan…"
+agent_center.confirm_title: "Kumpirmahin ang nakuhang aksyon"
+agent_center.confirm_prompt: "Suriin ang eksaktong target, mga bersyon, saklaw, at mga epekto. Suriin ang aksyon. Ctrl+Enter: kumpirmahin · Esc: kanselahin" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Kinansela ang aksyon. Napanatili ang tekstong inilagay mo."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Pag-update: %{kind} · Item ng trabaho: %{work}"
+agent_center.status_ok: "Nagtagumpay ang kahilingan."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Tinanggap; patuloy pa ang pagproseso. Nakabinbing operasyon: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Kailangan ng input: %{id}. Buksan ang naitalang tanong."
+agent_center.status_conflict: "Nagbago ang target. I-refresh ito bago magpadala ng bagong utos."
+agent_center.status_unsupported: "Hindi sinusuportahan ang operasyong ito."
+agent_center.status_error: "Nabigo ang kahilingan. Suriin ang mga detalye ng pagkabigo."
+agent_center.service_unavailable: "Hindi available ang Agent Center. Simulan ito gamit ang wta center serve. Patakbuhin ang utos sa ibang terminal." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Nabigo ang kahilingan: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Naputol ang koneksyon sa daloy ng mga kaganapan."
+agent_center.unsupported: "Hindi sinusuportahan ang utos: %{command}"
+agent_center.console_only: "Gamitin ang utos na ito sa console ng Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Isara ang panipi sa utos."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Walang halaga para sa %{argument}."
+agent_center.duplicate_argument: "Naulit ang argumento: %{argument}"
+agent_center.target_required: "Tumukoy ng identifier ng target."
+agent_center.invalid_version: "Dapat positibong buong bilang ang bersyon."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "I-refresh ang %{kind} %{id}, o tukuyin ang eksaktong bersyon nito."
+agent_center.work_required: "Pumili ng item ng trabaho o tukuyin ang --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Pumili ng proyekto o tukuyin ang /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Mga hindi inaasahang argumento: %{arguments}"
+agent_center.empty_message: "Maglagay ng mensahe."
+agent_center.findings_required: "Magbigay ng kahit isang object ng natuklasan sa rebisyon na nakaugnay sa pamantayan ng paghahatid at nagsasaad ng hinihiling na pagbabago."
+agent_center.command_id_mutation_only: "Ang --command-id ay para lamang sa mga utos na nagbabago ng estado." # {Locked="--command-id"}
+agent_center.confirmation_required: "Suriin ang eksaktong target, mga bersyon, saklaw, at mga epekto. Suriin ang aksyon, pagkatapos ay idagdag ang --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Hindi mabuo ang kahilingan sa Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Hindi mabasa ang tugon mula sa Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Nawawala o hindi wastong field sa tugon: %{field}"
+agent_center.invalid_command_id: "Dapat na UUID ang --command-id." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Huminto ang koneksyon ng mga kahilingan."
+agent_center.host_unavailable: "Walang magagamit na adapter ng shell host para sa %{command}. Gamitin ang mga aksyon sa keyboard ng host."

@@ -267,3 +267,56 @@ system.config_update_failed: "Neizdevās atjaunināt opciju %{option}: %{error}"
 system.yolo_disable_pending: "AI aģenta nodrošinātājs nav apstiprinājis, ka sesija ir nepieciešamajā stāvoklī bez paaugstinātām privilēģijām"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Automātisko apstiprināšanu ir atspējojusi jūsu organizācijas politika."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Nezināms modelis %{model} — ierakstiet /model, lai redzētu pieejamo sarakstu."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Darba vienumi"
+agent_center.activity: "Aktivitāte · Saruna"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Darbs: %{work} | Projekts: %{project}"
+agent_center.welcome: "Atlasiet projektu vai norādiet /project use <id>. Ievadiet mērķi vai /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: sūtīt · Shift+Enter: jauna rinda · Tab: pabeigt · F2: pārslēgt darba vienumu · Ctrl+C: iziet · PgUp/PgDn: lasīt · Ctrl+End: jaunākais" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Nepieciešama uzmanība: %{count}"
+agent_center.sending: "Tiek sūtīts fiksētais pieprasījums…"
+agent_center.confirm_title: "Apstiprināt fiksēto darbību"
+agent_center.confirm_prompt: "Pārskatiet precīzu mērķi, versijas, tvērumu un ietekmi. Pārskatiet darbību. Ctrl+Enter: apstiprināt · Esc: atcelt" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Darbība atcelta. Ievadītais teksts tiek saglabāts."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Atjauninājums: %{kind} · Darbs: %{work}"
+agent_center.status_ok: "Pieprasījums izdevās."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Pieņemts; apstrāde vēl turpinās. Gaidoša operācija: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Nepieciešama ievade: %{id}. Atveriet reģistrēto jautājumu."
+agent_center.status_conflict: "Mērķis ir mainījies. Atsvaidziniet to pirms jaunas komandas nosūtīšanas."
+agent_center.status_unsupported: "Šī operācija netiek atbalstīta."
+agent_center.status_error: "Pieprasījums neizdevās. Pārskatiet kļūmes informāciju."
+agent_center.service_unavailable: "Agent Center nav pieejams. Palaidiet to ar wta center serve. Palaidiet komandu citā terminālī." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Pieprasījums neizdevās: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Notikumu straume ir atvienota."
+agent_center.unsupported: "Komanda netiek atbalstīta: %{command}"
+agent_center.console_only: "Izmantojiet šo komandu Agent Center konsolē." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Aizveriet pēdiņas komandā."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Trūkst %{argument} vērtības."
+agent_center.duplicate_argument: "Atkārtots arguments: %{argument}"
+agent_center.target_required: "Norādiet mērķa identifikatoru."
+agent_center.invalid_version: "Versijai jābūt pozitīvam veselam skaitlim."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Atsvaidziniet %{kind} %{id} vai norādiet tā precīzo versiju."
+agent_center.work_required: "Atlasiet darba vienumu vai norādiet --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Atlasiet projektu vai norādiet /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Negaidīti argumenti: %{arguments}"
+agent_center.empty_message: "Ievadiet ziņojumu."
+agent_center.findings_required: "Norādiet vismaz vienu pārskatīšanas konstatējuma objektu, kas saistīts ar piegādes kritēriju un apraksta pieprasīto izmaiņu."
+agent_center.command_id_mutation_only: "--command-id ir derīgs tikai komandām, kas maina stāvokli." # {Locked="--command-id"}
+agent_center.confirmation_required: "Pārskatiet precīzu mērķi, versijas, tvērumu un ietekmi. Pārskatiet darbību un pēc tam pievienojiet --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Neizdevās izveidot Agent Center pieprasījumu." # {Locked="Agent Center"}
+agent_center.invalid_response: "Neizdevās nolasīt Agent Center atbildi." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Trūkst atbildes lauka vai tas nav derīgs: %{field}"
+agent_center.invalid_command_id: "--command-id ir jābūt UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Pieprasījumu savienojums ir apstājies."
+agent_center.host_unavailable: "Komandai %{command} nav pieejams čaulas resursdatora adapteris. Izmantojiet resursdatora tastatūras darbības."

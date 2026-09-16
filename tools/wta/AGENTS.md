@@ -6,7 +6,8 @@ Do not duplicate those facts here.
 
 ## Roles and ownership
 
-WTA is a Rust binary with three launch modes:
+WTA is a Rust binary with the existing terminal-agent launch modes and an
+opt-in Agent Center:
 
 - **Master** (`--master <pipe>`): lazily owns a pool of agent CLI subprocesses
   and their ACP stdio connections, accepts helper named-pipe connections, and
@@ -18,9 +19,22 @@ WTA is a Rust binary with three launch modes:
 - **CLI command**: one-shot commands such as `list-panes`, `capture-pane`,
   `resolve-command`, `delegate`, `hooks`, and `sessions`. Dispatch:
   `src/cli/`.
+- **Agent Center authority** (`center serve`): independently hosts the
+  experimental work store and execution runtime. Its private framed pipe,
+  transactional SQLite engine and runtime live under `src/agent_center/`.
+- **Agent Center Console** (`ui`): a standalone presentation client of that
+  authority, separate from the existing per-tab helper.
 
 Bare `wta` without a role flag or subcommand is invalid. The session MCP
-listener is a master-owned service, not a fourth launch mode.
+listener is master-owned, not an independently launched process.
+
+Agent Center has a separate invocation-bound work-tool contract. Do not route
+its tools through the active tab or treat its Console connection as a worker
+binding. Keep proposed work, submitted task results, internal gate acceptance
+and final human acceptance distinct. Its normative wire contract is
+`doc/specs/agent-center-protocol.md`; unimplemented operations return explicit
+unsupported responses. The experiment does not qualify provider-owned tools
+as a filesystem/network isolation boundary.
 
 ## Protocol boundaries
 

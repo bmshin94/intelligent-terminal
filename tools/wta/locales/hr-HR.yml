@@ -267,3 +267,56 @@ system.config_update_failed: "Ažuriranje opcije %{option} nije uspjelo: %{error
 system.yolo_disable_pending: "pružatelj nije potvrdio potrebno neprivilegirano stanje sesije"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Automatsko odobrenje onemogućeno je pravilima vaše organizacije."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Nepoznat model %{model} — upišite /model za prikaz dostupnog popisa."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Radne stavke"
+agent_center.activity: "Aktivnost · Razgovor"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Radna stavka: %{work} | Projekt: %{project}"
+agent_center.welcome: "Odaberite projekt ili navedite /project use <id>. Unesite cilj ili /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: slanje · Shift+Enter: novi redak · Tab: dopunjavanje · F2: promjena radne stavke · Ctrl+C: izlaz · PgUp/PgDn: čitanje · Ctrl+End: najnovije" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Zahtijeva pažnju: %{count}"
+agent_center.sending: "Slanje zabilježenog zahtjeva…"
+agent_center.confirm_title: "Potvrdite zabilježenu radnju"
+agent_center.confirm_prompt: "Pregledajte točan cilj, verzije, opseg i učinke. Pregledajte radnju. Ctrl+Enter: potvrda · Esc: odustajanje" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Radnja je otkazana. Uneseni tekst je sačuvan."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Ažuriranje: %{kind} · Radna stavka: %{work}"
+agent_center.status_ok: "Zahtjev je uspio."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Prihvaćeno; obrada još traje. Operacija na čekanju: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Potreban je unos: %{id}. Otvorite spremljeno pitanje."
+agent_center.status_conflict: "Cilj se promijenio. Osvježite ga prije slanja nove naredbe."
+agent_center.status_unsupported: "Ova operacija nije podržana."
+agent_center.status_error: "Zahtjev nije uspio. Pregledajte pojedinosti pogreške."
+agent_center.service_unavailable: "Agent Center nije dostupan. Pokrenite ga pomoću wta center serve. Pokrenite naredbu u drugom terminalu." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Zahtjev nije uspio: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Tok događaja je prekinut."
+agent_center.unsupported: "Naredba nije podržana: %{command}"
+agent_center.console_only: "Upotrijebite ovu naredbu u konzoli Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Zatvorite navodnike u naredbi."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Nedostaje vrijednost za %{argument}."
+agent_center.duplicate_argument: "Ponovljeni argument: %{argument}"
+agent_center.target_required: "Navedite identifikator cilja."
+agent_center.invalid_version: "Verzija mora biti pozitivan cijeli broj."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Osvježite %{kind} %{id} ili navedite točnu verziju."
+agent_center.work_required: "Odaberite radnu stavku ili navedite --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Odaberite projekt ili navedite /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Neočekivani argumenti: %{arguments}"
+agent_center.empty_message: "Unesite poruku."
+agent_center.findings_required: "Navedite barem jedan objekt nalaza za doradu, povezan s kriterijem isporuke, koji opisuje traženu izmjenu."
+agent_center.command_id_mutation_only: "--command-id vrijedi samo za naredbe koje mijenjaju stanje." # {Locked="--command-id"}
+agent_center.confirmation_required: "Pregledajte točan cilj, verzije, opseg i učinke. Pregledajte radnju, a zatim dodajte --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Nije moguće sastaviti zahtjev za Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Nije moguće pročitati odgovor Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Polje odgovora nedostaje ili nije valjano: %{field}"
+agent_center.invalid_command_id: "--command-id mora biti UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Veza za zahtjeve je prekinuta."
+agent_center.host_unavailable: "Nije dostupan adapter domaćina ljuske za %{command}. Koristite tipkovničke radnje domaćina."

@@ -268,3 +268,56 @@ system.config_update_failed: "%{option} ਨੂੰ ਅੱਪਡੇਟ ਕਰਨ �
 system.yolo_disable_pending: "ਏਜੰਟ ਪ੍ਰਦਾਤਾ ਨੇ ਹਾਲੇ ਉਸ ਲੋੜੀਂਦੀ ਸੈਸ਼ਨ ਸਥਿਤੀ ਦੀ ਪੁਸ਼ਟੀ ਨਹੀਂ ਕੀਤੀ ਜਿਸ ਵਿੱਚ ਵਿਸ਼ੇਸ਼ ਅਧਿਕਾਰ ਮੋਡ ਬੰਦ ਹੈ"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: ਤੁਹਾਡੀ ਸੰਸਥਾ ਦੀ ਨੀਤੀ ਕਾਰਨ ਸਵੈਚਲਿਤ ਮਨਜ਼ੂਰੀ ਅਯੋਗ ਹੈ।"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "ਅਣਜਾਣ ਮਾਡਲ %{model} — ਉਪਲਬਧ ਸੂਚੀ ਵੇਖਣ ਲਈ /model ਟਾਈਪ ਕਰੋ।"  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "ਕੰਮ ਦੀਆਂ ਇਕਾਈਆਂ"
+agent_center.activity: "ਸਰਗਰਮੀ · ਗੱਲਬਾਤ"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "ਕੰਮ: %{work} | ਪ੍ਰੋਜੈਕਟ: %{project}"
+agent_center.welcome: "ਕੋਈ ਪ੍ਰੋਜੈਕਟ ਚੁਣੋ ਜਾਂ /project use <id> ਨਿਰਧਾਰਤ ਕਰੋ। ਕੋਈ ਟੀਚਾ ਜਾਂ /help ਟਾਈਪ ਕਰੋ।" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: ਭੇਜੋ · Shift+Enter: ਨਵੀਂ ਲਾਈਨ · Tab: ਪੂਰਾ ਕਰੋ · F2: ਕੰਮ ਬਦਲੋ · Ctrl+C: ਬਾਹਰ ਨਿਕਲੋ · PgUp/PgDn: ਪੜ੍ਹੋ · Ctrl+End: ਨਵੀਨਤਮ" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "ਧਿਆਨ ਦੇਣ ਦੀ ਲੋੜ ਹੈ: %{count}"
+agent_center.sending: "ਕੈਪਚਰ ਕੀਤੀ ਬੇਨਤੀ ਭੇਜੀ ਜਾ ਰਹੀ ਹੈ…"
+agent_center.confirm_title: "ਕੈਪਚਰ ਕੀਤੀ ਕਾਰਵਾਈ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ"
+agent_center.confirm_prompt: "ਸਹੀ ਟੀਚੇ, ਸੰਸਕਰਣਾਂ, ਦਾਇਰੇ ਅਤੇ ਅਸਰਾਂ ਦੀ ਸਮੀਖਿਆ ਕਰੋ। ਕਾਰਵਾਈ ਦੀ ਸਮੀਖਿਆ ਕਰੋ। Ctrl+Enter: ਪੁਸ਼ਟੀ ਕਰੋ · Esc: ਰੱਦ ਕਰੋ" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "ਕਾਰਵਾਈ ਰੱਦ ਕੀਤੀ ਗਈ। ਤੁਹਾਡਾ ਦਰਜ ਕੀਤਾ ਪਾਠ ਸੁਰੱਖਿਅਤ ਹੈ।"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "ਅੱਪਡੇਟ: %{kind} · ਕੰਮ: %{work}"
+agent_center.status_ok: "ਬੇਨਤੀ ਸਫਲ ਹੋਈ।"
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "ਸਵੀਕਾਰ ਕੀਤਾ; ਕਾਰਵਾਈ ਹਾਲੇ ਜਾਰੀ ਹੈ। ਲੰਬਿਤ ਕਾਰਵਾਈ: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "ਇਨਪੁੱਟ ਲੋੜੀਂਦਾ ਹੈ: %{id}. ਦਰਜ ਕੀਤਾ ਸਵਾਲ ਖੋਲ੍ਹੋ।"
+agent_center.status_conflict: "ਟੀਚਾ ਬਦਲ ਗਿਆ ਹੈ। ਨਵੀਂ ਕਮਾਂਡ ਭੇਜਣ ਤੋਂ ਪਹਿਲਾਂ ਇਸ ਨੂੰ ਤਾਜ਼ਾ ਕਰੋ।"
+agent_center.status_unsupported: "ਇਹ ਕਾਰਵਾਈ ਸਮਰਥਿਤ ਨਹੀਂ ਹੈ।"
+agent_center.status_error: "ਬੇਨਤੀ ਅਸਫਲ ਹੋਈ. ਅਸਫਲਤਾ ਦੇ ਵੇਰਵੇ ਵੇਖੋ।"
+agent_center.service_unavailable: "Agent Center ਉਪਲਬਧ ਨਹੀਂ ਹੈ। ਇਸ ਨੂੰ wta center serve ਨਾਲ ਸ਼ੁਰੂ ਕਰੋ। ਕਮਾਂਡ ਕਿਸੇ ਹੋਰ ਟਰਮੀਨਲ ਵਿੱਚ ਚਲਾਓ।" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — ਬੇਨਤੀ ਅਸਫਲ ਹੋਈ: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "ਇਵੈਂਟ ਸਟ੍ਰੀਮ ਦਾ ਕਨੈਕਸ਼ਨ ਟੁੱਟ ਗਿਆ।"
+agent_center.unsupported: "ਕਮਾਂਡ ਸਮਰਥਿਤ ਨਹੀਂ ਹੈ: %{command}"
+agent_center.console_only: "ਇਸ ਕਮਾਂਡ ਨੂੰ Agent Center ਕੰਸੋਲ ਵਿੱਚ ਵਰਤੋ।" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "ਕਮਾਂਡ ਵਿੱਚ ਹਵਾਲਾ ਚਿੰਨ੍ਹ ਬੰਦ ਕਰੋ।"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} ਲਈ ਮੁੱਲ ਨਹੀਂ ਦਿੱਤਾ ਗਿਆ।"
+agent_center.duplicate_argument: "ਆਰਗੂਮੈਂਟ ਦੁਹਰਾਇਆ ਗਿਆ: %{argument}"
+agent_center.target_required: "ਟੀਚੇ ਦਾ ਪਛਾਣਕਰਤਾ ਨਿਰਧਾਰਤ ਕਰੋ।"
+agent_center.invalid_version: "ਵਰਜਨ ਇੱਕ ਧਨਾਤਮਕ ਪੂਰਨ ਅੰਕ ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ।"
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} ਨੂੰ ਤਾਜ਼ਾ ਕਰੋ ਜਾਂ ਇਸ ਦਾ ਸਹੀ ਸੰਸਕਰਣ ਦੱਸੋ।"
+agent_center.work_required: "ਕੰਮ ਦੀ ਕੋਈ ਇਕਾਈ ਚੁਣੋ ਜਾਂ --work <id> ਨਿਰਧਾਰਤ ਕਰੋ।" # {Locked="--work","<id>"}
+agent_center.project_required: "ਕੋਈ ਪ੍ਰੋਜੈਕਟ ਚੁਣੋ ਜਾਂ /project use <id> / --project <id> ਨਿਰਧਾਰਤ ਕਰੋ।" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "ਅਣਕਿਆਸੇ ਆਰਗੂਮੈਂਟ: %{arguments}"
+agent_center.empty_message: "ਇੱਕ ਸੁਨੇਹਾ ਦਾਖਲ ਕਰੋ।"
+agent_center.findings_required: "ਡਿਲਿਵਰੀ ਦੇ ਮਾਪਦੰਡ ਨਾਲ ਜੁੜਿਆ ਅਤੇ ਬੇਨਤੀ ਕੀਤੀ ਤਬਦੀਲੀ ਦਾ ਵਰਣਨ ਕਰਨ ਵਾਲਾ ਸੋਧ ਸਮੀਖਿਆ ਦੇ ਨਿਰੀਖਣ ਦਾ ਘੱਟੋ-ਘੱਟ ਇੱਕ ਆਬਜੈਕਟ ਦਿਓ।"
+agent_center.command_id_mutation_only: "--command-id ਸਿਰਫ਼ ਸਥਿਤੀ ਬਦਲਣ ਵਾਲੀਆਂ ਕਮਾਂਡਾਂ ਲਈ ਵੈਧ ਹੈ।" # {Locked="--command-id"}
+agent_center.confirmation_required: "ਸਹੀ ਟੀਚੇ, ਸੰਸਕਰਣਾਂ, ਦਾਇਰੇ ਅਤੇ ਅਸਰਾਂ ਦੀ ਸਮੀਖਿਆ ਕਰੋ। ਕਾਰਵਾਈ ਦੀ ਸਮੀਖਿਆ ਕਰੋ, ਫਿਰ --confirm ਜੋੜੋ।" # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center ਦੀ ਬੇਨਤੀ ਨਹੀਂ ਬਣਾਈ ਜਾ ਸਕੀ।" # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center ਦਾ ਜਵਾਬ ਨਹੀਂ ਪੜ੍ਹਿਆ ਜਾ ਸਕਿਆ।" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "ਜਵਾਬ ਦਾ ਖੇਤਰ ਗੁੰਮ ਜਾਂ ਅਵੈਧ ਹੈ: %{field}"
+agent_center.invalid_command_id: "--command-id ਇੱਕ UUID ਹੋਣਾ ਚਾਹੀਦਾ ਹੈ।" # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "ਬੇਨਤੀ ਦਾ ਕਨੈਕਸ਼ਨ ਰੁਕ ਗਿਆ ਹੈ।"
+agent_center.host_unavailable: "%{command} ਲਈ ਕੋਈ ਸ਼ੈੱਲ ਹੋਸਟ ਅਡਾਪਟਰ ਉਪਲਬਧ ਨਹੀਂ ਹੈ। ਹੋਸਟ ਦੀਆਂ ਕੀਬੋਰਡ ਕਾਰਵਾਈਆਂ ਵਰਤੋ।"

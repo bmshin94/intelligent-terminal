@@ -260,6 +260,14 @@ namespace winrt::TerminalApp::implementation
 
     TerminalPage::~TerminalPage()
     {
+        if (_agentConsole)
+        {
+            try
+            {
+                _agentConsole.Close();
+            }
+            CATCH_LOG();
+        }
         auto& sharedWta = winrt::TerminalApp::implementation::SharedWta::Instance();
         for (const auto& retirement : _pendingAgentRetirements)
         {
@@ -283,6 +291,10 @@ namespace winrt::TerminalApp::implementation
     {
         if (!_hostingHwnd.has_value())
         {
+            if (_agentConsole)
+            {
+                _agentConsole.OwningHwnd(reinterpret_cast<uint64_t>(hwnd));
+            }
             // GH#13211 - if we haven't yet set the owning hwnd, reparent all the controls now.
             for (const auto& tab : _tabs)
             {
@@ -458,6 +470,10 @@ namespace winrt::TerminalApp::implementation
     }
     bool TerminalPage::CanDragDrop() const noexcept
     {
+        if (_agentCenterEnabled)
+        {
+            return false;
+        }
         try
         {
             return Application::Current().as<TerminalApp::App>().Logic().CanDragDrop();
@@ -468,6 +484,17 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::Create()
     {
+        _agentCenterEnabled = ::Microsoft::Terminal::AgentSource::ReadEnvironmentVariable(L"INTELLIGENT_TERMINAL_AGENT_CENTER") == L"1";
+        if (_agentCenterEnabled)
+        {
+            _bindings->SetFallbackHandler([weak = get_weak()](const KeyChord& chord) {
+                if (const auto self = weak.get())
+                {
+                    return self->_TryAgentCenterKeyChord(chord);
+                }
+                return false;
+            });
+        }
         // Hookup the key bindings
         _HookupKeyBindings(_settings.ActionMap());
 
@@ -3335,7 +3362,7 @@ namespace winrt::TerminalApp::implementation
                                                         bool focusPane,
                                                         std::wstring_view initialYoloControlOwner)
     {
-        if (!tab || !tab->GetActiveTerminalControl())
+        if (_agentCenterEnabled || !tab || !tab->GetActiveTerminalControl())
         {
             return false;
         }
@@ -4105,6 +4132,11 @@ namespace winrt::TerminalApp::implementation
     // meaningful target on a non-terminal tab anyway.
     void TerminalPage::_UpdateBottomBarVisibility()
     {
+        if (_agentCenterEnabled)
+        {
+            BottomBarRoot().Visibility(Visibility::Collapsed);
+            return;
+        }
         const auto focusedTabImpl = _GetFocusedTabImpl();
         bool isTerminalTab = true;
         if (focusedTabImpl)
@@ -4931,6 +4963,11 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_OpenOrReuseAgentPane(bool intoSessionsView, const wchar_t* triggerSource, std::wstring_view initialAuthAgent)
     {
+        if (_agentCenterEnabled)
+        {
+            _FocusAgentConsole();
+            return;
+        }
         _agentPaneLog(std::string{ "_OpenOrReuseAgentPane called, intoSessionsView=" } + (intoSessionsView ? "true" : "false"));
 
         const auto emitAgentPaneOpened = [&]() {
@@ -5068,6 +5105,11 @@ namespace winrt::TerminalApp::implementation
     // returns focus to the prior pane.
     void TerminalPage::_FocusAgentPane()
     {
+        if (_agentCenterEnabled)
+        {
+            _FocusAgentConsole();
+            return;
+        }
         _agentPaneLog("_FocusAgentPane called");
 
         const auto activeTab = _GetFocusedTabImpl();
@@ -5130,6 +5172,159 @@ namespace winrt::TerminalApp::implementation
         return result;
     }
 
+    void TerminalPage::_InitializeAgentConsoleLayout()
+    {
+        const auto host = WindowWorkspaceHost();
+        uint32_t index{};
+        if (Root().Children().IndexOf(_tabContent, index))
+        {
+            Root().Children().RemoveAt(index);
+        }
+        Grid::SetRow(_tabContent, 1);
+        Grid::SetColumn(_tabContent, 0);
+        Grid::SetColumnSpan(_tabContent, 1);
+        host.Children().Append(_tabContent);
+        if (_isVerticalLayout)
+        {
+            Grid::SetColumn(host, 1);
+            Grid::SetColumnSpan(host, 1);
+        }
+        host.Visibility(Visibility::Visible);
+        _SetAgentCenterShellVisible(false);
+        BottomBarRoot().Visibility(Visibility::Collapsed);
+    }
+
+    void TerminalPage::_InitializeAgentConsole()
+    {
+        _InitializeAgentConsoleLayout();
+        try
+        {
+            // The experimental service does not yet consume the native policy
+            // allowlist. Do not bypass it by taking the independent launch path.
+            THROW_HR_IF(E_ACCESSDENIED, AgentPolicy::IsAllowedAgentsPolicyConfigured());
+            const auto path = _DetectWtaPath();
+            THROW_HR_IF(HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND), path.empty());
+
+            // Reuse appearance only. Neither a profile's command, elevation,
+            // connection type, starting directory nor environment launches here.
+            const auto settings = Settings::TerminalSettings::CreateWithProfile(
+                _settings, _settings.FindProfile(_settings.GlobalSettings().DefaultProfile()));
+            auto environment = winrt::single_threaded_map<winrt::hstring, winrt::hstring>();
+            environment.Insert(L"WT_WINDOW_ID", winrt::to_hstring(_WindowProperties.WindowId()));
+            auto cwd = ::Microsoft::Terminal::AgentSource::ReadEnvironmentVariable(L"USERPROFILE");
+            if (cwd.empty())
+            {
+                cwd = L".";
+            }
+            const winrt::hstring command{ L"\"" + std::wstring{ path } + L"\" ui" };
+            auto connection = TerminalConnection::ConptyConnection{};
+            connection.Initialize(TerminalConnection::ConptyConnection::CreateSettings(
+                command, winrt::hstring{ cwd }, L"Agent Console", false,
+                _WindowProperties.VirtualEnvVars(), environment.GetView(),
+                settings.DefaultSettings()->InitialRows(), settings.DefaultSettings()->InitialCols(),
+                winrt::guid{}, winrt::guid{}));
+
+            // This is presentation infrastructure, not a Pane or ContentManager
+            // shell resource. No SharedWta lease or kill-on-close job is acquired.
+            _agentConsole = TermControl{ *settings.DefaultSettings(),
+                                         settings.UnfocusedSettings().try_as<IControlAppearance>(),
+                                         connection };
+            _agentConsole.RequestedTheme(_settings.GlobalSettings().CurrentTheme().RequestedTheme());
+            _agentConsole.KeyBindings(*_bindings);
+            if (_hostingHwnd)
+            {
+                _agentConsole.OwningHwnd(reinterpret_cast<uint64_t>(*_hostingHwnd));
+            }
+            _agentConsole.WindowVisibilityChanged(_visible);
+            _agentConsole.WriteToClipboard({ get_weak(), &TerminalPage::_copyToClipboard });
+            _agentConsole.PasteFromClipboard({ get_weak(), &TerminalPage::_PasteFromClipboardHandler });
+            _agentConsole.OpenHyperlink({ get_weak(), &TerminalPage::_OpenHyperlinkHandler });
+            _agentConsole.Initialized([weak = get_weak()](auto&&, auto&&) {
+                if (const auto self = weak.get())
+                {
+                    self->_FocusAgentConsole();
+                }
+            });
+            AgentConsoleHost().Children().Append(_agentConsole);
+        }
+        catch (...)
+        {
+            LOG_CAUGHT_EXCEPTION();
+            if (_agentConsole)
+            {
+                _agentConsole.Close();
+                _agentConsole = nullptr;
+            }
+            TextBlock message;
+            message.Text(AgentPolicy::IsAllowedAgentsPolicyConfigured() ?
+                             RS_(L"AgentBlockedByPolicySubtitle") :
+                             RS_(L"AgentNotConfiguredSubtitle"));
+            message.TextWrapping(TextWrapping::Wrap);
+            message.Margin(Thickness{ 24 });
+            AgentConsoleHost().Children().Append(message);
+        }
+    }
+
+    void TerminalPage::_UpdateAgentConsoleSettings()
+    {
+        if (_agentConsole)
+        {
+            const auto settings = Settings::TerminalSettings::CreateWithProfile(
+                _settings, _settings.FindProfile(_settings.GlobalSettings().DefaultProfile()));
+            _agentConsole.UpdateControlSettings(
+                *settings.DefaultSettings(), settings.UnfocusedSettings().try_as<IControlAppearance>());
+            _agentConsole.RequestedTheme(_settings.GlobalSettings().CurrentTheme().RequestedTheme());
+        }
+    }
+
+    void TerminalPage::_FocusAgentConsole()
+    {
+        if (_agentConsole)
+        {
+            _agentConsole.Focus(FocusState::Programmatic);
+        }
+    }
+
+    void TerminalPage::_SetAgentCenterShellVisible(const bool visible)
+    {
+        if (!_agentCenterEnabled)
+        {
+            return;
+        }
+        _agentCenterShellVisible = visible && _tabs.Size() > 0;
+        ShellWorkspaceRow().Height(GridLengthHelper::FromValueAndType(
+            _agentCenterShellVisible ? 1 : 0,
+            _agentCenterShellVisible ? GridUnitType::Star : GridUnitType::Pixel));
+        _tabContent.Visibility(_agentCenterShellVisible ? Visibility::Visible : Visibility::Collapsed);
+        // Keep tab chrome available for the explicit new-shell action even when
+        // there are no shells. Hiding the workspace never shuts down its tabs.
+        if (!_agentCenterShellVisible)
+        {
+            _FocusAgentConsole();
+        }
+    }
+
+    bool TerminalPage::_TryAgentCenterKeyChord(const KeyChord& chord)
+    {
+        using Windows::System::VirtualKeyModifiers;
+        if (!_agentCenterEnabled ||
+            chord.Modifiers() != (VirtualKeyModifiers::Control | VirtualKeyModifiers::Shift))
+        {
+            return false;
+        }
+        if (chord.Vkey() == 'G')
+        {
+            _FocusAgentConsole();
+            return true;
+        }
+        if (chord.Vkey() == 'H')
+        {
+            _SetAgentCenterShellVisible(!_agentCenterShellVisible);
+            return true;
+        }
+        return false;
+    }
+
     // Method Description:
     // - This method is called once on startup, on the first LayoutUpdated event.
     //   We'll use this event to know that we have an ActualWidth and
@@ -5155,6 +5350,18 @@ namespace winrt::TerminalApp::implementation
         if (_startupState == StartupState::NotInitialized)
         {
             _startupState = StartupState::InStartup;
+            if (_agentCenterEnabled)
+            {
+                _InitializeAgentConsole();
+                // Shell/workspace restore is deliberately not replayed in the
+                // experiment. A Console starts with zero user shells. Explicit
+                // transferred or externally supplied connections are still owned
+                // by their normal tab path.
+                if (!_startupTransferId)
+                {
+                    _startupActions.clear();
+                }
+            }
             if (_startupTransferId)
             {
                 _TryCompleteStartupTransfer();
@@ -5169,7 +5376,7 @@ namespace winrt::TerminalApp::implementation
             // deferral, the first tab's ConptyConnection captures a
             // stale PATH at launch time, and child processes can't
             // find freshly-installed executables in the same session.
-            if (_IsFreRequired())
+            if (!_agentCenterEnabled && _IsFreRequired())
             {
                 _deferredStartupActions = std::move(_startupActions);
                 _deferredStartupConnection = std::move(_startupConnection);
@@ -5688,7 +5895,7 @@ namespace winrt::TerminalApp::implementation
         // GH#12267: Make sure that we don't instantly close ourselves when
         // we're readying to accept a defterm connection. In that case, we don't
         // have a tab yet, but will once we're initialized.
-        if (_tabs.Size() == 0 && !_IsFreRequired())
+        if (_tabs.Size() == 0 && !_IsFreRequired() && !_agentCenterEnabled)
         {
             CloseWindowRequested.raise(*this, nullptr);
             co_return;
@@ -5720,7 +5927,7 @@ namespace winrt::TerminalApp::implementation
             // so that didn't actually resolve any issues.
             // Show the first-run experience overlay on the very first launch.
             // This covers the terminal content until the user clicks Next.
-            if (_IsFreRequired())
+            if (!_agentCenterEnabled && _IsFreRequired())
             {
                 _ShowFreOverlay();
             }
@@ -5729,6 +5936,10 @@ namespace winrt::TerminalApp::implementation
                 if (auto self{ weak.get() })
                 {
                     self->Initialized.raise(*self, nullptr);
+                    if (self->_agentCenterEnabled)
+                    {
+                        self->_FocusAgentConsole();
+                    }
                 }
             });
         }
@@ -8350,6 +8561,17 @@ namespace winrt::TerminalApp::implementation
         });
         if (!cmd)
         {
+            if (_agentCenterEnabled)
+            {
+                const KeyChord chord{
+                    modifiers.IsCtrlPressed(), modifiers.IsAltPressed(),
+                    modifiers.IsShiftPressed(), modifiers.IsWinPressed(), vkey, scanCode
+                };
+                if (!actionMap.IsKeyChordExplicitlyUnbound(chord) && _TryAgentCenterKeyChord(chord))
+                {
+                    e.Handled(true);
+                }
+            }
             return;
         }
 
@@ -9082,6 +9304,10 @@ namespace winrt::TerminalApp::implementation
 
     TermControl TerminalPage::_GetActiveControl() const
     {
+        if (_agentConsole && (!_agentCenterShellVisible || _agentConsole.FocusState() != FocusState::Unfocused))
+        {
+            return _agentConsole;
+        }
         if (const auto tabImpl{ _GetFocusedTabImpl() })
         {
             return tabImpl->GetActiveTerminalControl();
@@ -9193,7 +9419,9 @@ namespace winrt::TerminalApp::implementation
         // This method may be called for a window even if it hasn't had a tab yet or lost all of them.
         // We shouldn't persist such windows.
         const auto tabCount = _tabs.Size();
-        if (_startupState != StartupState::Initialized || tabCount == 0)
+        // The experimental layout is not a legacy workspace snapshot. In
+        // particular, do not overwrite a saved workspace that wasn't replayed.
+        if (_agentCenterEnabled || _startupState != StartupState::Initialized || tabCount == 0)
         {
             return nullptr;
         }
@@ -11680,6 +11908,7 @@ namespace winrt::TerminalApp::implementation
         // TerminalSettings for every profile we update - we can just look them
         // up the previous ones we built.
         _terminalSettingsCache->Reset(_settings);
+        _UpdateAgentConsoleSettings();
 
         for (const auto& tab : _tabs)
         {
@@ -11884,6 +12113,10 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::WindowVisibilityChanged(const bool showOrHide)
     {
         _visible = showOrHide;
+        if (_agentConsole)
+        {
+            _agentConsole.WindowVisibilityChanged(showOrHide);
+        }
         for (const auto& tab : _tabs)
         {
             if (auto tabImpl{ _GetTabImpl(tab) })
@@ -12789,7 +13022,11 @@ namespace winrt::TerminalApp::implementation
         til::color bgColor = backgroundSolidBrush.Color();
 
         Media::Brush terminalBrush{ nullptr };
-        if (const auto tab{ _GetFocusedTabImpl() })
+        if (_agentConsole && (!_agentCenterShellVisible || _agentConsole.FocusState() != FocusState::Unfocused))
+        {
+            terminalBrush = _agentConsole.BackgroundBrush();
+        }
+        else if (const auto tab{ _GetFocusedTabImpl() })
         {
             if (const auto& pane{ tab->GetActivePane() })
             {

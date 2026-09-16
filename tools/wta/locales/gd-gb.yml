@@ -266,3 +266,56 @@ system.config_update_failed: "Dh’fhàillig ùrachadh %{option}: %{error}"
 system.yolo_disable_pending: "cha do dhearbh solaraiche an neach-gnìomha staid neo-phribhleideach riatanach an t-seisein"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Tha cead fèin-ghluasadach à comas le poileasaidh na buidhne agad."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Modail neo-aithnichte %{model} — sgrìobh /model gus an liosta a tha ri làimh fhaicinn."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Nithean-obrach"
+agent_center.activity: "Gnìomhachd · Còmhradh"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Obair: %{work} | Pròiseact: %{project}"
+agent_center.welcome: "Tagh pròiseact no sònraich /project use <id>. Sgrìobh amas no /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: cuir · Shift+Enter: loidhne ùr · Tab: coilean · F2: atharraich an nì-obrach · Ctrl+C: fàg · PgUp/PgDn: leugh · Ctrl+End: as ùire" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Tha aire a dhìth: %{count}"
+agent_center.sending: "A’ cur an iarrtais a chaidh a ghlacadh…"
+agent_center.confirm_title: "Dearbhaich an gnìomh a chaidh a ghlacadh"
+agent_center.confirm_prompt: "Dèan lèirmheas air an dearbh thargaid, na tionndaidhean, an raon agus na buaidhean. Dèan lèirmheas air a’ ghnìomh. Ctrl+Enter: dearbhaich · Esc: sguir dheth" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Chaidh sgur dhen ghnìomh. Tha an teacsa a chuir thu a-steach air a ghleidheadh."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Ùrachadh: %{kind} · Obair: %{work}"
+agent_center.status_ok: "Shoirbhich leis an iarrtas."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Air gabhail ris; tha an làimhseachadh fhathast a’ dol. Obrachadh ri dhèiligeadh: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Tha feum air ion-chur: %{id}. Fosgail a’ cheist a chaidh a chlàradh."
+agent_center.status_conflict: "Dh’atharraich an targaid. Ùraich i mus cuir thu òrdugh ùr."
+agent_center.status_unsupported: "Chan eil taic ris an obrachadh seo."
+agent_center.status_error: "Dh’fhàillig an t-iarrtas. Dèan lèirmheas air mion-fhiosrachadh na fàilligeadh."
+agent_center.service_unavailable: "Chan eil Agent Center ri fhaighinn. Tòisich e le wta center serve. Ruith an t-òrdugh ann an tèirmineal eile." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Dh’fhàillig an t-iarrtas: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Chaidh sruth nan tachartasan a dhì-cheangal."
+agent_center.unsupported: "Chan eil taic ris an òrdugh: %{command}"
+agent_center.console_only: "Cleachd an t-òrdugh seo ann an consoil Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Dùin an comharra-labhairt san òrdugh."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Tha luach a dhìth airson %{argument}."
+agent_center.duplicate_argument: "Argamaid air a h-ath-aithris: %{argument}"
+agent_center.target_required: "Sònraich aithnichear targaid."
+agent_center.invalid_version: "Feumaidh an tionndadh a bhith na àireamh shlàn dheimhinneach."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Ùraich %{kind} %{id}, no sònraich an dearbh thionndadh aige."
+agent_center.work_required: "Tagh nì-obrach no sònraich --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Tagh pròiseact no sònraich /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Argamaidean ris nach robh dùil: %{arguments}"
+agent_center.empty_message: "Cuir a-steach teachdaireachd."
+agent_center.findings_required: "Thoir seachad co-dhiù aon oibseact toraidh lèirmheis, ceangailte ri slat-tomhais lìbhrigidh agus a’ mìneachadh an atharrachaidh a chaidh iarraidh."
+agent_center.command_id_mutation_only: "Chan eil --command-id dligheach ach airson òrdughan a dh’atharraicheas an staid." # {Locked="--command-id"}
+agent_center.confirmation_required: "Dèan lèirmheas air an dearbh thargaid, na tionndaidhean, an raon agus na buaidhean. Dèan lèirmheas air a’ ghnìomh, agus cuir --confirm ris an uair sin." # {Locked="--confirm"}
+agent_center.invalid_request: "Cha b’ urrainn dhuinn an t-iarrtas gu Agent Center a chruthachadh." # {Locked="Agent Center"}
+agent_center.invalid_response: "Cha b’ urrainn dhuinn am freagairt bho Agent Center a leughadh." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Raon freagairt a dhìth no mì-dhligheach: %{field}"
+agent_center.invalid_command_id: "Feumaidh --command-id a bhith na UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Stad ceangal nan iarrtasan."
+agent_center.host_unavailable: "Chan eil adaptair òstair slige ri fhaighinn airson %{command}. Cleachd gnìomhan meur-chlàir an òstair."

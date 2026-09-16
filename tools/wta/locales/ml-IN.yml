@@ -268,3 +268,56 @@ system.config_update_failed: "%{option} അപ്‌ഡേറ്റ് ചെയ
 system.yolo_disable_pending: "പ്രത്യേകാധികാര മോഡ് പ്രവർത്തനരഹിതമായിരിക്കേണ്ട സെഷൻ നില ഏജന്റ് ദാതാവ് ഇതുവരെ സ്ഥിരീകരിച്ചിട്ടില്ല"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: നിങ്ങളുടെ സ്ഥാപനത്തിന്റെ നയം കാരണം സ്വയമേവയുള്ള അംഗീകാരം പ്രവർത്തനരഹിതമാണ്."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "അറിയാത്ത മോഡൽ %{model} — ലഭ്യമായ പട്ടിക കാണാൻ /model ടൈപ്പ് ചെയ്യുക."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "പ്രവർത്തന ഇനങ്ങൾ"
+agent_center.activity: "പ്രവർത്തനം · സംഭാഷണം"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "പ്രവർത്തന ഇനം: %{work} | പ്രോജക്റ്റ്: %{project}"
+agent_center.welcome: "ഒരു പ്രോജക്റ്റ് തിരഞ്ഞെടുക്കുക അല്ലെങ്കിൽ /project use <id> വ്യക്തമാക്കുക. ഒരു ലക്ഷ്യം അല്ലെങ്കിൽ /help ടൈപ്പ് ചെയ്യുക." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: അയയ്ക്കുക · Shift+Enter: പുതിയ വരി · Tab: പൂർത്തിയാക്കുക · F2: പ്രവർത്തന ഇനം മാറ്റുക · Ctrl+C: പുറത്തുകടക്കുക · PgUp/PgDn: വായിക്കുക · Ctrl+End: ഏറ്റവും പുതിയത്" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "ശ്രദ്ധ ആവശ്യമാണ്: %{count}"
+agent_center.sending: "രേഖപ്പെടുത്തിയ അഭ്യർത്ഥന അയയ്ക്കുന്നു…"
+agent_center.confirm_title: "രേഖപ്പെടുത്തിയ നടപടി സ്ഥിരീകരിക്കുക"
+agent_center.confirm_prompt: "കൃത്യമായ ലക്ഷ്യം, പതിപ്പുകൾ, പരിധി, ഫലങ്ങൾ എന്നിവ പരിശോധിക്കുക. നടപടി അവലോകനം ചെയ്യുക. Ctrl+Enter: സ്ഥിരീകരിക്കുക · Esc: റദ്ദാക്കുക" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "നടപടി റദ്ദാക്കി. നിങ്ങൾ നൽകിയ പാഠം സൂക്ഷിച്ചിരിക്കുന്നു."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "അപ്‌ഡേറ്റ്: %{kind} · പ്രവർത്തന ഇനം: %{work}"
+agent_center.status_ok: "അഭ്യർത്ഥന വിജയിച്ചു."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "സ്വീകരിച്ചു; പ്രോസസ്സിംഗ് ഇപ്പോഴും തുടരുന്നു. തീർപ്പാക്കാത്ത നടപടി: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "ഇൻപുട്ട് ആവശ്യമാണ്: %{id}. രേഖപ്പെടുത്തിയ ചോദ്യം തുറക്കുക."
+agent_center.status_conflict: "ലക്ഷ്യം മാറിയിരിക്കുന്നു. പുതിയ കമാൻഡ് അയയ്ക്കുന്നതിന് മുമ്പ് അത് പുതുക്കുക."
+agent_center.status_unsupported: "ഈ നടപടിക്ക് പിന്തുണയില്ല."
+agent_center.status_error: "അഭ്യർത്ഥന പരാജയപ്പെട്ടു. പരാജയത്തിന്റെ വിശദാംശങ്ങൾ പരിശോധിക്കുക."
+agent_center.service_unavailable: "Agent Center ലഭ്യമല്ല. wta center serve ഉപയോഗിച്ച് അത് ആരംഭിക്കുക. കമാൻഡ് മറ്റൊരു ടെർമിനലിൽ പ്രവർത്തിപ്പിക്കുക." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — അഭ്യർത്ഥന പരാജയപ്പെട്ടു: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "ഇവന്റ് സ്ട്രീമിന്റെ കണക്ഷൻ വിച്ഛേദിക്കപ്പെട്ടു."
+agent_center.unsupported: "കമാൻഡിന് പിന്തുണയില്ല: %{command}"
+agent_center.console_only: "Agent Center കൺസോളിൽ ഈ കമാൻഡ് ഉപയോഗിക്കുക." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "കമാൻഡിലെ ഉദ്ധരണി ചിഹ്നം അടയ്ക്കുക."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} എന്നതിന് മൂല്യം നൽകിയിട്ടില്ല."
+agent_center.duplicate_argument: "ആർഗ്യുമെന്റ് ആവർത്തിച്ചു: %{argument}"
+agent_center.target_required: "ലക്ഷ്യത്തിന്റെ ഐഡന്റിഫയർ വ്യക്തമാക്കുക."
+agent_center.invalid_version: "പതിപ്പ് ഒരു ധന പൂർണ്ണസംഖ്യയായിരിക്കണം."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} പുതുക്കുക അല്ലെങ്കിൽ അതിന്റെ കൃത്യമായ പതിപ്പ് വ്യക്തമാക്കുക."
+agent_center.work_required: "ഒരു പ്രവർത്തന ഇനം തിരഞ്ഞെടുക്കുക അല്ലെങ്കിൽ --work <id> വ്യക്തമാക്കുക." # {Locked="--work","<id>"}
+agent_center.project_required: "ഒരു പ്രോജക്റ്റ് തിരഞ്ഞെടുക്കുക അല്ലെങ്കിൽ /project use <id> / --project <id> വ്യക്തമാക്കുക." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "അപ്രതീക്ഷിത ആർഗ്യുമെന്റുകൾ: %{arguments}"
+agent_center.empty_message: "ഒരു സന്ദേശം നൽകുക."
+agent_center.findings_required: "വിതരണ മാനദണ്ഡവുമായി ബന്ധിപ്പിച്ചതും ആവശ്യപ്പെട്ട മാറ്റം വിവരിക്കുന്നതുമായ പരിഷ്കരണ പരിശോധനയിലെ കണ്ടെത്തലിന്റെ ഒരു ഒബ്ജക്റ്റ് എങ്കിലും നൽകുക."
+agent_center.command_id_mutation_only: "സ്ഥിതി മാറ്റുന്ന കമാൻഡുകൾക്ക് മാത്രമേ --command-id സാധുവാകൂ." # {Locked="--command-id"}
+agent_center.confirmation_required: "കൃത്യമായ ലക്ഷ്യം, പതിപ്പുകൾ, പരിധി, ഫലങ്ങൾ എന്നിവ പരിശോധിക്കുക. നടപടി അവലോകനം ചെയ്ത ശേഷം --confirm ചേർക്കുക." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center അഭ്യർത്ഥന തയ്യാറാക്കാനായില്ല." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center പ്രതികരണം വായിക്കാനായില്ല." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "പ്രതികരണത്തിലെ ഫീൽഡ് കാണുന്നില്ല അല്ലെങ്കിൽ അസാധുവാണ്: %{field}"
+agent_center.invalid_command_id: "--command-id ഒരു UUID ആയിരിക്കണം." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "അഭ്യർത്ഥനകളുടെ കണക്ഷൻ നിലച്ചു."
+agent_center.host_unavailable: "%{command}-നായി ഷെൽ ഹോസ്റ്റ് അഡാപ്റ്റർ ലഭ്യമല്ല. ഹോസ്റ്റിന്റെ കീബോർഡ് പ്രവർത്തനങ്ങൾ ഉപയോഗിക്കുക."

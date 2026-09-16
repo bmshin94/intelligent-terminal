@@ -268,3 +268,56 @@ system.config_update_failed: "%{option} ಅಪ್‌ಡೇಟ್ ಮಾಡಲು
 system.yolo_disable_pending: "ಏಜೆಂಟ್ ಪೂರೈಕೆದಾರರು ವಿಶೇಷಾಧಿಕಾರ ಮೋಡ್ ನಿಷ್ಕ್ರಿಯವಾಗಿರುವ ಅಗತ್ಯ ಸೆಷನ್ ಸ್ಥಿತಿಯನ್ನು ಇನ್ನೂ ದೃಢೀಕರಿಸಿಲ್ಲ"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: ನಿಮ್ಮ ಸಂಸ್ಥೆಯ ನೀತಿಯ ಪ್ರಕಾರ ಸ್ವಯಂಚಾಲಿತ ಅನುಮೋದನೆಯನ್ನು ನಿಷ್ಕ್ರಿಯಗೊಳಿಸಲಾಗಿದೆ."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "ಅಪರಿಚಿತ ಮಾದರಿ %{model} — ಲಭ್ಯವಿರುವ ಪಟ್ಟಿಯನ್ನು ನೋಡಲು /model ಟೈಪ್ ಮಾಡಿ."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "ಕೆಲಸದ ಅಂಶಗಳು"
+agent_center.activity: "ಚಟುವಟಿಕೆ · ಸಂಭಾಷಣೆ"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "ಕೆಲಸ: %{work} | ಯೋಜನೆ: %{project}"
+agent_center.welcome: "ಯೋಜನೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ ಅಥವಾ /project use <id> ಅನ್ನು ನಿರ್ದಿಷ್ಟಪಡಿಸಿ. ಗುರಿಯನ್ನು ಅಥವಾ /help ಅನ್ನು ಟೈಪ್ ಮಾಡಿ." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: ಕಳುಹಿಸಿ · Shift+Enter: ಹೊಸ ಸಾಲು · Tab: ಪೂರ್ಣಗೊಳಿಸಿ · F2: ಕೆಲಸ ಬದಲಿಸಿ · Ctrl+C: ನಿರ್ಗಮಿಸಿ · PgUp/PgDn: ಓದಿ · Ctrl+End: ಇತ್ತೀಚಿನದು" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "ಗಮನ ಅಗತ್ಯವಿದೆ: %{count}"
+agent_center.sending: "ದಾಖಲಿಸಿದ ವಿನಂತಿಯನ್ನು ಕಳುಹಿಸಲಾಗುತ್ತಿದೆ…"
+agent_center.confirm_title: "ದಾಖಲಿಸಿದ ಕ್ರಿಯೆಯನ್ನು ದೃಢೀಕರಿಸಿ"
+agent_center.confirm_prompt: "ನಿಖರ ಗುರಿ, ಆವೃತ್ತಿಗಳು, ವ್ಯಾಪ್ತಿ ಮತ್ತು ಪರಿಣಾಮಗಳನ್ನು ಪರಿಶೀಲಿಸಿ. ಕ್ರಿಯೆಯನ್ನು ಪರಿಶೀಲಿಸಿ. Ctrl+Enter: ದೃಢೀಕರಿಸಿ · Esc: ರದ್ದುಮಾಡಿ" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "ಕ್ರಿಯೆಯನ್ನು ರದ್ದುಮಾಡಲಾಗಿದೆ. ನೀವು ನಮೂದಿಸಿದ ಪಠ್ಯವನ್ನು ಉಳಿಸಲಾಗಿದೆ."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "ನವೀಕರಣ: %{kind} · ಕೆಲಸ: %{work}"
+agent_center.status_ok: "ವಿನಂತಿಯು ಯಶಸ್ವಿಯಾಗಿದೆ."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "ಸ್ವೀಕರಿಸಲಾಗಿದೆ; ಪ್ರಕ್ರಿಯೆ ಇನ್ನೂ ನಡೆಯುತ್ತಿದೆ. ಬಾಕಿ ಇರುವ ಕಾರ್ಯಾಚರಣೆ: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "ಇನ್‌ಪುಟ್ ಅಗತ್ಯವಿದೆ: %{id}. ದಾಖಲಿಸಿದ ಪ್ರಶ್ನೆಯನ್ನು ತೆರೆಯಿರಿ."
+agent_center.status_conflict: "ಗುರಿ ಬದಲಾಗಿದೆ. ಹೊಸ ಆಜ್ಞೆಯನ್ನು ಕಳುಹಿಸುವ ಮೊದಲು ಅದನ್ನು ರಿಫ್ರೆಶ್ ಮಾಡಿ."
+agent_center.status_unsupported: "ಈ ಕಾರ್ಯಾಚರಣೆಗೆ ಬೆಂಬಲವಿಲ್ಲ."
+agent_center.status_error: "ವಿನಂತಿ ವಿಫಲವಾಗಿದೆ. ವೈಫಲ್ಯದ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ."
+agent_center.service_unavailable: "Agent Center ಲಭ್ಯವಿಲ್ಲ. wta center serve ಬಳಸಿ ಅದನ್ನು ಪ್ರಾರಂಭಿಸಿ. ಆಜ್ಞೆಯನ್ನು ಮತ್ತೊಂದು ಟರ್ಮಿನಲ್‌ನಲ್ಲಿ ಚಲಾಯಿಸಿ." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — ವಿನಂತಿ ವಿಫಲವಾಗಿದೆ: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "ಈವೆಂಟ್ ಸ್ಟ್ರೀಮ್ ಸಂಪರ್ಕ ಕಡಿತಗೊಂಡಿದೆ."
+agent_center.unsupported: "ಆಜ್ಞೆಗೆ ಬೆಂಬಲವಿಲ್ಲ: %{command}"
+agent_center.console_only: "Agent Center ಕನ್ಸೋಲ್‌ನಲ್ಲಿ ಈ ಆಜ್ಞೆಯನ್ನು ಬಳಸಿ." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "ಆಜ್ಞೆಯಲ್ಲಿ ಉದ್ಧರಣ ಚಿಹ್ನೆಯನ್ನು ಮುಚ್ಚಿ."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} ಗೆ ಮೌಲ್ಯ ನೀಡಲಾಗಿಲ್ಲ."
+agent_center.duplicate_argument: "ಆರ್ಗ್ಯುಮೆಂಟ್ ಪುನರಾವರ್ತನೆಯಾಗಿದೆ: %{argument}"
+agent_center.target_required: "ಗುರಿಯ ಗುರುತಿಸುವಿಕೆಯನ್ನು ನಿರ್ದಿಷ್ಟಪಡಿಸಿ."
+agent_center.invalid_version: "ಆವೃತ್ತಿಯು ಧನ ಪೂರ್ಣಾಂಕವಾಗಿರಬೇಕು."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} ಅನ್ನು ರಿಫ್ರೆಶ್ ಮಾಡಿ ಅಥವಾ ಅದರ ನಿಖರ ಆವೃತ್ತಿಯನ್ನು ಸೂಚಿಸಿ."
+agent_center.work_required: "ಕೆಲಸದ ಅಂಶವನ್ನು ಆಯ್ಕೆಮಾಡಿ ಅಥವಾ --work <id> ಅನ್ನು ನಿರ್ದಿಷ್ಟಪಡಿಸಿ." # {Locked="--work","<id>"}
+agent_center.project_required: "ಯೋಜನೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ ಅಥವಾ /project use <id> / --project <id> ಅನ್ನು ನಿರ್ದಿಷ್ಟಪಡಿಸಿ." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "ಅನಿರೀಕ್ಷಿತ ಆರ್ಗ್ಯುಮೆಂಟ್‌ಗಳು: %{arguments}"
+agent_center.empty_message: "ಸಂದೇಶವನ್ನು ನಮೂದಿಸಿ."
+agent_center.findings_required: "ವಿತರಣಾ ಮಾನದಂಡಕ್ಕೆ ಸಂಬಂಧಿಸಿದ ಮತ್ತು ಕೋರಿದ ಬದಲಾವಣೆಯನ್ನು ವಿವರಿಸುವ, ಪರಿಷ್ಕರಣಾ ಪರಿಶೀಲನೆಯಲ್ಲಿ ಕಂಡುಬಂದ ಅಂಶದ ಕನಿಷ್ಠ ಒಂದು ಆಬ್ಜೆಕ್ಟ್ ನೀಡಿ."
+agent_center.command_id_mutation_only: "ಸ್ಥಿತಿಯನ್ನು ಬದಲಾಯಿಸುವ ಆಜ್ಞೆಗಳಿಗೆ ಮಾತ್ರ --command-id ಮಾನ್ಯವಾಗಿದೆ." # {Locked="--command-id"}
+agent_center.confirmation_required: "ನಿಖರ ಗುರಿ, ಆವೃತ್ತಿಗಳು, ವ್ಯಾಪ್ತಿ ಮತ್ತು ಪರಿಣಾಮಗಳನ್ನು ಪರಿಶೀಲಿಸಿ. ಕ್ರಿಯೆಯನ್ನು ಪರಿಶೀಲಿಸಿ, ನಂತರ --confirm ಸೇರಿಸಿ." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center ವಿನಂತಿಯನ್ನು ರಚಿಸಲಾಗಲಿಲ್ಲ." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center ಪ್ರತಿಕ್ರಿಯೆಯನ್ನು ಓದಲಾಗಲಿಲ್ಲ." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "ಪ್ರತಿಕ್ರಿಯೆಯ ಕ್ಷೇತ್ರ ಕಾಣೆಯಾಗಿದೆ ಅಥವಾ ಅಮಾನ್ಯವಾಗಿದೆ: %{field}"
+agent_center.invalid_command_id: "--command-id ಒಂದು UUID ಆಗಿರಬೇಕು." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "ವಿನಂತಿಯ ಸಂಪರ್ಕ ನಿಂತಿದೆ."
+agent_center.host_unavailable: "%{command} ಗಾಗಿ ಯಾವುದೇ ಶೆಲ್ ಹೋಸ್ಟ್ ಅಡಾಪ್ಟರ್ ಲಭ್ಯವಿಲ್ಲ. ಹೋಸ್ಟ್‌ನ ಕೀಬೋರ್ಡ್ ಕ್ರಿಯೆಗಳನ್ನು ಬಳಸಿ."

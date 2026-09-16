@@ -10,6 +10,15 @@ use crate::agent_tools::user_input::UserInputResponse;
 const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
 const SUPPORTED_MCP_PROTOCOL_VERSIONS: &[&str] =
     &["2024-11-05", "2025-03-26", MCP_PROTOCOL_VERSION];
+
+pub(crate) fn negotiate_protocol_version(requested: &str) -> &'static str {
+    SUPPORTED_MCP_PROTOCOL_VERSIONS
+        .iter()
+        .copied()
+        .find(|version| *version == requested)
+        .unwrap_or(MCP_PROTOCOL_VERSION)
+}
+
 const USER_INPUT_TOOL_NAME: &str = "request_user_input";
 pub const SERVER_NAME_PREFIX: &str = "intellterm_";
 pub const SERVER_ID_HEX_LEN: usize = 16;
@@ -65,24 +74,7 @@ impl SessionMcpTool {
     }
 
     pub(crate) fn from_title(title: Option<&str>, server_name: &str) -> Option<Self> {
-        if server_name.is_empty() {
-            return None;
-        }
-        let title = title?.trim();
-        let title = title.strip_prefix("Use MCP tool: ").unwrap_or(title);
-        let name = title
-            .strip_prefix(server_name)
-            .and_then(|suffix| {
-                suffix
-                    .strip_prefix('/')
-                    .or_else(|| suffix.strip_prefix('-'))
-            })
-            .or_else(|| {
-                title
-                    .strip_prefix("mcp__")?
-                    .strip_prefix(server_name)?
-                    .strip_prefix("__")
-            })?;
+        let name = qualified_mcp_tool_name(title, server_name)?;
         if name == USER_INPUT_TOOL_NAME {
             Some(Self::UserInput)
         } else {
@@ -90,6 +82,30 @@ impl SessionMcpTool {
                 .map(Self::TerminalAction)
         }
     }
+}
+
+pub(crate) fn qualified_mcp_tool_name<'a>(
+    title: Option<&'a str>,
+    server_name: &str,
+) -> Option<&'a str> {
+    if server_name.is_empty() {
+        return None;
+    }
+    let title = title?.trim();
+    let title = title.strip_prefix("Use MCP tool: ").unwrap_or(title);
+    title
+        .strip_prefix(server_name)
+        .and_then(|suffix| {
+            suffix
+                .strip_prefix('/')
+                .or_else(|| suffix.strip_prefix('-'))
+        })
+        .or_else(|| {
+            title
+                .strip_prefix("mcp__")?
+                .strip_prefix(server_name)?
+                .strip_prefix("__")
+        })
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -156,7 +172,7 @@ where
             let version = request
                 .pointer("/params/protocolVersion")
                 .and_then(Value::as_str)
-                .filter(|version| SUPPORTED_MCP_PROTOCOL_VERSIONS.contains(version))
+                .map(negotiate_protocol_version)
                 .unwrap_or(MCP_PROTOCOL_VERSION);
             json!({
                 "protocolVersion": version,

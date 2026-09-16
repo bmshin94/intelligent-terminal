@@ -270,3 +270,56 @@ system.config_update_failed: "আপডেট কৰিবলৈ ব্যৰ্
 system.yolo_disable_pending: "এজেণ্ট প্ৰদানকাৰীয়ে বিশেষাধিকাৰ মোড বন্ধ থকা প্ৰয়োজনীয় ছেশ্বন অৱস্থাটো এতিয়াও নিশ্চিত কৰা নাই"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: আপোনাৰ সংগঠনৰ নীতি অনুসৰি স্বয়ংক্ৰিয় অনুমোদন নিষ্ক্ৰিয় কৰা হৈছে।"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "অজ্ঞাত মডেল %{model} — উপলব্ধ তালিকা চাবলৈ /model টাইপ কৰক।"  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "কামৰ এককসমূহ"
+agent_center.activity: "কাৰ্যকলাপ · কথোপকথন"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "কাম: %{work} | প্ৰকল্প: %{project}"
+agent_center.welcome: "এটা প্ৰকল্প বাছনি কৰক বা /project use <id> নিৰ্দিষ্ট কৰক। এটা লক্ষ্য বা /help টাইপ কৰক।" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: পঠিয়াওক · Shift+Enter: নতুন শাৰী · Tab: সম্পূৰ্ণ কৰক · F2: কাম সলনি কৰক · Ctrl+C: প্ৰস্থান · PgUp/PgDn: পঢ়ক · Ctrl+End: শেহতীয়া" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "মনোযোগৰ প্ৰয়োজন: %{count}"
+agent_center.sending: "নথিভুক্ত অনুৰোধটো পঠিয়াই থকা হৈছে…"
+agent_center.confirm_title: "নথিভুক্ত কাৰ্য নিশ্চিত কৰক"
+agent_center.confirm_prompt: "সঠিক লক্ষ্য, সংস্কৰণসমূহ, পৰিসৰ আৰু প্ৰভাৱসমূহ পৰ্যালোচনা কৰক। কাৰ্যটো পৰ্যালোচনা কৰক। Ctrl+Enter: নিশ্চিত কৰক · Esc: বাতিল কৰক" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "কাৰ্য বাতিল কৰা হ'ল। আপুনি লিখা পাঠ সংৰক্ষিত আছে।"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "আপডেট: %{kind} · কাম: %{work}"
+agent_center.status_ok: "অনুৰোধ সফল হৈছে।"
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "গ্ৰহণ কৰা হৈছে; প্ৰক্ৰিয়াকৰণ এতিয়াও চলি আছে। অপেক্ষাৰত কাৰ্য: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "ইনপুট প্ৰয়োজন: %{id}. নথিভুক্ত প্ৰশ্নটো খোলক।"
+agent_center.status_conflict: "লক্ষ্য সলনি হৈছে। নতুন আদেশ পঠিওৱাৰ আগতে ইয়াক ৰিফ্ৰেশ কৰক।"
+agent_center.status_unsupported: "এই কাৰ্য সমৰ্থিত নহয়।"
+agent_center.status_error: "অনুৰোধ বিফল হ'ল. বিফলতাৰ বিৱৰণ চাওক।"
+agent_center.service_unavailable: "Agent Center উপলব্ধ নহয়। wta center serve ব্যৱহাৰ কৰি ইয়াক আৰম্ভ কৰক। আদেশটো আন এটা টাৰ্মিনেলত চলাওক।" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — অনুৰোধ বিফল হ'ল: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "ইভেণ্ট ষ্ট্ৰীমৰ সংযোগ বিচ্ছিন্ন হৈছে।"
+agent_center.unsupported: "কমান্ড সমৰ্থিত নহয়: %{command}"
+agent_center.console_only: "Agent Center কনছ'লত এই কমান্ড ব্যৱহাৰ কৰক।" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "কমান্ডত উদ্ধৃতি চিহ্ন বন্ধ কৰক।"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument}ৰ মান দিয়া হোৱা নাই।"
+agent_center.duplicate_argument: "আৰ্গুমেণ্ট পুনৰাবৃত্তি হৈছে: %{argument}"
+agent_center.target_required: "এটা লক্ষ্যৰ চিনাক্তকাৰী নিৰ্দিষ্ট কৰক।"
+agent_center.invalid_version: "সংস্কৰণটো এটা ধনাত্মক পূৰ্ণসংখ্যা হ'ব লাগিব।"
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} ৰিফ্ৰেশ কৰক বা ইয়াৰ সঠিক সংস্কৰণ উল্লেখ কৰক।"
+agent_center.work_required: "এটা কামৰ একক বাছনি কৰক বা --work <id> নিৰ্দিষ্ট কৰক।" # {Locked="--work","<id>"}
+agent_center.project_required: "এটা প্ৰকল্প বাছনি কৰক বা /project use <id> / --project <id> নিৰ্দিষ্ট কৰক।" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "অপ্ৰত্যাশিত আৰ্গুমেণ্টসমূহ: %{arguments}"
+agent_center.empty_message: "এটা বাৰ্তা লিখক।"
+agent_center.findings_required: "যোগানৰ মাপকাঠিৰ সৈতে জড়িত আৰু অনুৰোধ কৰা পৰিৱৰ্তন বৰ্ণনা কৰা অন্তত এটা সংশোধনী পৰ্যালোচনাৰ ফলাফলৰ ৰেকৰ্ড দিয়ক।"
+agent_center.command_id_mutation_only: "--command-id কেৱল অৱস্থা সলনি কৰা কমান্ডৰ বাবেহে বৈধ।" # {Locked="--command-id"}
+agent_center.confirmation_required: "সঠিক লক্ষ্য, সংস্কৰণসমূহ, পৰিসৰ আৰু প্ৰভাৱসমূহ পৰ্যালোচনা কৰক। কাৰ্যটো পৰ্যালোচনা কৰক, তাৰ পিছত --confirm যোগ কৰক।" # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center-ৰ অনুৰোধটো গঠন কৰিব পৰা নগ'ল।" # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center-ৰ সঁহাৰিটো পঢ়িব পৰা নগ'ল।" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "সঁহাৰিৰ ক্ষেত্ৰ অনুপস্থিত বা অবৈধ: %{field}"
+agent_center.invalid_command_id: "--command-id এটা UUID হ'ব লাগিব।" # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "অনুৰোধৰ সংযোগ বন্ধ হৈছে।"
+agent_center.host_unavailable: "%{command}-ৰ বাবে কোনো শ্বেল হোষ্ট এডাপ্টাৰ উপলব্ধ নহয়। হোষ্টৰ কীবোৰ্ড কাৰ্যসমূহ ব্যৱহাৰ কৰক।"

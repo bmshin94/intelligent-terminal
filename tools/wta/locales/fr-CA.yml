@@ -267,3 +267,56 @@ system.config_update_failed: "Échec de la mise à jour de %{option} : %{error}"
 system.yolo_disable_pending: "le fournisseur n’a pas confirmé l’état de session non privilégié requis"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: L’approbation automatique est désactivée par la stratégie de votre organisation."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Modèle inconnu %{model} — tapez /model pour afficher la liste disponible."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Éléments de travail"
+agent_center.activity: "Conversation et activité"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Travail : %{work} | Projet : %{project}"
+agent_center.welcome: "Choisissez un projet avec /project use <id>, puis saisissez un objectif ou /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter : envoyer · Shift+Enter : nouvelle ligne · Tab : compléter · F2 : changer de travail · Ctrl+C : quitter · PgUp/PgDn : lire · Ctrl+End : plus récent" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "À examiner : %{count}"
+agent_center.sending: "Envoi de la demande capturée…"
+agent_center.confirm_title: "Confirmer l’action capturée"
+agent_center.confirm_prompt: "Vérifiez la cible exacte, les versions, la portée et les effets. Ctrl+Enter confirme ; Esc annule." # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Confirmation annulée. Votre saisie est conservée."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Mise à jour : %{kind} · Travail : %{work}"
+agent_center.status_ok: "La demande a réussi."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Acceptée ; l’opération %{id} est toujours en attente."
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Saisie requise pour %{id}. Ouvrez la question enregistrée."
+agent_center.status_conflict: "La cible a changé. Actualisez-la avant d’envoyer une nouvelle commande."
+agent_center.status_unsupported: "Cette opération n’est pas prise en charge."
+agent_center.status_error: "La demande a échoué. Examinez les détails de l’échec."
+agent_center.service_unavailable: "Agent Center n’est pas disponible. Exécutez wta center serve dans un autre terminal." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — La demande a échoué : %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Le flux d’événements a été déconnecté."
+agent_center.unsupported: "Commande non prise en charge : %{command}"
+agent_center.console_only: "Cette commande nécessite une console Agent Center interactive." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Fermez le guillemet dans la commande."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Valeur manquante pour %{argument}."
+agent_center.duplicate_argument: "Argument répété : %{argument}"
+agent_center.target_required: "Spécifiez un identifiant de cible."
+agent_center.invalid_version: "La version doit être un entier positif."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Actualisez %{kind} %{id}, ou spécifiez sa version exacte."
+agent_center.work_required: "Sélectionnez un élément de travail ou spécifiez --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Choisissez un projet avec /project use <id>, ou spécifiez --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Arguments inattendus : %{arguments}"
+agent_center.empty_message: "Entrez un objectif, une question ou une commande."
+agent_center.findings_required: "Fournissez au moins un objet de constat de révision, associé à un critère de livraison et précisant la modification demandée."
+agent_center.command_id_mutation_only: "--command-id n’est valide que pour les commandes qui modifient l’état." # {Locked="--command-id"}
+agent_center.confirmation_required: "Spécifiez --confirm après avoir vérifié la cible exacte et les versions." # {Locked="--confirm"}
+agent_center.invalid_request: "Impossible de construire la demande Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Impossible de lire la réponse Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Champ de réponse manquant ou non valide : %{field}"
+agent_center.invalid_command_id: "--command-id doit être un UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "La connexion des demandes s’est arrêtée."
+agent_center.host_unavailable: "Aucun adaptateur d’hôte shell n’est disponible pour %{command}. Utilisez les commandes clavier de l’hôte."

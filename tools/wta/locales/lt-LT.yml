@@ -267,3 +267,56 @@ system.config_update_failed: "Nepavyko atnaujinti %{option}: %{error}"
 system.yolo_disable_pending: "AI agento teikėjas nepatvirtino, kad seansas yra reikiamos neprivilegijuotos būsenos"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Automatinis patvirtinimas išjungtas pagal jūsų organizacijos politiką."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Nežinomas modelis %{model} — įveskite /model, kad pamatytumėte galimų sąrašą."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Darbo elementai"
+agent_center.activity: "Veikla · Pokalbis"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Darbas: %{work} | Projektas: %{project}"
+agent_center.welcome: "Pasirinkite projektą arba nurodykite /project use <id>. Įveskite tikslą arba /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: siųsti · Shift+Enter: nauja eilutė · Tab: užbaigti · F2: perjungti darbo elementą · Ctrl+C: išeiti · PgUp/PgDn: skaityti · Ctrl+End: naujausia" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Reikia dėmesio: %{count}"
+agent_center.sending: "Siunčiama užfiksuota užklausa…"
+agent_center.confirm_title: "Patvirtinti užfiksuotą veiksmą"
+agent_center.confirm_prompt: "Peržiūrėkite tikslų tikslą, versijas, aprėptį ir poveikį. Peržiūrėkite veiksmą. Ctrl+Enter: patvirtinti · Esc: atšaukti" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Veiksmas atšauktas. Jūsų įvestas tekstas išsaugomas."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Atnaujinimas: %{kind} · Darbas: %{work}"
+agent_center.status_ok: "Užklausa sėkminga."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Priimta; apdorojimas dar vyksta. Laukianti operacija: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Reikia įvesties: %{id}. Atidarykite užregistruotą klausimą."
+agent_center.status_conflict: "Tikslas pasikeitė. Atnaujinkite jį prieš siųsdami naują komandą."
+agent_center.status_unsupported: "Ši operacija nepalaikoma."
+agent_center.status_error: "Užklausa nepavyko. Peržiūrėkite klaidos informaciją."
+agent_center.service_unavailable: "Agent Center nepasiekiamas. Paleiskite jį naudodami wta center serve. Paleiskite komandą kitame terminale." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Užklausa nepavyko: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Įvykių srautas atjungtas."
+agent_center.unsupported: "Komanda nepalaikoma: %{command}"
+agent_center.console_only: "Naudokite šią komandą Agent Center konsolėje." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Uždarykite kabutes komandoje."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Trūksta %{argument} reikšmės."
+agent_center.duplicate_argument: "Pasikartojantis argumentas: %{argument}"
+agent_center.target_required: "Nurodykite paskirties identifikatorių."
+agent_center.invalid_version: "Versija turi būti teigiamas sveikasis skaičius."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Atnaujinkite %{kind} %{id} arba nurodykite tikslią versiją."
+agent_center.work_required: "Pasirinkite darbo elementą arba nurodykite --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Pasirinkite projektą arba nurodykite /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Netikėti argumentai: %{arguments}"
+agent_center.empty_message: "Įveskite pranešimą."
+agent_center.findings_required: "Pateikite bent vieną peržiūros išvados objektą, susietą su pristatymo kriterijumi ir aprašantį prašomą pakeitimą."
+agent_center.command_id_mutation_only: "--command-id galioja tik komandoms, kurios keičia būseną." # {Locked="--command-id"}
+agent_center.confirmation_required: "Peržiūrėkite tikslų tikslą, versijas, aprėptį ir poveikį. Peržiūrėkite veiksmą, tada pridėkite --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Nepavyko sudaryti Agent Center užklausos." # {Locked="Agent Center"}
+agent_center.invalid_response: "Nepavyko perskaityti Agent Center atsakymo." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Trūksta atsakymo lauko arba jis netinkamas: %{field}"
+agent_center.invalid_command_id: "--command-id turi būti UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Užklausų ryšys sustojo."
+agent_center.host_unavailable: "Komandai %{command} nėra apvalkalo pagrindinio kompiuterio adapterio. Naudokite pagrindinio kompiuterio klaviatūros veiksmus."

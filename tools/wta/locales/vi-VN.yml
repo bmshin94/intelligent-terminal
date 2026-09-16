@@ -267,3 +267,56 @@ system.config_update_failed: "Không thể cập nhật %{option}: %{error}"
 system.yolo_disable_pending: "nhà cung cấp tác nhân AI chưa xác nhận rằng phiên đang ở trạng thái không có đặc quyền theo yêu cầu"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Phê duyệt tự động bị vô hiệu hóa bởi chính sách của tổ chức bạn."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Mô hình không xác định %{model} — nhập /model để xem danh sách khả dụng."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Mục công việc"
+agent_center.activity: "Hoạt động · Hội thoại"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Mục công việc: %{work} | Dự án: %{project}"
+agent_center.welcome: "Chọn một dự án hoặc chỉ định /project use <id>. Nhập mục tiêu hoặc /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: gửi · Shift+Enter: xuống dòng · Tab: hoàn thành tự động · F2: chuyển mục công việc · Ctrl+C: thoát · PgUp/PgDn: đọc · Ctrl+End: mới nhất" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Cần chú ý: %{count}"
+agent_center.sending: "Đang gửi yêu cầu đã ghi lại…"
+agent_center.confirm_title: "Xác nhận hành động đã ghi lại"
+agent_center.confirm_prompt: "Xem xét đích chính xác, các phiên bản, phạm vi và tác động. Xem xét hành động. Ctrl+Enter: xác nhận · Esc: hủy" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Đã hủy hành động. Nội dung bạn nhập được giữ lại."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Cập nhật: %{kind} · Mục công việc: %{work}"
+agent_center.status_ok: "Yêu cầu đã thành công."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Đã tiếp nhận; vẫn đang xử lý. Thao tác đang chờ xử lý: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Cần nhập liệu: %{id}. Mở câu hỏi đã ghi lại."
+agent_center.status_conflict: "Đích đã thay đổi. Hãy làm mới trước khi gửi lệnh mới."
+agent_center.status_unsupported: "Thao tác này không được hỗ trợ."
+agent_center.status_error: "Yêu cầu thất bại. Xem xét chi tiết lỗi."
+agent_center.service_unavailable: "Agent Center không khả dụng. Hãy khởi động bằng wta center serve. Chạy lệnh trong một cửa sổ dòng lệnh khác." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Yêu cầu thất bại: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Luồng sự kiện đã bị ngắt kết nối."
+agent_center.unsupported: "Lệnh không được hỗ trợ: %{command}"
+agent_center.console_only: "Sử dụng lệnh này trong bảng điều khiển Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Đóng dấu ngoặc kép trong lệnh."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Thiếu giá trị cho %{argument}."
+agent_center.duplicate_argument: "Đối số bị lặp: %{argument}"
+agent_center.target_required: "Chỉ định mã định danh đích."
+agent_center.invalid_version: "Phiên bản phải là số nguyên dương."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Làm mới %{kind} %{id} hoặc chỉ định phiên bản chính xác."
+agent_center.work_required: "Chọn một mục công việc hoặc chỉ định --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Chọn một dự án hoặc chỉ định /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Đối số không mong đợi: %{arguments}"
+agent_center.empty_message: "Nhập tin nhắn."
+agent_center.findings_required: "Cung cấp ít nhất một đối tượng ghi nhận vấn đề cần sửa đổi, gắn với tiêu chí bàn giao và nêu rõ thay đổi được yêu cầu."
+agent_center.command_id_mutation_only: "--command-id chỉ hợp lệ với các lệnh thay đổi trạng thái." # {Locked="--command-id"}
+agent_center.confirmation_required: "Xem xét đích chính xác, các phiên bản, phạm vi và tác động. Xem xét hành động, rồi thêm --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Không thể tạo yêu cầu của Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Không thể đọc phản hồi của Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Trường phản hồi bị thiếu hoặc không hợp lệ: %{field}"
+agent_center.invalid_command_id: "--command-id phải là UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Kết nối yêu cầu đã dừng."
+agent_center.host_unavailable: "Không có bộ điều hợp máy chủ shell cho %{command}. Hãy dùng các thao tác bàn phím của máy chủ."

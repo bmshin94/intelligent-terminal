@@ -275,3 +275,56 @@ system.config_update_failed: "%{option} نى يېڭىلاش مەغلۇپ بول�
 system.yolo_disable_pending: "AI ئاگېنتى تەمىنلىگۈچىسى تەلەپ قىلىنغان ئىمتىيازسىز ئولتۇرۇش ھالىتىنى جەزملەشتۈرمىدى"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: ئاپتوماتىك تەستىقلاش تەشكىلاتىڭىزنىڭ سىياسىتى بىلەن چەكلەنگەن."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "نامەلۇم مودېل %{model} — ئىشلەتكىلى بولىدىغان تىزىملىكنى كۆرۈش ئۈچۈن /model نى كىرگۈزۈڭ."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "خىزمەت تۈرلىرى"
+agent_center.activity: "پائالىيەت · سۆھبەت"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "خىزمەت تۈرى: %{work} | تۈر: %{project}"
+agent_center.welcome: "بىر تۈرنى تاللاڭ ياكى /project use <id> نى بەلگىلەڭ. نىشان ياكى /help نى كىرگۈزۈڭ." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: ئەۋەتىش · Shift+Enter: يېڭى قۇر · Tab: تولۇقلاش · F2: خىزمەت تۈرىنى ئالماشتۇرۇش · Ctrl+C: چىقىش · PgUp/PgDn: ئوقۇش · Ctrl+End: ئەڭ يېڭى" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "دىققەت قىلىش كېرەك: %{count}"
+agent_center.sending: "خاتىرىلەنگەن تەلەپ يوللىنىۋاتىدۇ…"
+agent_center.confirm_title: "خاتىرىلەنگەن ھەرىكەتنى جەزملەشتۈرۈش"
+agent_center.confirm_prompt: "ئېنىق نىشان، نەشرلەر، دائىرە ۋە تەسىرلەرنى تەكشۈرۈڭ. ھەرىكەتنى تەكشۈرۈڭ. Ctrl+Enter: جەزملەشتۈرۈش · Esc: بىكار قىلىش" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "ھەرىكەت بىكار قىلىندى. كىرگۈزگەن تېكىستىڭىز ساقلاندى."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "يېڭىلانما: %{kind} · خىزمەت تۈرى: %{work}"
+agent_center.status_ok: "تەلەپ مۇۋەپپەقىيەتلىك بولدى."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "قوبۇل قىلىندى؛ بىر تەرەپ قىلىش يەنىلا داۋاملىشىۋاتىدۇ. كۈتۈۋاتقان مەشغۇلات: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "كىرگۈزۈش تەلەپ قىلىنىدۇ: %{id}. خاتىرىلەنگەن سوئالنى ئېچىڭ."
+agent_center.status_conflict: "نىشان ئۆزگەردى. يېڭى بۇيرۇق يوللاشتىن بۇرۇن ئۇنى يېڭىلاڭ."
+agent_center.status_unsupported: "بۇ مەشغۇلاتنى قوللىمايدۇ."
+agent_center.status_error: "تەلەپ مەغلۇپ بولدى. مەغلۇبىيەت تەپسىلاتلىرىنى تەكشۈرۈڭ."
+agent_center.service_unavailable: "Agent Center نى ئىشلەتكىلى بولمايدۇ. wta center serve بۇيرۇقىنى باشقا تېرمىنالدا ئىجرا قىلىڭ." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — تەلەپ مەغلۇپ بولدى: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "ھادىسە ئېقىمىنىڭ ئۇلىنىشى ئۈزۈلدى."
+agent_center.unsupported: "قوللىمايدىغان بۇيرۇق: %{command}"
+agent_center.console_only: "بۇ بۇيرۇقنى Agent Center نىڭ كونترول سۇپىسىدا ئىشلىتىڭ." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "بۇيرۇقتىكى تىرناق بەلگىسىنى تاقاڭ."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} نىڭ قىممىتى كەم."
+agent_center.duplicate_argument: "پارامېتىر تەكرارلاندى: %{argument}"
+agent_center.target_required: "نىشاننىڭ پەرقلەندۈرگۈچىسىنى بەلگىلەڭ."
+agent_center.invalid_version: "نەشر مۇسبەت پۈتۈن سان بولۇشى كېرەك."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} نى يېڭىلاڭ ياكى ئېنىق نەشرىنى بەلگىلەڭ."
+agent_center.work_required: "بىر خىزمەت تۈرىنى تاللاڭ ياكى --work <id> نى بەلگىلەڭ." # {Locked="--work","<id>"}
+agent_center.project_required: "بىر تۈرنى تاللاڭ ياكى /project use <id> / --project <id> نى بەلگىلەڭ." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "كۈتۈلمىگەن پارامېتىرلار: %{arguments}"
+agent_center.empty_message: "ئۇچۇر كىرگۈزۈڭ."
+agent_center.findings_required: "تاپشۇرۇش ئۆلچىمىگە باغلانغان ۋە تەلەپ قىلىنغان ئۆزگەرتىشنى چۈشەندۈرىدىغان كەم دېگەندە بىر تۈزىتىش تەكشۈرۈش نەتىجىسى ئوبيېكتىنى بېرىڭ."
+agent_center.command_id_mutation_only: "--command-id پەقەت ھالەتنى ئۆزگەرتىدىغان بۇيرۇقلارغىلا كۈچكە ئىگە." # {Locked="--command-id"}
+agent_center.confirmation_required: "ئېنىق نىشان، نەشرلەر، دائىرە ۋە تەسىرلەرنى تەكشۈرۈڭ. ھەرىكەتنى تەكشۈرۈپ، ئاندىن --confirm نى قوشۇڭ." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center نىڭ تەلىپىنى قۇرغىلى بولمىدى." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center نىڭ ئىنكاسىنى ئوقۇغىلى بولمىدى." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "ئىنكاس بۆلىكى كەم ياكى ئىناۋەتسىز: %{field}"
+agent_center.invalid_command_id: "--command-id چوقۇم UUID بولۇشى كېرەك." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "تەلەپ ئۇلىنىشى توختىدى."
+agent_center.host_unavailable: "%{command} ئۈچۈن شېل ساھىبخان ماسلاشتۇرغۇچىسى يوق. ساھىبخاننىڭ كۇنۇپكا تاختىسى مەشغۇلاتلىرىنى ئىشلىتىڭ."

@@ -268,3 +268,56 @@ system.config_update_failed: "%{option} को अपडेट करने म�
 system.yolo_disable_pending: "एजेंट प्रदाता ने अभी तक उस आवश्यक सत्र स्थिति की पुष्टि नहीं की है जिसमें विशेषाधिकार मोड बंद है"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: आपके संगठन की नीति के अनुसार स्वचालित अनुमोदन अक्षम है।"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "अज्ञात मॉडल %{model} — उपलब्ध सूची देखने के लिए /model टाइप करें।"  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "कार्य मदें"
+agent_center.activity: "गतिविधि · बातचीत"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "कार्य: %{work} | प्रोजेक्ट: %{project}"
+agent_center.welcome: "कोई प्रोजेक्ट चुनें या /project use <id> निर्दिष्ट करें। कोई लक्ष्य या /help टाइप करें।" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: भेजें · Shift+Enter: नई पंक्ति · Tab: पूरा करें · F2: कार्य बदलें · Ctrl+C: बाहर निकलें · PgUp/PgDn: पढ़ें · Ctrl+End: नवीनतम" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "ध्यान देना आवश्यक है: %{count}"
+agent_center.sending: "कैप्चर किया गया अनुरोध भेजा जा रहा है…"
+agent_center.confirm_title: "कैप्चर की गई कार्रवाई की पुष्टि करें"
+agent_center.confirm_prompt: "सटीक लक्ष्य, संस्करणों, दायरे और प्रभावों की समीक्षा करें। कार्रवाई की समीक्षा करें। Ctrl+Enter: पुष्टि करें · Esc: रद्द करें" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "कार्रवाई रद्द की गई। आपका दर्ज किया गया पाठ सुरक्षित है।"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "अपडेट: %{kind} · कार्य: %{work}"
+agent_center.status_ok: "अनुरोध सफल हुआ।"
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "स्वीकार किया गया; प्रक्रिया अभी जारी है। लंबित कार्रवाई: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "इनपुट आवश्यक है: %{id}. दर्ज किया गया प्रश्न खोलें।"
+agent_center.status_conflict: "लक्ष्य बदल गया है। नया आदेश भेजने से पहले उसे रीफ़्रेश करें।"
+agent_center.status_unsupported: "यह कार्रवाई समर्थित नहीं है।"
+agent_center.status_error: "अनुरोध विफल हुआ. विफलता का विवरण देखें।"
+agent_center.service_unavailable: "Agent Center उपलब्ध नहीं है। इसे wta center serve से शुरू करें। आदेश किसी अन्य टर्मिनल में चलाएँ।" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — अनुरोध विफल हुआ: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "इवेंट स्ट्रीम का कनेक्शन टूट गया।"
+agent_center.unsupported: "कमांड समर्थित नहीं है: %{command}"
+agent_center.console_only: "इस कमांड का उपयोग Agent Center कंसोल में करें।" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "कमांड में उद्धरण चिह्न बंद करें।"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} के लिए मान नहीं दिया गया है।"
+agent_center.duplicate_argument: "आर्ग्युमेंट दोहराया गया है: %{argument}"
+agent_center.target_required: "लक्ष्य पहचानकर्ता निर्दिष्ट करें।"
+agent_center.invalid_version: "संस्करण एक धनात्मक पूर्णांक होना चाहिए।"
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} रीफ़्रेश करें या उसका सटीक संस्करण बताएँ।"
+agent_center.work_required: "कोई कार्य मद चुनें या --work <id> निर्दिष्ट करें।" # {Locked="--work","<id>"}
+agent_center.project_required: "कोई प्रोजेक्ट चुनें या /project use <id> / --project <id> निर्दिष्ट करें।" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "अनपेक्षित आर्ग्युमेंट: %{arguments}"
+agent_center.empty_message: "संदेश दर्ज करें।"
+agent_center.findings_required: "डिलीवरी मानदंड से जुड़ा और अनुरोधित बदलाव का वर्णन करने वाला कम से कम एक संशोधन निष्कर्ष ऑब्जेक्ट दें।"
+agent_center.command_id_mutation_only: "--command-id केवल स्थिति बदलने वाले कमांड के लिए मान्य है।" # {Locked="--command-id"}
+agent_center.confirmation_required: "सटीक लक्ष्य, संस्करणों, दायरे और प्रभावों की समीक्षा करें। कार्रवाई की समीक्षा करें, फिर --confirm जोड़ें।" # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center का अनुरोध नहीं बनाया जा सका।" # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center की प्रतिक्रिया नहीं पढ़ी जा सकी।" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "प्रतिक्रिया का फ़ील्ड अनुपस्थित या अमान्य है: %{field}"
+agent_center.invalid_command_id: "--command-id एक UUID होना चाहिए।" # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "अनुरोध कनेक्शन रुक गया है।"
+agent_center.host_unavailable: "%{command} के लिए कोई शेल होस्ट अडैप्टर उपलब्ध नहीं है। होस्ट की कीबोर्ड क्रियाओं का उपयोग करें।"

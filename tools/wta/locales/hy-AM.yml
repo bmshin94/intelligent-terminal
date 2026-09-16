@@ -282,3 +282,56 @@ system.config_update_failed: "Չհաջողվեց թարմացնել %{option}-ը
 system.yolo_disable_pending: "գործակալի մատակարարը չի հաստատել, որ աշխատաշրջանը պահանջվող ոչ արտոնյալ վիճակում է"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Ավտոմատ հաստատումն անջատված է ձեր կազմակերպության քաղաքականությամբ։"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Անհայտ մոդել %{model} — մուտքագրեք /model՝ հասանելի ցանկը տեսնելու համար։"  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Աշխատանքային տարրեր"
+agent_center.activity: "Գործունեություն · Զրույց"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Աշխատանքային տարր՝ %{work} | Նախագիծ՝ %{project}"
+agent_center.welcome: "Ընտրեք նախագիծ կամ նշեք /project use <id>։ Մուտքագրեք նպատակ կամ /help։" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: ուղարկել · Shift+Enter: նոր տող · Tab: լրացնել · F2: փոխել աշխատանքային տարրը · Ctrl+C: դուրս գալ · PgUp/PgDn: կարդալ · Ctrl+End: ամենավերջինը" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Ուշադրություն է պահանջում: %{count}"
+agent_center.sending: "Գրանցված հարցումն ուղարկվում է…"
+agent_center.confirm_title: "Հաստատեք գրանցված գործողությունը"
+agent_center.confirm_prompt: "Ստուգեք ճշգրիտ թիրախը, տարբերակները, շրջանակը և ազդեցությունները։ Դիտարկեք գործողությունը։ Ctrl+Enter: հաստատել · Esc: չեղարկել" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Գործողությունը չեղարկվել է։ Ձեր մուտքագրած տեքստը պահպանվում է։"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Թարմացում՝ %{kind} · Աշխատանքային տարր՝ %{work}"
+agent_center.status_ok: "Հարցումը հաջողվեց։"
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Ընդունված է․ մշակումը դեռ շարունակվում է։ Սպասող գործողություն՝ %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Պահանջվում է մուտքագրում՝ %{id}. Բացեք գրանցված հարցը։"
+agent_center.status_conflict: "Թիրախը փոխվել է։ Թարմացրեք այն՝ նախքան նոր հրաման ուղարկելը։"
+agent_center.status_unsupported: "Այս գործողությունը չի աջակցվում։"
+agent_center.status_error: "Հարցումը ձախողվել է՝. Դիտեք սխալի մանրամասները։"
+agent_center.service_unavailable: "Agent Center-ը անհասանելի է։ Գործարկեք wta center serve հրամանը մեկ այլ տերմինալում։" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Հարցումը ձախողվել է՝ %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Իրադարձությունների հոսքի կապն ընդհատվել է։"
+agent_center.unsupported: "Հրամանը չի աջակցվում՝ %{command}"
+agent_center.console_only: "Այս հրամանը պահանջում է Agent Center-ի փոխգործուն վահանակը։" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Փակեք հրամանի չակերտը։"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument}-ի արժեքը բացակայում է։"
+agent_center.duplicate_argument: "Կրկնվող արգումենտ՝ %{argument}"
+agent_center.target_required: "Նշեք թիրախի նույնացուցիչը։"
+agent_center.invalid_version: "Տարբերակը պետք է լինի դրական ամբողջ թիվ։"
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Թարմացրեք %{kind} %{id} գրառումը կամ նշեք դրա ճշգրիտ տարբերակը։"
+agent_center.work_required: "Ընտրեք աշխատանքային տարր կամ նշեք --work <id>։" # {Locked="--work","<id>"}
+agent_center.project_required: "Ընտրեք նախագիծ կամ նշեք /project use <id> / --project <id>։" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Անսպասելի արգումենտներ՝ %{arguments}"
+agent_center.empty_message: "Մուտքագրեք հաղորդագրություն։"
+agent_center.findings_required: "Տրամադրեք առաքման չափանիշին կապված և պահանջվող փոփոխությունը նկարագրող վերանայման բացահայտման առնվազն մեկ օբյեկտ։"
+agent_center.command_id_mutation_only: "--command-id-ը վավեր է միայն վիճակը փոխող հրամանների համար։" # {Locked="--command-id"}
+agent_center.confirmation_required: "Ստուգեք ճշգրիտ թիրախը, տարբերակները, շրջանակը և ազդեցությունները։ Դիտարկեք գործողությունը, ապա ավելացրեք --confirm։" # {Locked="--confirm"}
+agent_center.invalid_request: "Չհաջողվեց կազմել Agent Center-ի հարցումը։" # {Locked="Agent Center"}
+agent_center.invalid_response: "Չհաջողվեց կարդալ Agent Center-ի պատասխանը։" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Պատասխանի դաշտը բացակայում է կամ անվավեր է՝ %{field}"
+agent_center.invalid_command_id: "--command-id-ը պետք է լինի UUID։" # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Հարցումների կապը դադարել է։"
+agent_center.host_unavailable: "%{command}-ի համար հրամանային միջավայրի հոսթի հարմարիչը հասանելի չէ։ Օգտագործեք հոսթի ստեղնաշարային գործողությունները։"

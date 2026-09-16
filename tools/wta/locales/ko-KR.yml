@@ -262,3 +262,56 @@ system.config_update_failed: "%{option} 업데이트 실패: %{error}"
 system.yolo_disable_pending: "에이전트 공급자가 필요한 비특권 세션 상태를 아직 확인하지 않았습니다"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: 조직의 정책에 따라 자동 승인이 비활성화되어 있습니다."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "알 수 없는 모델 %{model} — 사용 가능한 목록을 보려면 /model을 입력하세요."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "작업 항목"
+agent_center.activity: "활동 · 대화"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "작업 항목: %{work} | 프로젝트: %{project}"
+agent_center.welcome: "프로젝트를 선택하거나 /project use <id>를 지정하세요. 목표 또는 /help를 입력하세요." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: 보내기 · Shift+Enter: 줄 바꿈 · Tab: 자동 완성 · F2: 작업 항목 전환 · Ctrl+C: 종료 · PgUp/PgDn: 읽기 · Ctrl+End: 최신" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "주의 필요: %{count}"
+agent_center.sending: "캡처한 요청을 보내는 중…"
+agent_center.confirm_title: "캡처한 동작 확인"
+agent_center.confirm_prompt: "정확한 대상, 버전, 범위 및 영향을 검토하세요. 동작을 검토하세요. Ctrl+Enter: 확인 · Esc: 취소" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "동작이 취소되었습니다. 입력한 내용이 보존됩니다."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "업데이트: %{kind} · 작업 항목: %{work}"
+agent_center.status_ok: "요청이 성공했습니다."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "수락됨. 아직 처리 중입니다. 보류 중인 작업: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "입력 필요: %{id}. 기록된 질문을 여세요."
+agent_center.status_conflict: "대상이 변경되었습니다. 새 명령을 보내기 전에 새로 고치세요."
+agent_center.status_unsupported: "이 작업은 지원되지 않습니다."
+agent_center.status_error: "요청 실패. 실패 세부 정보를 검토하세요."
+agent_center.service_unavailable: "Agent Center를 사용할 수 없습니다. wta center serve로 시작하세요. 다른 터미널에서 명령을 실행하세요." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — 요청 실패: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "이벤트 스트림의 연결이 끊어졌습니다."
+agent_center.unsupported: "지원되지 않는 명령: %{command}"
+agent_center.console_only: "이 명령은 Agent Center 콘솔에서 사용하세요." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "명령의 따옴표를 닫으세요."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument}의 값이 누락되었습니다."
+agent_center.duplicate_argument: "중복된 인수: %{argument}"
+agent_center.target_required: "대상 식별자를 지정하세요."
+agent_center.invalid_version: "버전은 양의 정수여야 합니다."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id}을(를) 새로 고치거나 정확한 버전을 지정하세요."
+agent_center.work_required: "작업 항목을 선택하거나 --work <id>를 지정하세요." # {Locked="--work","<id>"}
+agent_center.project_required: "프로젝트를 선택하거나 /project use <id> / --project <id>를 지정하세요." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "예기치 않은 인수: %{arguments}"
+agent_center.empty_message: "메시지를 입력하세요."
+agent_center.findings_required: "제공 기준에 연결되고 요청한 변경 사항을 명시한 수정 지적 개체를 하나 이상 제시하세요."
+agent_center.command_id_mutation_only: "--command-id는 상태를 변경하는 명령에만 사용할 수 있습니다." # {Locked="--command-id"}
+agent_center.confirmation_required: "정확한 대상, 버전, 범위 및 영향을 검토하세요. 동작을 검토한 후 --confirm을 추가하세요." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center 요청을 구성할 수 없습니다." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center 응답을 읽을 수 없습니다." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "응답 필드가 누락되었거나 잘못되었습니다: %{field}"
+agent_center.invalid_command_id: "--command-id는 UUID여야 합니다." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "요청 연결이 중지되었습니다."
+agent_center.host_unavailable: "%{command}에 사용할 수 있는 셸 호스트 어댑터가 없습니다. 호스트의 키보드 작업을 사용하세요."

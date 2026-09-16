@@ -27,8 +27,8 @@ WTA is normally launched **by Windows Terminal**, not by hand. WT spawns one
 `wta-helper` per agent pane (renders this TUI and speaks ACP to master over a
 named pipe). Helpers selecting the same agent identity, source, and command
 share one agent process. Bare `wta` with no subcommand and neither `--master`
-nor `--connect-master` exits with an error — there is no standalone agent / TUI
-mode.
+nor `--connect-master` exits with an error. The existing per-tab assistant does
+not have a standalone mode; the separate experimental Agent Center uses `wta ui`.
 
 The default agent is Copilot; the agent and model come from Windows Terminal
 settings (`acpAgent` / `acpModel`) and are passed through to master via `--agent`
@@ -50,6 +50,264 @@ startup/tab-selection prewarming. Query failures or unsupported shell contexts
 are not evidence that a command is missing. The prompt directs agents to propose
 obvious typos in familiar commands (such as `gti status` -> `git status`) without
 lookup, while using local evidence for unfamiliar commands or ambiguous corrections.
+
+### Experimental Agent Center
+
+Agent Center is an opt-in implementation of the
+[work-mode product experiment](../../doc/specs/agent-center-product.md).
+It does not replace the default per-tab assistant. Its authoritative message
+contract is [Collaboration Protocol v1](../../doc/specs/agent-center-protocol.md);
+the target specification is not a statement of production readiness.
+
+Before first launch, configure a real ACP server. `adapters.json` contains
+explicit executable/argument arrays rather than an inferred interactive CLI
+command. Replace the sample path below with your server and its documented
+stdio arguments. Terminal's built-in resolved commands are defined in
+[`AcpModelUtils.h`](../../src/cascadia/inc/AcpModelUtils.h).
+
+```json
+{
+  "capabilities": [
+    {
+      "id": "local-agent",
+      "adapter": {
+        "kind": "ACP",
+        "approvedModelDestination": "Approved provider/account or endpoint",
+        "executable": "C:\\Tools\\acp-server.exe",
+        "args": []
+      }
+    }
+  ]
+}
+```
+
+```powershell
+wta center configure --input-json .\adapters.json
+```
+
+This validates and installs configuration while the authority is stopped.
+`approvedModelDestination` must name the destination you have approved for the
+project's data. It records human approval, not verified endpoint enforcement or
+network isolation. Optional `model` and `environment` fields belong inside
+`adapter`; avoid putting credentials in this file.
+Configuration is loaded on service startup and never
+launches a model by itself. Each configured ID can coordinate, produce results,
+and review; the separately registered `native-check` capability runs declared
+local command checks. Without an adapter configuration, agent work is explicitly
+unavailable. The ACP server must support HTTP MCP and the work-tool contract.
+
+Project setup then approves a repository and finite planning/execution
+allowances. For example, `project.json` can contain:
+
+```json
+{
+  "name": "Local experiment",
+  "root": "C:\\Source\\project",
+  "coordinatorCapabilityId": "local-agent",
+  "workerCapabilityId": "local-agent",
+  "checkCapabilityId": "native-check",
+  "limits": {
+    "concurrency": 2,
+    "executionAttempts": 8,
+    "evaluationAttempts": 8,
+    "coordinationTurns": 12,
+    "contextRounds": 4,
+    "executionSeconds": 600,
+    "coordinationSeconds": 180
+  }
+}
+```
+
+```powershell
+wta project configure --input-json .\project.json --confirm --json
+```
+
+Use the returned project ID with `/project use <id>`. Project planning approval
+is distinct from work execution approval: `/work new "<goal>"` prepares an
+intake/brief; `/work start` previews the exact grant and asks for confirmation.
+Changing a work or accepting a result must name its current recorded versions.
+
+`/work revise "<change>"` asks the coordinator for a proposal without applying
+it. `/work apply <proposal-id>` previews the current grant and captures the
+exact work/proposal versions for a final `Ctrl+Enter` confirmation. The CLI
+equivalent is `wta work apply <proposal-id> --work <work-id> --confirm`.
+Applying a revision preserves grant limits and consumed usage, revokes old
+dispatch authority, and waits for affected execution to settle and release
+before replanning. Old results and delivery candidates remain historical, not
+current acceptance targets.
+
+```powershell
+wta ui
+wta work list --json
+wta work show <work-id> --json
+wta task list --work <work-id> --json
+wta result show <result-id> --json
+wta work events <work-id> --after <cursor> --jsonl
+```
+
+`wta ui` and structured clients connect to the same local authority. The first
+connection starts `wta center serve` in an independent process; this does not
+itself approve a project or start model work. Closing a Console does not stop
+the authority. If a launcher job disallows independent process creation, startup
+fails explicitly: run `wta center serve` outside that job rather than tying
+background work to the Console's lifetime.
+
+State is stored in `agent-center\work.db` below the shared application-state
+root, with immutable artifacts and managed workspaces alongside it. A private
+current-user named pipe and an exclusive state-root lock protect the local
+authority; SQLite uses WAL and durable commits. Diagnostics use the
+`wta-center-service` and `wta-center-ui` log streams. This prototype does not
+qualify provider-owned tools as an operating-system isolation boundary.
+
+To try the native window host, launch a new Intelligent Terminal process with
+`INTELLIGENT_TERMINAL_AGENT_CENTER=1` in its environment. It creates one direct
+`wta ui` terminal surface, not a PowerShell/cmd process or a per-tab helper.
+The initial shell area is empty. `Ctrl+Shift+G` focuses the Console;
+`Ctrl+Shift+H` shows/hides existing shell content without closing its tabs.
+The configurable `focusAgentConsole` action is also available. Explicit user
+key bindings, including unbindings, take precedence over these defaults.
+
+The experimental native layout does not replay or overwrite legacy saved
+workspace layouts and disables tab dragging. Native policy configuration
+currently blocks this independent entry rather than bypassing the agent
+allowlist. Shell slash-command presentation adapters, external publication,
+and production recovery/isolation qualification are not implied by enabling
+the experiment. Unsupported commands report a capability error; they do not
+claim that a shell, publication, or repair completed.
+
+Structured output distinguishes `ok` (exit 0), `pending` (2), `needs_input`
+(3), `conflict` (4), `unsupported` (5), and `error` (1). A recorded task result
+is not an accepted result, and a successful provider turn is not delivery.
+Acceptance requires the exact current candidate and its evidence. Preserve a
+mutation's command ID and payload when retrying transport delivery; changing
+the intention requires a new command ID.
+
+Initial plans must preserve approved criterion descriptions and evidence rules,
+not just criterion IDs. Delivery acceptance verifies captured manifests and
+content again, including required check/review evidence; changing bytes at the
+same locator does not retain a valid acceptance proof. Coordinators can read
+recorded progress bodies with `progress.get` and verified, bounded diagnostic
+content with `artifact.read`, without asking the user to copy logs.
+
+Command checks support File-only reports as well as code snapshots. Evaluation
+pins both the exact producing dispatch inputs and the submitted outputs. A fresh
+check directory combines their captured member paths, with current output files
+superseding prior input files; differing same-layer collisions fail explicitly.
+File captures use their basename; capture a Tree when a nested layout matters.
+A complete submitted Code/Tree/GitCommit snapshot remains authoritative, so older
+inputs cannot resurrect deleted files. Checks never fall back to mutable
+workspace contents. Independently pinned File inputs remain available as
+supplemental check scripts or data when input snapshots are replaced.
+Read-only LocalCode integration can retain a single
+unambiguous accepted input code snapshot, with provenance and content rechecked
+at final acceptance; report-only delivery remains supported independently.
+
+Failures before a check starts carry their exact bounded diagnostic and
+evaluation/result identities into coordinator snapshots and rework records,
+rather than masquerading as a process test failure or a missing model submission.
+The coordinator can revise captures under the unchanged contract, or explicitly
+retry evaluation after repairing a transient cause. Unchanged repeated failures
+remain bounded and visible; generic evidence collection is not an automatic fix.
+
+Plan tools advertise the exact, case-sensitive output categories: `File`,
+`Tree`, `GitCommit`, `Report`, `Code`, and `Evidence`. Admission and the tool
+schema share that vocabulary. Unknown categories return `INVALID_ARGUMENT`
+with an indexed `fieldErrors` path and the allowed values, rather than claiming
+that plan creation is unsupported. Corrected proposals use a new command ID;
+rejected proposals do not admit tasks or change the work version. Code, Tree
+and GitCommit outputs still require a concrete required check. Approved scope,
+exclusions and criterion/evidence constraints are not relaxed.
+
+Approved prose evidence rules are copied verbatim into the integration task's
+`criteria[].evidenceRule` and remain in its immutable dispatch. Separately,
+`requiredEvidence` names concrete required gates or captured output slots.
+This permits ordinary-language work briefs without treating prose as a gate ID
+or silently replacing the approved meaning. Explicit `command:<gate>`,
+`artifact:<slot>`, and legacy bare ASCII references retain their exact binding;
+existing reference-based contracts do not need the new optional field.
+
+Before a worker acknowledges its dispatch, ACP permission permits only an
+exact bound `task_acknowledge` call, including its current revision and
+continuation ID. Copilot's bare `task_acknowledge` title with kind `other` and
+known server-qualified spellings are supported; a title alone never grants
+permission. The tool must be in the invocation's bindings, with a valid command
+ID and closed acknowledgement arguments. Permission selects only `allow_once`
+and does not itself acknowledge the task: the successful MCP receipt does.
+Unrelated pre-acknowledgement tools and permissions after cancellation,
+release, or the end of a running turn remain denied. Host-policy denial is
+logged explicitly, rather than treated as evidence of a human rejection.
+Continuation turns reset text chunk numbering for their new message part.
+
+Work MCP initialization negotiates a supported protocol version rather than
+closing the connection when a client offers a newer version. It preserves known
+versions and otherwise offers `2025-06-18`, matching the existing session MCP
+negotiation. The client decides whether it supports that response. Diagnostics
+record the offered/selected versions and invocation ID, not authorization
+headers; malformed version fields receive a JSON-RPC invalid-params error.
+Notification responses now use the same bounded writer and explicit TCP send
+shutdown as JSON responses. A real Windows queued-input close/reset regression
+is covered; the exact trigger of the earlier intermittent HTTP test reset
+remains unproven.
+
+Managed Git worktrees are registered with `--no-checkout`, then populated from
+within the worktree. This avoids Git for Windows' absolute `GIT_DIR` size limit
+in its automatic checkout subprocess. WTA's Git commands use command-local
+`core.longpaths=true`; no user/global Git setting changes or relocation outside
+the managed state root are involved. Failed checkout explicitly reports the
+failure and cleanup outcome. Cleanup removes incomplete worktree registration,
+not source-repository branch references; a failed cleanup can leave state for
+reconciliation. External provider Git commands retain their own
+configuration; this is not a claim of unlimited Windows/Git path support.
+
+Immutable capture publication retries only the atomic rename on Windows access,
+sharing, or lock errors, with at most six attempts and 620 ms of scheduled delay.
+It never recopies changing source data, replaces an existing capture, or falls
+back to mutable output. Persistent failure remains explicit. Acceptance failures
+identify the affected artifact reference. This handles reproduced transient
+delete-sharing locks; it does not identify the holder of the lock in the earlier
+verification failure.
+
+`--input-json <file>` reads a complete protocol request; `--input-json -` reads
+it from CLI stdin. The Console accepts files, not stdin. Command IDs, guards,
+approval references, and payloads from complete requests are preserved, and
+conflicting command-line arguments are rejected. Configuration and transfer
+commands also accept documented params-only files; `--params-json` is the
+explicit inline-JSON form.
+
+Workspace inspection is available before a delivery candidate exists. Guided
+transfers use the selected work, or an explicit `--work <work-id>`:
+
+```text
+/workspace takeover
+/workspace handback --summary "Updated input" --resume-affected false
+/inbox
+/inbox --work <work-id>
+```
+
+The Console previews the exact workspace version and affected contracts;
+**Ctrl+Enter** confirms and **Esc** cancels without clearing drafts. Handback
+requires a summary and an explicit `--resume-affected true|false`; even `true`
+does not override Work Hold. Structured CLI guided transfers require
+`--work <work-id> --confirm`. `/inbox` is global; the optional work filter does
+not replace the Console's global attention set.
+
+This experiment supports command gates and internal ACP review, not human
+checkpoint gates. Spec revisions stay within the existing project,
+destination, and authority; permission/budget expansion, removal of executed
+tasks, cross-work dependency edits, external publication, and automated repair
+are not implemented. Manual takeover/handback and same-grant revisions have
+controller coverage; the deterministic real-process conformance journey
+requests ACP permission before invoking MCP (including initial and continuation
+acknowledgements), rejects unrelated pre-acknowledgement permission probes, and
+covers two independent works, context continuation, failure/rework, immutable
+captures, and accepted local delivery. That evidence is not a live-model
+product-acceptance run.
+
+The [next verification plan](../../doc/specs/agent-center-verification-plan.md)
+separates defect regressions, packaged Console behavior, and the real-model
+two-work journey. Manual handback conservatively invalidates consumers in the
+edited workspace; it does not yet preserve unaffected same-workspace results
+at fine granularity. The proposed `$` ordinary-shell shortcut remains deferred.
 
 The packaged app registers `wta.exe` as an App Execution Alias. Before spawning
 the host agent, WTA puts the current package family's alias directory first on

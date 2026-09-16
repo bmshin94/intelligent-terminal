@@ -269,3 +269,56 @@ system.config_update_failed: "Kunne ikke opdatere %{option}: %{error}"
 system.yolo_disable_pending: "udbyderen har ikke bekræftet den påkrævede ikke-privilegerede sessionstilstand"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Automatisk godkendelse er deaktiveret af din organisations politik."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Ukendt model %{model} — skriv /model for at se den tilgængelige liste."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Arbejdselementer"
+agent_center.activity: "Aktivitet · Samtale"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Arbejdselement: %{work} | Projekt: %{project}"
+agent_center.welcome: "Vælg et projekt, eller angiv /project use <id>. Skriv et mål eller /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: send · Shift+Enter: ny linje · Tab: fuldfør · F2: skift arbejdselement · Ctrl+C: afslut · PgUp/PgDn: læs · Ctrl+End: seneste" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Kræver opmærksomhed: %{count}"
+agent_center.sending: "Sender den registrerede anmodning…"
+agent_center.confirm_title: "Bekræft den registrerede handling"
+agent_center.confirm_prompt: "Gennemgå det præcise mål, versionerne, omfanget og virkningerne. Gennemse handlingen. Ctrl+Enter: bekræft · Esc: annuller" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Handling annulleret. Din indtastning bevares."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Opdatering: %{kind} · Arbejdselement: %{work}"
+agent_center.status_ok: "Anmodningen lykkedes."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Accepteret; behandlingen er stadig i gang. Afventende handling: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Input påkrævet: %{id}. Åbn det gemte spørgsmål."
+agent_center.status_conflict: "Målet er ændret. Opdater det, før du sender en ny kommando."
+agent_center.status_unsupported: "Denne handling understøttes ikke."
+agent_center.status_error: "Anmodningen mislykkedes. Gennemgå fejloplysningerne."
+agent_center.service_unavailable: "Agent Center er ikke tilgængeligt. Start det med wta center serve. Kør kommandoen i en anden terminal." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Anmodningen mislykkedes: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Forbindelsen til hændelsesstrømmen blev afbrudt."
+agent_center.unsupported: "Kommandoen understøttes ikke: %{command}"
+agent_center.console_only: "Brug denne kommando i konsollen til Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Luk anførselstegnet i kommandoen."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Der mangler en værdi for %{argument}."
+agent_center.duplicate_argument: "Argument gentaget: %{argument}"
+agent_center.target_required: "Angiv en målidentifikator."
+agent_center.invalid_version: "Versionen skal være et positivt heltal."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Opdater %{kind} %{id}, eller angiv den præcise version."
+agent_center.work_required: "Vælg et arbejdselement, eller angiv --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Vælg et projekt, eller angiv /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Uventede argumenter: %{arguments}"
+agent_center.empty_message: "Skriv en besked."
+agent_center.findings_required: "Angiv mindst ét objekt med et revisionsfund, der er knyttet til et leveringskriterium og beskriver den ønskede ændring."
+agent_center.command_id_mutation_only: "--command-id er kun gyldigt for kommandoer, der ændrer tilstanden." # {Locked="--command-id"}
+agent_center.confirmation_required: "Gennemgå det præcise mål, versionerne, omfanget og virkningerne. Gennemse handlingen, og tilføj derefter --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Kunne ikke oprette anmodningen til Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Kunne ikke læse svaret fra Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Manglende eller ugyldigt svarfelt: %{field}"
+agent_center.invalid_command_id: "--command-id skal være en UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Forbindelsen til anmodninger er stoppet."
+agent_center.host_unavailable: "Der er ingen shellværtsadapter til %{command}. Brug værtens tastaturhandlinger."

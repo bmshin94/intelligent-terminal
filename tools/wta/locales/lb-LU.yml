@@ -267,3 +267,56 @@ system.config_update_failed: "%{option} konnt net aktualiséiert ginn: %{error}"
 system.yolo_disable_pending: "den Agent-Ubidder huet den erfuerderlechen net privilegéierte Sessiounszoustand net bestätegt"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Automatesch Genehmegung ass duerch d'Politik vun Ärer Organisatioun deaktivéiert."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Onbekannte Modell %{model} — tippt /model fir d'verfügbar Lëscht ze gesinn."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Aarbechtselementer"
+agent_center.activity: "Aktivitéit · Gespréich"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Aarbechtselement: %{work} | Projet: %{project}"
+agent_center.welcome: "Wielt e Projet oder gitt /project use <id> un. Gitt en Zil oder /help an." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: schécken · Shift+Enter: nei Zeil · Tab: vervollstännegen · F2: Aarbechtselement wiesselen · Ctrl+C: ophalen · PgUp/PgDn: liesen · Ctrl+End: neisten" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Opmierksamkeet néideg: %{count}"
+agent_center.sending: "Déi erfaassten Ufro gëtt geschéckt…"
+agent_center.confirm_title: "Déi erfaassten Aktioun bestätegen"
+agent_center.confirm_prompt: "Iwwerpréift dat geneet Zil, d’Versiounen, den Ëmfang an d’Auswierkungen. Iwwerpréift d'Aktioun. Ctrl+Enter: bestätegen · Esc: ofbriechen" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Aktioun ofgebrach. Är Agab bleift erhalen."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Aktualiséierung: %{kind} · Aarbechtselement: %{work}"
+agent_center.status_ok: "Ufro erfollegräich."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Ugeholl; d’Veraarbechtung leeft nach. Ausstoend Operatioun: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Agab erfuerderlech: %{id}. Maacht déi gespäichert Fro op."
+agent_center.status_conflict: "D’Zil huet geännert. Aktualiséiert et, éier Dir en neie Kommando schéckt."
+agent_center.status_unsupported: "Dës Operatioun gëtt net ënnerstëtzt."
+agent_center.status_error: "Ufro gescheitert. Iwwerpréift d’Feelerdetailer."
+agent_center.service_unavailable: "Den Agent Center ass net disponibel. Start en mat wta center serve. Féiert de Kommando an engem aneren Terminal aus." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Ufro gescheitert: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "D'Verbindung mam Evenementsstroum gouf getrennt."
+agent_center.unsupported: "Kommando net ënnerstëtzt: %{command}"
+agent_center.console_only: "Benotzt dëse Kommando an der Konsol vum Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Maacht d'Zitatiounszeechen am Kommando zou."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Wäert fir %{argument} feelt."
+agent_center.duplicate_argument: "Argument widderholl: %{argument}"
+agent_center.target_required: "Gitt en Zilidentifikateur un."
+agent_center.invalid_version: "D'Versioun muss eng positiv ganz Zuel sinn."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Aktualiséiert %{kind} %{id}, oder gitt déi genee Versioun un."
+agent_center.work_required: "Wielt en Aarbechtselement oder gitt --work <id> un." # {Locked="--work","<id>"}
+agent_center.project_required: "Wielt e Projet oder gitt /project use <id> / --project <id> un." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Onerwaart Argumenter: %{arguments}"
+agent_center.empty_message: "Gitt e Message an."
+agent_center.findings_required: "Gitt op d’mannst een Objet mat enger Iwwerpréiwungsfeststellung un, dee mat engem Liwwerkrittär verbonnen ass an déi gefroten Ännerung beschreift."
+agent_center.command_id_mutation_only: "--command-id ass nëmme fir Kommandoe gëlteg, déi den Zoustand änneren." # {Locked="--command-id"}
+agent_center.confirmation_required: "Iwwerpréift dat geneet Zil, d’Versiounen, den Ëmfang an d’Auswierkungen. Iwwerpréift d'Aktioun a füügt dann --confirm derbäi." # {Locked="--confirm"}
+agent_center.invalid_request: "D'Ufro un den Agent Center konnt net erstallt ginn." # {Locked="Agent Center"}
+agent_center.invalid_response: "D'Äntwert vum Agent Center konnt net gelies ginn." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Feelend oder ongëltegt Äntwertfeld: %{field}"
+agent_center.invalid_command_id: "--command-id muss eng UUID sinn." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "D’Verbindung fir Ufroen huet opgehalen."
+agent_center.host_unavailable: "Fir %{command} ass kee Shellhostadapter disponibel. Benotzt d’Tastaturaktioune vum Host."

@@ -102,6 +102,14 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleClosePane(const IInspectable& /*sender*/,
                                         const ActionEventArgs& args)
     {
+        if (_agentConsole && (!_agentCenterShellVisible || _agentConsole.FocusState() != FocusState::Unfocused))
+        {
+            // The Console is not a leaf of the selected shell tab. Closing it
+            // must not accidentally close that tab's unrelated active shell.
+            CloseWindow();
+            args.Handled(true);
+            return;
+        }
         _CloseFocusedPane();
         args.Handled(true);
     }
@@ -1699,6 +1707,16 @@ namespace winrt::TerminalApp::implementation
         OutputDebugStringW(L"[AgentPane] _HandleFocusAgentPane called\n");
         _FocusAgentPane();
         args.Handled(true);
+    }
+
+    void TerminalPage::_HandleFocusAgentConsole(const IInspectable& /*sender*/,
+                                                const ActionEventArgs& args)
+    {
+        if (_agentCenterEnabled)
+        {
+            _FocusAgentConsole();
+            args.Handled(true);
+        }
     }
 
     void TerminalPage::_HandleOpenBackgroundAgent(const IInspectable& /*sender*/,

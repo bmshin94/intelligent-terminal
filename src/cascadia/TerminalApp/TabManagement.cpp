@@ -850,11 +850,19 @@ namespace winrt::TerminalApp::implementation
         // To close the window here, we need to close the hosting window.
         if (_tabs.Size() == 0)
         {
-            // If we are supposed to save state, make sure we clear it out
-            // if the user manually closed all tabs.
-            // Do this only if we are the last window; the monarch will notice
-            // we are missing and remove us that way otherwise.
-            CloseWindowRequested.raise(*this, nullptr);
+            if (_agentCenterEnabled)
+            {
+                _tabContent.Children().Clear();
+                _SetAgentCenterShellVisible(false);
+            }
+            else
+            {
+                // If we are supposed to save state, make sure we clear it out
+                // if the user manually closed all tabs.
+                // Do this only if we are the last window; the monarch will notice
+                // we are missing and remove us that way otherwise.
+                CloseWindowRequested.raise(*this, nullptr);
+            }
         }
         else if (focusedTabIndex.has_value() && focusedTabIndex.value() == gsl::narrow_cast<uint32_t>(tabIndex))
         {
@@ -1469,6 +1477,10 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_UpdatedSelectedTab(const winrt::TerminalApp::Tab& tab)
     {
+        if (_agentCenterEnabled)
+        {
+            _SetAgentCenterShellVisible(true);
+        }
         // Unfocus all the tabs.
         for (const auto& tab : _tabs)
         {
@@ -1723,6 +1735,11 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_FocusCurrentTab(const bool focusAlways)
     {
+        if (_agentCenterEnabled && !_agentCenterShellVisible)
+        {
+            _FocusAgentConsole();
+            return;
+        }
         // We don't want to set focus on the tab if fly-out is open as it will
         // be closed TODO GH#5400: consider checking we are not in the opening
         // state, by hooking both Opening and Open events

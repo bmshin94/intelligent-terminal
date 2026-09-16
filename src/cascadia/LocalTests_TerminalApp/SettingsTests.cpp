@@ -88,6 +88,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(TestHotDefaultProviderYoloUsesOutgoingBinding);
         TEST_METHOD(TestAgentPaneSettingsRebindRouting);
         TEST_METHOD(TestAgentPaneModelHotUpdateRouting);
+        TEST_METHOD(TestAgentCenterKeyBindingFallback);
 
         TEST_CLASS_SETUP(ClassSetup)
         {
@@ -137,6 +138,48 @@ namespace TerminalAppLocalTests
             }
         }
     };
+
+    void SettingsTests::TestAgentCenterKeyBindingFallback()
+    {
+        CascadiaSettings settings{ LR"({
+            "profiles": [{ "name": "test", "commandline": "cmd.exe" }],
+            "keybindings": [
+                { "keys": "ctrl+shift+i", "command": "focusAgentConsole" },
+                { "keys": "ctrl+shift+h", "command": "unbound" }
+            ]
+        })", {} };
+        const auto bindings = winrt::make_self<winrt::TerminalApp::implementation::AppKeyBindings>();
+        const auto dispatch = winrt::make_self<winrt::TerminalApp::implementation::ShortcutActionDispatch>();
+        bindings->SetActionMap(settings.ActionMap());
+        bindings->SetDispatch(*dispatch);
+
+        const KeyChord focus{ true, false, true, false, 'G', 0 };
+        const KeyChord configured{ true, false, true, false, 'I', 0 };
+        const KeyChord unbound{ true, false, true, false, 'H', 0 };
+        VERIFY_IS_FALSE(bindings->TryKeyChord(focus));
+
+        uint32_t fallbackCalls{};
+        bindings->SetFallbackHandler([&](const KeyChord&) {
+            ++fallbackCalls;
+            return true;
+        });
+        VERIFY_IS_TRUE(bindings->TryKeyChord(focus));
+        VERIFY_ARE_EQUAL(1u, fallbackCalls);
+        VERIFY_IS_FALSE(bindings->TryKeyChord(unbound));
+        VERIFY_ARE_EQUAL(1u, fallbackCalls);
+
+        bool dispatched{};
+        dispatch->FocusAgentConsole([&](const auto&, const ActionEventArgs& args) {
+            dispatched = true;
+            args.Handled(true);
+        });
+        VERIFY_IS_TRUE(bindings->TryKeyChord(configured));
+        VERIFY_IS_TRUE(dispatched);
+        VERIFY_ARE_EQUAL(1u, fallbackCalls);
+
+        bindings->SetFallbackHandler({});
+        VERIFY_IS_FALSE(bindings->TryKeyChord(focus));
+    }
 
     void SettingsTests::TestIterateCommands()
     {

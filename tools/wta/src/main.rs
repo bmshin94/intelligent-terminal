@@ -3,6 +3,7 @@ extern crate rust_i18n;
 
 mod action_links;
 mod agent_check;
+mod agent_center;
 mod agent_hooks_installer;
 mod agent_pane_origin;
 mod agent_registry;
@@ -26,6 +27,7 @@ mod hook_contract_tests;
 #[cfg(test)]
 #[path = "locale_parity_tests.rs"]
 mod locale_parity_tests;
+mod localization;
 mod logging;
 mod master;
 mod osc52;
@@ -57,7 +59,7 @@ use cli::args::{Cli, Command, HooksAction, InitialView};
 #[cfg(test)]
 use cli::args::{HooksCliFilter, SessionsAction, SessionsOriginArg};
 
-i18n!("locales", fallback = "en-US");
+include!(concat!(env!("OUT_DIR"), "/localization_codegen.rs"));
 
 /// Normalize a detected OS locale to the closest available locale file.
 /// Mimics Windows MRT behavior with script-aware affinity matching.
@@ -189,6 +191,34 @@ async fn main() -> Result<()> {
     let json_mode = cli.json;
     let command = cli.command.take();
     let result = match command {
+        Some(Command::Ui) => agent_center::ui::run_async().await,
+        Some(Command::Center { action: cli::args::CenterAction::Serve }) => {
+            agent_center::transport::serve().await
+        }
+        Some(Command::Center { action: cli::args::CenterAction::Configure { input_json } }) => {
+            agent_center::transport::configure(&input_json).await
+        }
+        Some(Command::Work { args }) => run_center_command("work", args).await,
+        Some(Command::Task { args }) => run_center_command("task", args).await,
+        Some(Command::Result { args }) => run_center_command("result", args).await,
+        Some(Command::Review { args }) => run_center_command("review", args).await,
+        Some(Command::Plan { args }) => run_center_command("plan", args).await,
+        Some(Command::Decision { args }) => run_center_command("decision", args).await,
+        Some(Command::Artifact { args }) => run_center_command("artifact", args).await,
+        Some(Command::Project { args }) => run_center_command("project", args).await,
+        Some(Command::Workspace { args }) => run_center_command("workspace", args).await,
+        Some(Command::Operation { args }) => run_center_command("operation", args).await,
+        Some(Command::Grant { args }) => run_center_command("grant", args).await,
+        Some(Command::Inbox { args }) => run_center_command("inbox", args).await,
+        Some(Command::Intake { args }) => run_center_command("intake", args).await,
+        Some(Command::Evidence { args }) => run_center_command("evidence", args).await,
+        Some(Command::Shell { args }) => run_center_command("shell", args).await,
+        Some(Command::Agent { args }) => run_center_command("agent", args).await,
+        Some(Command::Run { args }) => run_center_command("run", args).await,
+        Some(Command::Context { args }) => run_center_command("context", args).await,
+        Some(Command::Delivery { args }) => run_center_command("delivery", args).await,
+        Some(Command::Capacity { args }) => run_center_command("capacity", args).await,
+        Some(Command::Usage { args }) => run_center_command("usage", args).await,
         Some(command) => cli::run(command, json_mode).await,
         None => {
             if let Some(pipe_name) = cli.master.clone() {
@@ -212,6 +242,16 @@ async fn main() -> Result<()> {
     result
 }
 
+async fn run_center_command(family: &str, mut args: Vec<String>) -> Result<()> {
+    args.insert(0, family.to_owned());
+    let code = agent_center::client::run_command_async(args).await?;
+    if code != 0 {
+        logging::shutdown_flush();
+        std::process::exit(code);
+    }
+    Ok(())
+}
+
 /// Pick the log file label for this process from its launch mode.
 fn process_label(cli: &Cli) -> String {
     if cli.master.is_some() {
@@ -225,6 +265,8 @@ fn process_label(cli: &Cli) -> String {
     }
     match &cli.command {
         None => "main".to_string(),
+        Some(Command::Center { .. }) => "center-service".to_string(),
+        Some(Command::Ui) => "center-ui".to_string(),
         Some(Command::Delegate { .. }) => "delegate".to_string(),
         Some(Command::ProbeModels { .. })
         | Some(Command::ProbeAgentSources { .. })

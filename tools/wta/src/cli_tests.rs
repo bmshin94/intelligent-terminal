@@ -7,6 +7,45 @@ fn cli_schema_has_no_duplicate_short_flags() {
 }
 
 #[test]
+fn agent_center_clients_preserve_structured_arguments() {
+    let cli = Cli::try_parse_from([
+        "wta",
+        "work",
+        "start",
+        "work-id",
+        "--input-json",
+        "approval.json",
+        "--json",
+    ])
+    .expect("work operation arguments must reach the shared command registry");
+    match cli.command {
+        Some(Command::Work { args }) => assert_eq!(
+            args,
+            [
+                "start",
+                "work-id",
+                "--input-json",
+                "approval.json",
+                "--json"
+            ]
+        ),
+        other => panic!("expected work command, got {other:?}"),
+    }
+    assert!(matches!(
+        Cli::try_parse_from(["wta", "ui"]).unwrap().command,
+        Some(Command::Ui)
+    ));
+    assert!(matches!(
+        Cli::try_parse_from(["wta", "center", "serve"])
+            .unwrap()
+            .command,
+        Some(Command::Center {
+            action: cli::args::CenterAction::Serve
+        })
+    ));
+}
+
+#[test]
 fn split_pane_horizontal_uses_uppercase_short_flag() {
     let cli = Cli::try_parse_from(["wta", "split-pane", "-H"])
         .expect("split-pane -H must parse without colliding with help");

@@ -268,3 +268,56 @@ system.config_update_failed: "%{option}ను నవీకరించడం వ
 system.yolo_disable_pending: "ప్రత్యేకాధికార మోడ్ నిలిపివేయబడి ఉండాల్సిన సెషన్ స్థితిని ఏజెంట్ ప్రదాత ఇంకా నిర్ధారించలేదు"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: మీ సంస్థ విధానం వల్ల ఆటోమేటిక్ ఆమోదం నిలిపివేయబడింది."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "తెలియని మోడల్ %{model} — అందుబాటులో ఉన్న జాబితాను చూడటానికి /model టైప్ చేయండి."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "పని అంశాలు"
+agent_center.activity: "కార్యాచరణ · సంభాషణ"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "పని అంశం: %{work} | ప్రాజెక్ట్: %{project}"
+agent_center.welcome: "ప్రాజెక్ట్‌ను ఎంచుకోండి లేదా /project use <id>ను పేర్కొనండి. ఒక లక్ష్యాన్ని లేదా /help టైప్ చేయండి." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: పంపండి · Shift+Enter: కొత్త పంక్తి · Tab: స్వయంపూర్తి · F2: పని అంశాన్ని మార్చండి · Ctrl+C: నిష్క్రమించండి · PgUp/PgDn: చదవండి · Ctrl+End: తాజావి" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "శ్రద్ధ అవసరం: %{count}"
+agent_center.sending: "నమోదైన అభ్యర్థనను పంపుతోంది…"
+agent_center.confirm_title: "నమోదైన చర్యను నిర్ధారించండి"
+agent_center.confirm_prompt: "ఖచ్చితమైన లక్ష్యం, సంస్కరణలు, పరిధి మరియు ప్రభావాలను సమీక్షించండి. చర్యను సమీక్షించండి. Ctrl+Enter: నిర్ధారించండి · Esc: రద్దు చేయండి" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "చర్య రద్దు చేయబడింది. మీరు నమోదు చేసిన వచనం భద్రపరచబడింది."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "నవీకరణ: %{kind} · పని అంశం: %{work}"
+agent_center.status_ok: "అభ్యర్థన విజయవంతమైంది."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "అంగీకరించబడింది; ప్రాసెసింగ్ ఇంకా కొనసాగుతోంది. పెండింగ్‌లో ఉన్న ఆపరేషన్: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "ఇన్‌పుట్ అవసరం: %{id}. నమోదైన ప్రశ్నను తెరవండి."
+agent_center.status_conflict: "లక్ష్యం మారింది. కొత్త ఆదేశాన్ని పంపే ముందు దాన్ని రిఫ్రెష్ చేయండి."
+agent_center.status_unsupported: "ఈ ఆపరేషన్‌కు మద్దతు లేదు."
+agent_center.status_error: "అభ్యర్థన విఫలమైంది. వైఫల్య వివరాలను సమీక్షించండి."
+agent_center.service_unavailable: "Agent Center అందుబాటులో లేదు. wta center serveతో దాన్ని ప్రారంభించండి. ఆదేశాన్ని మరొక టెర్మినల్‌లో అమలు చేయండి." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — అభ్యర్థన విఫలమైంది: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "ఈవెంట్ స్ట్రీమ్ కనెక్షన్ తెగిపోయింది."
+agent_center.unsupported: "మద్దతు లేని ఆదేశం: %{command}"
+agent_center.console_only: "ఈ ఆదేశాన్ని Agent Center కన్సోల్‌లో ఉపయోగించండి." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "ఆదేశంలోని కొటేషన్ గుర్తును మూసివేయండి."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} కోసం విలువ లేదు."
+agent_center.duplicate_argument: "ఆర్గ్యుమెంట్ పునరావృతమైంది: %{argument}"
+agent_center.target_required: "లక్ష్య ఐడెంటిఫయర్‌ను పేర్కొనండి."
+agent_center.invalid_version: "వెర్షన్ ధన పూర్ణాంకం అయి ఉండాలి."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} ను రిఫ్రెష్ చేయండి లేదా దాని ఖచ్చితమైన సంస్కరణను పేర్కొనండి."
+agent_center.work_required: "పని అంశాన్ని ఎంచుకోండి లేదా --work <id>ను పేర్కొనండి." # {Locked="--work","<id>"}
+agent_center.project_required: "ప్రాజెక్ట్‌ను ఎంచుకోండి లేదా /project use <id> / --project <id>ను పేర్కొనండి." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "అనుకోని ఆర్గ్యుమెంట్‌లు: %{arguments}"
+agent_center.empty_message: "సందేశాన్ని నమోదు చేయండి."
+agent_center.findings_required: "అందజేత ప్రమాణానికి అనుసంధానమై, కోరిన మార్పును వివరించే సవరణ పరిశీలనలో కనుగొన్న అంశపు కనీసం ఒక ఆబ్జెక్ట్ ఇవ్వండి."
+agent_center.command_id_mutation_only: "స్థితిని మార్చే ఆదేశాలకు మాత్రమే --command-id చెల్లుతుంది." # {Locked="--command-id"}
+agent_center.confirmation_required: "ఖచ్చితమైన లక్ష్యం, సంస్కరణలు, పరిధి మరియు ప్రభావాలను సమీక్షించండి. చర్యను సమీక్షించి, ఆపై --confirmను జోడించండి." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center అభ్యర్థనను రూపొందించడం సాధ్యం కాలేదు." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center ప్రతిస్పందనను చదవడం సాధ్యం కాలేదు." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "ప్రతిస్పందన ఫీల్డ్ లేదు లేదా చెల్లదు: %{field}"
+agent_center.invalid_command_id: "--command-id ఒక UUID అయి ఉండాలి." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "అభ్యర్థనల కనెక్షన్ ఆగిపోయింది."
+agent_center.host_unavailable: "%{command} కోసం షెల్ హోస్ట్ అడాప్టర్ అందుబాటులో లేదు. హోస్ట్ కీబోర్డ్ చర్యలను ఉపయోగించండి."

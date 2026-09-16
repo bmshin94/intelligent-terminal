@@ -269,3 +269,56 @@ system.config_update_failed: "No s’ha pogut actualitzar %{option}: %{error}"
 system.yolo_disable_pending: "el proveïdor no ha confirmat l’estat de sessió sense privilegis requerit"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: L'aprovació automàtica està deshabilitada per la política de la vostra organització."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Model desconegut %{model} — escriviu /model per veure la llista disponible."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Elements de treball"
+agent_center.activity: "Activitat · Conversa"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Treball: %{work} | Projecte: %{project}"
+agent_center.welcome: "Seleccioneu un projecte o especifiqueu /project use <id>. Escriviu un objectiu o /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: envia · Shift+Enter: línia nova · Tab: completa · F2: canvia de treball · Ctrl+C: surt · PgUp/PgDn: llegir · Ctrl+End: més recent" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Requereix atenció: %{count}"
+agent_center.sending: "S’està enviant la sol·licitud capturada…"
+agent_center.confirm_title: "Confirma l’acció capturada"
+agent_center.confirm_prompt: "Reviseu la destinació exacta, les versions, l’abast i els efectes. Reviseu l'acció. Ctrl+Enter: confirma · Esc: cancel·la" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "S'ha cancel·lat l'acció. El text introduït es conserva."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Actualització: %{kind} · Treball: %{work}"
+agent_center.status_ok: "La sol·licitud s’ha completat correctament."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Acceptada; encara s’està processant. Operació pendent: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Cal introduir dades: %{id}. Obriu la pregunta desada."
+agent_center.status_conflict: "La destinació ha canviat. Actualitzeu-la abans d’enviar una ordre nova."
+agent_center.status_unsupported: "Aquesta operació no és compatible."
+agent_center.status_error: "La sol·licitud ha fallat. Reviseu els detalls de l’error."
+agent_center.service_unavailable: "El Agent Center no està disponible. Inicieu-lo amb wta center serve. Executeu l’ordre en un altre terminal." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — La sol·licitud ha fallat: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "El flux d'esdeveniments s'ha desconnectat."
+agent_center.unsupported: "Ordre no compatible: %{command}"
+agent_center.console_only: "Utilitzeu aquesta ordre a la consola del Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Tanqueu les cometes a l'ordre."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Falta el valor de %{argument}."
+agent_center.duplicate_argument: "Argument repetit: %{argument}"
+agent_center.target_required: "Especifiqueu un identificador de destinació."
+agent_center.invalid_version: "La versió ha de ser un nombre enter positiu."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Actualitzeu %{kind} %{id}, o especifiqueu-ne la versió exacta."
+agent_center.work_required: "Seleccioneu un element de treball o especifiqueu --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Seleccioneu un projecte o especifiqueu /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Arguments inesperats: %{arguments}"
+agent_center.empty_message: "Introduïu un missatge."
+agent_center.findings_required: "Proporcioneu almenys un objecte amb una observació de revisió, vinculat a un criteri de lliurament i que indiqui el canvi sol·licitat."
+agent_center.command_id_mutation_only: "--command-id només és vàlid per a les ordres que canvien l'estat." # {Locked="--command-id"}
+agent_center.confirmation_required: "Reviseu la destinació exacta, les versions, l’abast i els efectes. Reviseu l'acció i, a continuació, afegiu --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "No s'ha pogut crear la sol·licitud al Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "No s'ha pogut llegir la resposta del Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Falta un camp de resposta o no és vàlid: %{field}"
+agent_center.invalid_command_id: "--command-id ha de ser un UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "La connexió de sol·licituds s’ha aturat."
+agent_center.host_unavailable: "No hi ha cap adaptador d’amfitrió d’intèrpret d’ordres disponible per a %{command}. Utilitzeu les accions de teclat de l’amfitrió."

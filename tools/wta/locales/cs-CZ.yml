@@ -269,3 +269,56 @@ system.config_update_failed: "Aktualizace %{option} se nezdařila: %{error}"
 system.yolo_disable_pending: "poskytovatel nepotvrdil požadovaný neprivilegovaný stav relace"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Automatické schvalování je zakázáno zásadami vaší organizace."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Neznámý model %{model} — zadáním /model zobrazíte dostupný seznam."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Pracovní položky"
+agent_center.activity: "Aktivita · Konverzace"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Pracovní položka: %{work} | Projekt: %{project}"
+agent_center.welcome: "Vyberte projekt nebo zadejte /project use <id>. Zadejte cíl nebo /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: odeslat · Shift+Enter: nový řádek · Tab: doplnit · F2: přepnout pracovní položku · Ctrl+C: ukončit · PgUp/PgDn: číst · Ctrl+End: nejnovější" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Vyžaduje pozornost: %{count}"
+agent_center.sending: "Odesílání zachyceného požadavku…"
+agent_center.confirm_title: "Potvrdit zachycenou akci"
+agent_center.confirm_prompt: "Zkontrolujte přesný cíl, verze, rozsah a účinky. Zkontrolujte akci. Ctrl+Enter: potvrdit · Esc: zrušit" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Akce byla zrušena. Zadaný text zůstane zachován."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Aktualizace: %{kind} · Pracovní položka: %{work}"
+agent_center.status_ok: "Požadavek byl úspěšný."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Přijato; zpracování stále probíhá. Čekající operace: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Je vyžadován vstup: %{id}. Otevřete zaznamenanou otázku."
+agent_center.status_conflict: "Cíl se změnil. Před odesláním nového příkazu ho obnovte."
+agent_center.status_unsupported: "Tato operace není podporována."
+agent_center.status_error: "Požadavek se nezdařil. Prohlédněte si podrobnosti chyby."
+agent_center.service_unavailable: "Agent Center není dostupné. Spusťte ho pomocí wta center serve. Spusťte příkaz v jiném terminálu." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Požadavek se nezdařil: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Datový proud událostí byl odpojen."
+agent_center.unsupported: "Příkaz není podporován: %{command}"
+agent_center.console_only: "Použijte tento příkaz v konzoli Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Uzavřete uvozovky v příkazu."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Chybí hodnota pro %{argument}."
+agent_center.duplicate_argument: "Opakovaný argument: %{argument}"
+agent_center.target_required: "Zadejte identifikátor cíle."
+agent_center.invalid_version: "Verze musí být kladné celé číslo."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Obnovte %{kind} %{id} nebo zadejte přesnou verzi."
+agent_center.work_required: "Vyberte pracovní položku nebo zadejte --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Vyberte projekt nebo zadejte /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Neočekávané argumenty: %{arguments}"
+agent_center.empty_message: "Zadejte zprávu."
+agent_center.findings_required: "Uveďte alespoň jeden objekt nálezu k přepracování, který je přiřazen ke kritériu dodání a popisuje požadovanou změnu."
+agent_center.command_id_mutation_only: "--command-id je platný pouze pro příkazy, které mění stav." # {Locked="--command-id"}
+agent_center.confirmation_required: "Zkontrolujte přesný cíl, verze, rozsah a účinky. Zkontrolujte akci a pak přidejte --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Nepodařilo se sestavit požadavek pro Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Nepodařilo se přečíst odpověď Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Chybějící nebo neplatné pole odpovědi: %{field}"
+agent_center.invalid_command_id: "--command-id musí být UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Připojení pro požadavky se zastavilo."
+agent_center.host_unavailable: "Pro %{command} není dostupný adaptér hostitele prostředí. Použijte klávesové akce hostitele."

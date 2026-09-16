@@ -266,3 +266,56 @@ system.config_update_failed: "Dështoi përditësimi i %{option}: %{error}"
 system.yolo_disable_pending: "ofruesi nuk e ka konfirmuar gjendjen e kërkuar të sesionit pa privilegje"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Miratimi automatik është çaktivizuar nga politika e organizatës suaj."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Model i panjohur %{model} — shkruani /model për të parë listën e disponueshme."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Elemente pune"
+agent_center.activity: "Aktiviteti · Biseda"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Puna: %{work} | Projekti: %{project}"
+agent_center.welcome: "Zgjidhni një projekt ose specifikoni /project use <id>. Shkruani një synim ose /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: dërgo · Shift+Enter: rresht i ri · Tab: plotëso · F2: ndërro elementin e punës · Ctrl+C: dil · PgUp/PgDn: lexo · Ctrl+End: më e fundit" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Kërkon vëmendje: %{count}"
+agent_center.sending: "Po dërgohet kërkesa e regjistruar…"
+agent_center.confirm_title: "Konfirmoni veprimin e regjistruar"
+agent_center.confirm_prompt: "Shqyrtoni objektivin e saktë, versionet, fushën dhe efektet. Shqyrtoni veprimin. Ctrl+Enter: konfirmo · Esc: anulo" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Veprimi u anulua. Teksti i futur ruhet."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Përditësim: %{kind} · Puna: %{work}"
+agent_center.status_ok: "Kërkesa pati sukses."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "U pranua; përpunimi po vazhdon. Operacion në pritje: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Kërkohet hyrje: %{id}. Hapni pyetjen e regjistruar."
+agent_center.status_conflict: "Objektivi ndryshoi. Rifreskojeni para se të dërgoni një komandë të re."
+agent_center.status_unsupported: "Ky operacion nuk mbështetet."
+agent_center.status_error: "Kërkesa dështoi. Shqyrtoni hollësitë e dështimit."
+agent_center.service_unavailable: "Agent Center nuk është e disponueshme. Niseni me wta center serve. Ekzekutoni komandën në një terminal tjetër." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Kërkesa dështoi: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Rrjedha e ngjarjeve u shkëput."
+agent_center.unsupported: "Komanda nuk mbështetet: %{command}"
+agent_center.console_only: "Përdoreni këtë komandë në konsolën e Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Mbyllni thonjëzat në komandë."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Mungon vlera për %{argument}."
+agent_center.duplicate_argument: "Argument i përsëritur: %{argument}"
+agent_center.target_required: "Specifikoni një identifikues të objektivit."
+agent_center.invalid_version: "Versioni duhet të jetë një numër i plotë pozitiv."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Rifreskoni %{kind} %{id}, ose specifikoni versionin e saktë."
+agent_center.work_required: "Zgjidhni një element pune ose specifikoni --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Zgjidhni një projekt ose specifikoni /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Argumente të papritura: %{arguments}"
+agent_center.empty_message: "Shkruani një mesazh."
+agent_center.findings_required: "Jepni të paktën një objekt konstatimi për rishikim, të lidhur me një kriter dorëzimi dhe që përshkruan ndryshimin e kërkuar."
+agent_center.command_id_mutation_only: "--command-id është i vlefshëm vetëm për komandat që ndryshojnë gjendjen." # {Locked="--command-id"}
+agent_center.confirmation_required: "Shqyrtoni objektivin e saktë, versionet, fushën dhe efektet. Shqyrtoni veprimin, pastaj shtoni --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Nuk u arrit të krijohej kërkesa për Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Nuk u arrit të lexohej përgjigjja e Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Fusha e përgjigjes mungon ose është e pavlefshme: %{field}"
+agent_center.invalid_command_id: "--command-id duhet të jetë një UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Lidhja e kërkesave u ndal."
+agent_center.host_unavailable: "Nuk ka përshtatës të pritësit të shell-it për %{command}. Përdorni veprimet e tastierës së pritësit."

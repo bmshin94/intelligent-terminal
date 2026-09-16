@@ -268,3 +268,56 @@ system.config_update_failed: "Methwyd â diupdate %{option}: %{error}"
 system.yolo_disable_pending: "nid yw'r darparwr wedi cadarnhau cyflwr gofynnol y sesiwn heb freintiau"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Mae cymeradwyaeth awtomatig wedi’i hanalluogi gan bolisi eich sefydliad."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Model anhysbys %{model} — teipiwch /model i weld y rhestr sydd ar gael."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Eitemau gwaith"
+agent_center.activity: "Gweithgarwch · Sgwrs"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Gwaith: %{work} | Prosiect: %{project}"
+agent_center.welcome: "Dewiswch brosiect neu nodwch /project use <id>. Teipiwch nod neu /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: anfon · Shift+Enter: llinell newydd · Tab: cwblhau · F2: newid eitem waith · Ctrl+C: gadael · PgUp/PgDn: darllen · Ctrl+End: diweddaraf" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Angen sylw: %{count}"
+agent_center.sending: "Wrthi’n anfon y cais a gipiwyd…"
+agent_center.confirm_title: "Cadarnhau’r weithred a gipiwyd"
+agent_center.confirm_prompt: "Adolygwch yr union darged, y fersiynau, y cwmpas a’r effeithiau. Adolygwch y weithred. Ctrl+Enter: cadarnhau · Esc: canslo" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Canslwyd y weithred. Mae’r testun a roesoch wedi’i gadw."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Diweddariad: %{kind} · Gwaith: %{work}"
+agent_center.status_ok: "Llwyddodd y cais."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Derbyniwyd; mae’r prosesu yn parhau. Gweithrediad yn aros: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Angen mewnbwn: %{id}. Agorwch y cwestiwn a gofnodwyd."
+agent_center.status_conflict: "Mae’r targed wedi newid. Adnewyddwch ef cyn anfon gorchymyn newydd."
+agent_center.status_unsupported: "Ni chefnogir y gweithrediad hwn."
+agent_center.status_error: "Methodd y cais. Adolygwch fanylion y methiant."
+agent_center.service_unavailable: "Nid yw Agent Center ar gael. Rhedwch wta center serve mewn terfynell arall." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Methodd y cais: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Datgysylltwyd y ffrwd digwyddiadau."
+agent_center.unsupported: "Ni chefnogir y gorchymyn: %{command}"
+agent_center.console_only: "Defnyddiwch y gorchymyn hwn yng nghonsol ryngweithiol Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Caewch y dyfynnod yn y gorchymyn."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Gwerth ar goll ar gyfer %{argument}."
+agent_center.duplicate_argument: "Arg wedi'i hailadrodd: %{argument}"
+agent_center.target_required: "Nodwch ddynodwr targed."
+agent_center.invalid_version: "Rhaid i'r fersiwn fod yn gyfanrif positif."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Adnewyddwch %{kind} %{id}, neu nodwch ei union fersiwn."
+agent_center.work_required: "Dewiswch eitem waith neu nodwch --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Dewiswch brosiect neu nodwch /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Argiau annisgwyl: %{arguments}"
+agent_center.empty_message: "Rhowch neges."
+agent_center.findings_required: "Rhowch o leiaf un gwrthrych canfyddiad diwygio sy’n gysylltiedig â maen prawf cyflawni ac sy’n disgrifio’r newid y gofynnwyd amdano."
+agent_center.command_id_mutation_only: "Dim ond ar gyfer gorchmynion sy'n newid cyflwr y mae --command-id yn ddilys." # {Locked="--command-id"}
+agent_center.confirmation_required: "Adolygwch yr union darged, y fersiynau, y cwmpas a’r effeithiau. Adolygwch y weithred, yna ychwanegwch --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Methu llunio'r cais i Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Methu darllen yr ymateb gan Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Maes ymateb ar goll neu'n annilys: %{field}"
+agent_center.invalid_command_id: "Rhaid i --command-id fod yn UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Mae cysylltiad y ceisiadau wedi stopio."
+agent_center.host_unavailable: "Nid oes addasydd gwesteiwr cragen ar gael ar gyfer %{command}. Defnyddiwch weithredoedd bysellfwrdd y gwesteiwr."

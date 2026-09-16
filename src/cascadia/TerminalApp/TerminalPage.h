@@ -389,6 +389,16 @@ namespace winrt::TerminalApp::implementation
         bool _transferReceiverReady{ false };
         void _TryCompleteStartupTransfer();
 
+        bool _agentCenterEnabled{ false };
+        bool _agentCenterShellVisible{ false };
+        Microsoft::Terminal::Control::TermControl _agentConsole{ nullptr };
+        void _InitializeAgentConsoleLayout();
+        void _InitializeAgentConsole();
+        void _UpdateAgentConsoleSettings();
+        void _FocusAgentConsole();
+        void _SetAgentCenterShellVisible(bool visible);
+        bool _TryAgentCenterKeyChord(const Microsoft::Terminal::Control::KeyChord& chord);
+
         std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> _startupActions;
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
 

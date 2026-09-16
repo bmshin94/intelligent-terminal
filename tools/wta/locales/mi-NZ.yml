@@ -266,3 +266,56 @@ system.config_update_failed: "I rahua te updating %{option}: %{error}"
 system.yolo_disable_pending: "kāore anō te kaiwhakarato agent kia whakaū i te tūnga wātū kore-mana motuhake e hiahiatia ana"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Kua monoa te whakaaetanga aunoa e te kaupapa here a tō whakahaere."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Tauira kāore e mōhiotia %{model} — patohia /model kia kite i te rārangi e wātea ana."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Ngā tūemi mahi"
+agent_center.activity: "Ngā hohenga · Kōrerorero"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Mahi: %{work} | Kaupapa: %{project}"
+agent_center.welcome: "Kōwhiria he kaupapa, tautuhia rānei /project use <id>. Patohia he whāinga, he /help rānei." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: tuku · Shift+Enter: rārangi hou · Tab: whakaoti · F2: whakawhiti tūemi mahi · Ctrl+C: puta · PgUp/PgDn: pānui · Ctrl+End: hou rawa" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Me aro atu: %{count}"
+agent_center.sending: "E tuku ana i te tono kua hopukina…"
+agent_center.confirm_title: "Whakaūngia te hohenga kua hopukina"
+agent_center.confirm_prompt: "Arotakengia te ūnga tika, ngā putanga, te whānuitanga me ngā pānga. Arotakengia te hohenga. Ctrl+Enter: whakaū · Esc: whakakore" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Kua whakakorea te hohenga. Ka puritia te tuhinga i tāurua e koe."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Whakahōutanga: %{kind} · Mahi: %{work}"
+agent_center.status_ok: "I angitu te tono."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Kua whakaaetia; kei te haere tonu te tukatuka. Mahinga e tārewa ana: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Me tāuru: %{id}. Whakatuwheratia te pātai kua tuhia."
+agent_center.status_conflict: "Kua huri te ūnga. Tāmatahia i mua i te tuku whakahau hou."
+agent_center.status_unsupported: "Kāore tēnei mahinga e tautokona ana."
+agent_center.status_error: "I rahua te tono. Arotakengia ngā taipitopito o te rahunga."
+agent_center.service_unavailable: "Kāore te Agent Center e wātea ana. Tīmataria mā te wta center serve. Whakahaeretia te whakahau ki tētahi atu kāpeka." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — I rahua te tono: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Kua momotuhia te roma takahanga."
+agent_center.unsupported: "Kāore te whakahau e tautokona ana: %{command}"
+agent_center.console_only: "Whakamahia tēnei whakahau i te papatohu o te Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Katia te tohu kōrero i te whakahau."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Kei te ngaro te uara mō %{argument}."
+agent_center.duplicate_argument: "Kua tāruaruatia te tohenga: %{argument}"
+agent_center.target_required: "Tautuhia he pūtāutu ūnga."
+agent_center.invalid_version: "Me tau tōpū tōrunga te putanga."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Tāmatahia %{kind} %{id}, tautuhia rānei tōna putanga tika."
+agent_center.work_required: "Kōwhiria he tūemi mahi, tautuhia rānei --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Kōwhiria he kaupapa, tautuhia rānei /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Ngā tohenga kāore i tūmanakohia: %{arguments}"
+agent_center.empty_message: "Tāurutia he karere."
+agent_center.findings_required: "Homai kia kotahi neke atu ngā ahanoa kitenga arotake e hono ana ki tētahi paearu tuku, e whakaatu ana hoki i te whakarerekētanga e tonoa ana."
+agent_center.command_id_mutation_only: "Ka mana anake --command-id mō ngā whakahau e huri ana i te tūnga." # {Locked="--command-id"}
+agent_center.confirmation_required: "Arotakengia te ūnga tika, ngā putanga, te whānuitanga me ngā pānga. Arotakengia te hohenga, kātahi ka tāpiri i --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Kāore i taea te hanga i te tono a te Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Kāore i taea te pānui i te whakautu a te Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Kei te ngaro, kei te muhu rānei te āpure whakautu: %{field}"
+agent_center.invalid_command_id: "Me UUID te --command-id." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Kua mutu te hononga tono."
+agent_center.host_unavailable: "Kāore he pūurutau kaihautū anga mō %{command}. Whakamahia ngā hohenga papapātuhi a te kaihautū."

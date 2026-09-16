@@ -267,3 +267,56 @@ system.config_update_failed: "Gagal memperbarui %{option}: %{error}"
 system.yolo_disable_pending: "penyedia agen AI belum mengonfirmasi status sesi tanpa hak istimewa yang diperlukan"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Persetujuan otomatis dinonaktifkan oleh kebijakan organisasi Anda."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Model tidak dikenal %{model} — ketik /model untuk melihat daftar yang tersedia."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Item pekerjaan"
+agent_center.activity: "Aktivitas · Percakapan"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Item pekerjaan: %{work} | Proyek: %{project}"
+agent_center.welcome: "Pilih proyek atau tentukan /project use <id>. Ketik tujuan atau /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: kirim · Shift+Enter: baris baru · Tab: lengkapi · F2: ganti item pekerjaan · Ctrl+C: keluar · PgUp/PgDn: baca · Ctrl+End: terbaru" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Perlu perhatian: %{count}"
+agent_center.sending: "Mengirim permintaan yang direkam…"
+agent_center.confirm_title: "Konfirmasi tindakan yang direkam"
+agent_center.confirm_prompt: "Tinjau target yang tepat, versi, cakupan, dan dampaknya. Tinjau tindakan. Ctrl+Enter: konfirmasi · Esc: batalkan" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Tindakan dibatalkan. Teks yang Anda masukkan tetap tersimpan."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Pembaruan: %{kind} · Item pekerjaan: %{work}"
+agent_center.status_ok: "Permintaan berhasil."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Diterima; pemrosesan masih berlangsung. Operasi tertunda: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Input diperlukan: %{id}. Buka pertanyaan yang tercatat."
+agent_center.status_conflict: "Target telah berubah. Segarkan sebelum mengirim perintah baru."
+agent_center.status_unsupported: "Operasi ini tidak didukung."
+agent_center.status_error: "Permintaan gagal. Tinjau detail kegagalan."
+agent_center.service_unavailable: "Agent Center tidak tersedia. Jalankan dengan wta center serve. Jalankan perintah di terminal lain." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Permintaan gagal: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Aliran peristiwa terputus."
+agent_center.unsupported: "Perintah tidak didukung: %{command}"
+agent_center.console_only: "Gunakan perintah ini di konsol Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Tutup tanda kutip dalam perintah."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Nilai untuk %{argument} tidak ada."
+agent_center.duplicate_argument: "Argumen diulang: %{argument}"
+agent_center.target_required: "Tentukan pengidentifikasi target."
+agent_center.invalid_version: "Versi harus berupa bilangan bulat positif."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Segarkan %{kind} %{id}, atau tentukan versi tepatnya."
+agent_center.work_required: "Pilih item pekerjaan atau tentukan --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Pilih proyek atau tentukan /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Argumen yang tidak diharapkan: %{arguments}"
+agent_center.empty_message: "Masukkan pesan."
+agent_center.findings_required: "Berikan setidaknya satu objek temuan revisi yang terkait dengan kriteria penyerahan dan menjelaskan perubahan yang diminta."
+agent_center.command_id_mutation_only: "--command-id hanya berlaku untuk perintah yang mengubah status." # {Locked="--command-id"}
+agent_center.confirmation_required: "Tinjau target yang tepat, versi, cakupan, dan dampaknya. Tinjau tindakan, lalu tambahkan --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Tidak dapat menyusun permintaan Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Tidak dapat membaca respons Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Kolom respons tidak ada atau tidak valid: %{field}"
+agent_center.invalid_command_id: "--command-id harus berupa UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Koneksi permintaan telah berhenti."
+agent_center.host_unavailable: "Tidak ada adaptor host shell yang tersedia untuk %{command}. Gunakan tindakan keyboard host."

@@ -247,6 +247,118 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Command {
+    /// Open the experimental Agent Center Console
+    Ui,
+    /// Manage the experimental Agent Center service
+    Center {
+        #[command(subcommand)]
+        action: CenterAction,
+    },
+    /// Inspect and control Agent Center work
+    Work {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect Agent Center tasks
+    Task {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect immutable task results
+    Result {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect, accept or revise delivery candidates
+    Review {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect or revise work plans
+    Plan {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect and answer versioned decisions
+    Decision {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect captured artifacts and evidence
+    Artifact {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Configure approved Agent Center projects
+    Project {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect and hand over managed workspaces
+    Workspace {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect tracked operations
+    Operation {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect and preview execution grants
+    Grant {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect outstanding Agent Center obligations
+    Inbox {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Answer an Agent Center intake clarification
+    Intake {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect captured evidence
+    Evidence {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Request Agent Center shell presentation capabilities
+    Shell {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect Agent Center execution capabilities
+    Agent {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect Agent Center executions
+    Run {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Manage Agent Center context
+    Context {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect Agent Center delivery capabilities
+    Delivery {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect Agent Center capacity
+    Capacity {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Inspect Agent Center resource usage
+    Usage {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Show Windows Terminal protocol connection info
     Info,
     /// Test protocol connection to Windows Terminal
@@ -472,6 +584,17 @@ pub(crate) enum Command {
         #[arg(long)]
         payload_json: String,
     },
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum CenterAction {
+    /// Validate and install ACP adapter configuration while the authority is stopped
+    Configure {
+        #[arg(long)]
+        input_json: std::path::PathBuf,
+    },
+    /// Run the local Agent Center authority until interrupted
+    Serve,
 }
 
 /// Subcommands for `wta sessions`.

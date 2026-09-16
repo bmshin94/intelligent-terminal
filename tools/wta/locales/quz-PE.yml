@@ -266,3 +266,56 @@ system.config_update_failed: "%{option} machkhapay pantarun: %{error}"
 system.yolo_disable_pending: "proveedorqa manam kamachisqa mana privilegioyuq sesiónpa estadonta chiqapachirqachu"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Organizaciónniykip política rurasqanrayku automática aprobacionqa harkasqa kachkan."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Mana riqsisqa modelo %{model} — akllana lista rikunaykipaq /model qillqay."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Llamk'anakuna"
+agent_center.activity: "Ruwasqakuna · Rimanakuy"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Llamk'ana: %{work} | Ruway wakichiy: %{project}"
+agent_center.welcome: "Huk ruway wakichiyta akllay utaq /project use <id> nisqata niy. Imata ruwayta munasqaykita utaq /help qillqay." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: apachiy · Shift+Enter: musuq sinri · Tab: hunt'apay · F2: llamk'anata tikray · Ctrl+C: lluqsiy · PgUp/PgDn: ñawinchay · Ctrl+End: aswan musuq" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Qhawarina: %{count}"
+agent_center.sending: "Hap'isqa mañakuyta apachichkan…"
+agent_center.confirm_title: "Hap'isqa ruwayta takyachiy"
+agent_center.confirm_prompt: "Chiqap chayanata, musuqchasqa yupaykunata, aypanan kasqanta hinaspa ruwasqanman hamuqkunata qhawariy. Ruwayta qhawariy. Ctrl+Enter: takyachiy · Esc: sayachiy" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Ruwayqa sayachisqañam. Qillqasqayki waqaychasqa kachkan."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Musuqchay: %{kind} · Llamk'ana: %{work}"
+agent_center.status_ok: "Mañakuyqa allinmi lluqsirqan."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Chaskisqaña; ruwachkanraqmi. Suyachkaq ruway: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Willakuyta churanayki tiyan: %{id}. Qillqasqa tapukuyta kichay."
+agent_center.status_conflict: "Chayana tikrakurqan. Musuq kamachiyta apachinaykipaq ñawpaqta musuqyachiy."
+agent_center.status_unsupported: "Kay ruwayqa mana yanapasqachu."
+agent_center.status_error: "Mañakuyqa mana allinchu lluqsirqan. Pantaypa sut'inkunata qhawariy."
+agent_center.service_unavailable: "Agent Center nisqaqa mana kanchu. wta center serve nisqata huk terminalpi purichiy." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Mañakuyqa mana allinchu lluqsirqan: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Ruwakusqakunapa willakuyninpa t'inkin p'itikurqan."
+agent_center.unsupported: "Kamachiyqa mana yanapasqachu: %{command}"
+agent_center.console_only: "Kay kamachiyta Agent Center nisqapa consolanpi llamk'achiy." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Kamachiypi comillas nisqata wisq'ay."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} nisqapa chaninmi chinkan."
+agent_center.duplicate_argument: "Argumento nisqa kutipasqa: %{argument}"
+agent_center.target_required: "Mayman chayanapaq riqsichiqta niy."
+agent_center.invalid_version: "Musuqchasqa yupayqa llapan yupaymi kanan, ch'usaqmanta aswan hatun."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} nisqata musuqyachiy utaq chiqap musuqchasqa yupayninta niy."
+agent_center.work_required: "Huk llamk'anata akllay utaq --work <id> nisqata niy." # {Locked="--work","<id>"}
+agent_center.project_required: "Huk ruway wakichiyta akllay utaq /project use <id> / --project <id> nisqata niy." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Mana suyasqa argumentokuna: %{arguments}"
+agent_center.empty_message: "Huk willakuyta qillqay."
+agent_center.findings_required: "Quna criterio nisqaman watasqa, mañakusqa tikrayta sut'inchaq hukllatapas musuqchana tarisqa objeto nisqata quy."
+agent_center.command_id_mutation_only: "--command-id nisqaqa kayayninta tikraq kamachiykunallapaqmi allin." # {Locked="--command-id"}
+agent_center.confirmation_required: "Chiqap chayanata, musuqchasqa yupaykunata, aypanan kasqanta hinaspa ruwasqanman hamuqkunata qhawariy. Ruwayta qhawariy, chaymanta --confirm nisqata yapay." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center nisqapa mañakuynintaqa manam wakichiyta atikurqanchu." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center nisqapa kutichiynintaqa manam ñawinchayta atikurqanchu." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Kutichiypi %{field} nisqa mana kanchu utaq mana allinchu."
+agent_center.invalid_command_id: "--command-id nisqaqa UUID kanan." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Mañakuykunapa t'inkin sayarqan."
+agent_center.host_unavailable: "%{command} nisqapaq shell host adaptador mana kanchu. Hostpa teclado ruwayninkunata llamk'achiy."

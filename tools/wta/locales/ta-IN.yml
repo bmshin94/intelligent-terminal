@@ -268,3 +268,56 @@ system.config_update_failed: "%{option} ஐப் புதுப்பிப்
 system.yolo_disable_pending: "சிறப்புரிமை முறை முடக்கப்பட்டிருக்க வேண்டிய அமர்வு நிலையை ஏஜெண்ட் வழங்குநர் இன்னும் உறுதிப்படுத்தவில்லை"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: உங்கள் நிறுவனத்தின் கொள்கையால் தானியங்கி ஒப்புதல் முடக்கப்பட்டுள்ளது."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "அறியப்படாத மாதிரி %{model} — கிடைக்கும் பட்டியலைக் காண /model எனத் தட்டச்சு செய்யவும்."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "பணி உருப்படிகள்"
+agent_center.activity: "செயல்பாடு · உரையாடல்"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "பணி: %{work} | திட்டம்: %{project}"
+agent_center.welcome: "ஒரு திட்டத்தைத் தேர்ந்தெடுக்கவும் அல்லது /project use <id> என்பதைக் குறிப்பிடவும். ஒரு இலக்கை அல்லது /help என்பதைத் தட்டச்சு செய்யவும்." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: அனுப்பு · Shift+Enter: புதிய வரி · Tab: நிறைவு செய் · F2: பணியை மாற்று · Ctrl+C: வெளியேறு · PgUp/PgDn: படிக்கவும் · Ctrl+End: சமீபத்தியது" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "கவனம் தேவை: %{count}"
+agent_center.sending: "பதிவுசெய்யப்பட்ட கோரிக்கையை அனுப்புகிறது…"
+agent_center.confirm_title: "பதிவுசெய்யப்பட்ட செயலை உறுதிப்படுத்தவும்"
+agent_center.confirm_prompt: "சரியான இலக்கு, பதிப்புகள், வரம்பு மற்றும் விளைவுகளை மதிப்பாய்வு செய்யவும். செயலை மதிப்பாய்வு செய்யவும். Ctrl+Enter: உறுதிப்படுத்து · Esc: ரத்து செய்" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "செயல் ரத்து செய்யப்பட்டது. நீங்கள் உள்ளிட்ட உரை பாதுகாக்கப்படுகிறது."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "புதுப்பிப்பு: %{kind} · பணி: %{work}"
+agent_center.status_ok: "கோரிக்கை வெற்றியடைந்தது."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "ஏற்கப்பட்டது; செயலாக்கம் இன்னும் தொடர்கிறது. நிலுவையில் உள்ள செயல்: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "உள்ளீடு தேவை: %{id}. பதிவுசெய்யப்பட்ட கேள்வியைத் திறக்கவும்."
+agent_center.status_conflict: "இலக்கு மாறியுள்ளது. புதிய கட்டளையை அனுப்புவதற்கு முன் அதைப் புதுப்பிக்கவும்."
+agent_center.status_unsupported: "இந்தச் செயல் ஆதரிக்கப்படவில்லை."
+agent_center.status_error: "கோரிக்கை தோல்வியடைந்தது. தோல்வியின் விவரங்களை மதிப்பாய்வு செய்யவும்."
+agent_center.service_unavailable: "Agent Center கிடைக்கவில்லை. wta center serve மூலம் அதைத் தொடங்கவும். கட்டளையை மற்றொரு முனையத்தில் இயக்கவும்." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — கோரிக்கை தோல்வியடைந்தது: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "நிகழ்வு ஸ்ட்ரீமின் இணைப்பு துண்டிக்கப்பட்டது."
+agent_center.unsupported: "கட்டளை ஆதரிக்கப்படவில்லை: %{command}"
+agent_center.console_only: "இந்தக் கட்டளைக்கு ஊடாடும் Agent Center கன்சோல் தேவை." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "கட்டளையில் மேற்கோள் குறியை மூடவும்."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} என்பதற்கான மதிப்பு வழங்கப்படவில்லை."
+agent_center.duplicate_argument: "மதிப்புரு மீண்டும் வழங்கப்பட்டுள்ளது: %{argument}"
+agent_center.target_required: "இலக்கு அடையாளங்காட்டியைக் குறிப்பிடவும்."
+agent_center.invalid_version: "பதிப்பு ஒரு நேர்மறை முழு எண்ணாக இருக்க வேண்டும்."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} ஐப் புதுப்பிக்கவும் அல்லது அதன் சரியான பதிப்பைக் குறிப்பிடவும்."
+agent_center.work_required: "ஒரு பணி உருப்படியைத் தேர்ந்தெடுக்கவும் அல்லது --work <id> என்பதைக் குறிப்பிடவும்." # {Locked="--work","<id>"}
+agent_center.project_required: "ஒரு திட்டத்தைத் தேர்ந்தெடுக்கவும் அல்லது /project use <id> / --project <id> என்பதைக் குறிப்பிடவும்." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "எதிர்பாராத மதிப்புருக்கள்: %{arguments}"
+agent_center.empty_message: "ஒரு செய்தியை உள்ளிடவும்."
+agent_center.findings_required: "வழங்கல் அளவுகோலுடன் இணைக்கப்பட்டு, கோரப்பட்ட மாற்றத்தை விவரிக்கும் குறைந்தது ஒரு திருத்தக் குறிப்பு ஆப்ஜெக்ட்டை வழங்கவும்."
+agent_center.command_id_mutation_only: "நிலையை மாற்றும் கட்டளைகளுக்கு மட்டுமே --command-id செல்லுபடியாகும்." # {Locked="--command-id"}
+agent_center.confirmation_required: "சரியான இலக்கு, பதிப்புகள், வரம்பு மற்றும் விளைவுகளை மதிப்பாய்வு செய்யவும். செயலை மதிப்பாய்வு செய்து, பின்னர் --confirm என்பதைச் சேர்க்கவும்." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center கோரிக்கையை உருவாக்க முடியவில்லை." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center பதிலைப் படிக்க முடியவில்லை." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "பதிலில் புலம் இல்லை அல்லது செல்லாததாக உள்ளது: %{field}"
+agent_center.invalid_command_id: "--command-id என்பது UUID ஆக இருக்க வேண்டும்." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "கோரிக்கைகளுக்கான இணைப்பு நின்றுவிட்டது."
+agent_center.host_unavailable: "%{command} க்கான ஷெல் ஹோஸ்ட் அடாப்டர் கிடைக்கவில்லை. ஹோஸ்டின் விசைப்பலகைச் செயல்களைப் பயன்படுத்தவும்."

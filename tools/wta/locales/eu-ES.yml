@@ -267,3 +267,56 @@ system.config_update_failed: "Ezin izan da %{option} eguneratu: %{error}"
 system.yolo_disable_pending: "hornitzaileak ez du berretsi saioa pribilegiorik gabeko beharrezko egoeran dagoela"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Onarpen automatikoa desgaituta dago zure erakundearen politikagatik."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "%{model} modelo ezezaguna — idatzi /model erabilgarri dagoen zerrenda ikusteko."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Lan-elementuak"
+agent_center.activity: "Jarduera · Elkarrizketa"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Lana: %{work} | Proiektua: %{project}"
+agent_center.welcome: "Hautatu proiektu bat edo zehaztu /project use <id>. Idatzi helburu bat edo /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: bidali · Shift+Enter: lerro berria · Tab: osatu · F2: aldatu lana · Ctrl+C: irten · PgUp/PgDn: irakurri · Ctrl+End: azkena" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Arreta behar du: %{count}"
+agent_center.sending: "Kapturatutako eskaera bidaltzen…"
+agent_center.confirm_title: "Berretsi kapturatutako ekintza"
+agent_center.confirm_prompt: "Berrikusi helburu zehatza, bertsioak, esparrua eta ondorioak. Berrikusi ekintza. Ctrl+Enter: berretsi · Esc: utzi" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Ekintza bertan behera utzi da. Sartutako testua gordetzen da."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Eguneratzea: %{kind} · Lana: %{work}"
+agent_center.status_ok: "Eskaera behar bezala egin da."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Onartuta; prozesatzen jarraitzen du. Zain dagoen eragiketa: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Datuak sartu behar dira: %{id}. Ireki gordetako galdera."
+agent_center.status_conflict: "Helburua aldatu da. Freskatu komando berri bat bidali aurretik."
+agent_center.status_unsupported: "Eragiketa hau ez da onartzen."
+agent_center.status_error: "Eskaerak huts egin du. Berrikusi hutsegitearen xehetasunak."
+agent_center.service_unavailable: "Agent Center ez dago erabilgarri. Abiarazi wta center serve erabiliz. Exekutatu komandoa beste terminal batean." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Eskaerak huts egin du: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Gertaeren korrontea deskonektatu da."
+agent_center.unsupported: "Komandoa ez da onartzen: %{command}"
+agent_center.console_only: "Erabili komando hau Agent Center kontsolan." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Itxi komandoaren komatxoak."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} aukeraren balioa falta da."
+agent_center.duplicate_argument: "Argumentu errepikatua: %{argument}"
+agent_center.target_required: "Zehaztu helburuko identifikatzaile bat."
+agent_center.invalid_version: "Bertsioak zenbaki oso positiboa izan behar du."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Freskatu %{kind} %{id}, edo zehaztu haren bertsio zehatza."
+agent_center.work_required: "Hautatu lan-elementu bat edo zehaztu --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Hautatu proiektu bat edo zehaztu /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Espero ez ziren argumentuak: %{arguments}"
+agent_center.empty_message: "Idatzi mezu bat."
+agent_center.findings_required: "Eman gutxienez berrikuspen-aurkikuntzaren objektu bat, entrega-irizpide bati lotua eta eskatutako aldaketa adierazten duena."
+agent_center.command_id_mutation_only: "--command-id egoera aldatzen duten komandoetarako bakarrik da baliozkoa." # {Locked="--command-id"}
+agent_center.confirmation_required: "Berrikusi helburu zehatza, bertsioak, esparrua eta ondorioak. Berrikusi ekintza eta, ondoren, gehitu --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Ezin izan da Agent Center eskaera sortu." # {Locked="Agent Center"}
+agent_center.invalid_response: "Ezin izan da Agent Centerren erantzuna irakurri." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Erantzun-eremua falta da edo baliogabea da: %{field}"
+agent_center.invalid_command_id: "--command-id UUID bat izan behar da." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Eskaeren konexioa gelditu da."
+agent_center.host_unavailable: "Ez dago shell ostalariaren egokitzailerik %{command} komandorako. Erabili ostalariaren teklatuko ekintzak."

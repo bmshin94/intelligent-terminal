@@ -262,3 +262,57 @@ system.config_update_failed: "更新 %{option} 失敗：%{error}"
 system.yolo_disable_pending: "智能體提供者尚未確認所需的非特殊權限工作階段狀態"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: 您組織的原則已停用自動核准。"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "未知模型 %{model} — 輸入 /model 查看可用清單。"  # {Locked="%{model}","/model"}
+
+# Agent Center: AI agents; work items contain tasks and are not sessions.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "工作項目"
+agent_center.activity: "對話與活動"
+# %{work} and %{project} are identifiers.
+agent_center.header: "目前工作項目：%{work} · 專案：%{project}"
+agent_center.welcome: "使用 /project use <id> 選取專案，然後輸入目標或 /help。" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter：傳送 · Shift+Enter：換行 · Tab：補齊 · F2：切換工作項目 · PgUp/PgDn：閱讀 · Ctrl+End：最新內容 · Ctrl+C：結束" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "需要注意：%{count}"
+agent_center.sending: "正在傳送已記錄的要求…"
+agent_center.confirm_title: "確認已記錄的動作"
+agent_center.confirm_prompt: "請檢閱確切的目標、版本、範圍與影響。Ctrl+Enter：確認 · Esc：取消" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "已取消確認。輸入內容已保留。"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "%{kind} · 工作項目 %{work}"
+# Request success does not imply work completion or acceptance of a task/result.
+agent_center.status_ok: "要求成功。"
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "已接受；作業 %{id} 仍在等候處理。"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "%{id} 需要輸入。請開啟已記錄的問題。"
+agent_center.status_conflict: "目標已變更。請先重新整理目標，再提交新命令。"
+agent_center.status_unsupported: "此作業無法使用。"
+agent_center.status_error: "要求失敗。請檢閱失敗詳細資料。"
+agent_center.service_unavailable: "Agent Center 無法使用。請在另一個終端機中執行 wta center serve。" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center 要求失敗：%{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "即時更新串流已停止。"
+agent_center.unsupported: "此實驗功能不支援 %{command}。"
+agent_center.console_only: "此命令需要互動式 Agent Center 主控台。" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "請在提交前補齊引數的引號。"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "缺少引數：%{argument}。"
+agent_center.duplicate_argument: "引數重複：%{argument}"
+agent_center.target_required: "請指定目標識別碼。"
+agent_center.invalid_version: "版本必須為正整數。"
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "請重新整理 %{kind} %{id}，或指定其確切版本。"
+agent_center.work_required: "請選取工作項目或指定 --work <id>。" # {Locked="--work","<id>"}
+agent_center.project_required: "請使用 /project use <id> 選取專案，或指定 --project <id>。" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "未預期的引數：%{arguments}"
+agent_center.empty_message: "請輸入目標、問題或命令。"
+# A requested revision must be associated with a delivery criterion.
+agent_center.findings_required: "請提供至少一個修訂問題物件，明確關聯交付準則並說明要求的修改。"
+agent_center.command_id_mutation_only: "--command-id 僅適用於會變更狀態的命令。" # {Locked="--command-id"}
+agent_center.confirmation_required: "請檢閱確切的目標和版本，然後指定 --confirm。" # {Locked="--confirm"}
+agent_center.invalid_request: "無法建立 Agent Center 要求。" # {Locked="Agent Center"}
+agent_center.invalid_response: "無法讀取 Agent Center 回應。" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "服務檢視中的 %{field} 欄位遺失或無效。"
+agent_center.invalid_command_id: "--command-id 必須為 UUID。" # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "要求連線已停止。"
+agent_center.host_unavailable: "沒有可用於 %{command} 的殼層主機配接器。請使用主機的鍵盤動作。"

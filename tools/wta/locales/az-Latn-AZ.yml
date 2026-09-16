@@ -269,3 +269,56 @@ system.config_update_failed: "%{option} yenilənməsi uğursuz oldu: %{error}"
 system.yolo_disable_pending: "agent provayderi sessiyanın tələb olunan imtiyazsız vəziyyətini təsdiqləməyib"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Avtomatik təsdiqləmə təşkilatınızın siyasəti ilə deaktiv edilib."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Naməlum model %{model} — əlçatan siyahını görmək üçün /model yazın."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "İş elementləri"
+agent_center.activity: "Fəaliyyət · Söhbət"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "İş elementi: %{work} | Layihə: %{project}"
+agent_center.welcome: "Layihə seçin və ya /project use <id> göstərin. Məqsəd və ya /help yazın." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: göndər · Shift+Enter: yeni sətir · Tab: tamamla · F2: iş elementini dəyiş · Ctrl+C: çıx · PgUp/PgDn: oxu · Ctrl+End: ən son" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Diqqət tələb edir: %{count}"
+agent_center.sending: "Qeydə alınmış sorğu göndərilir…"
+agent_center.confirm_title: "Qeydə alınmış əməliyyatı təsdiqləyin"
+agent_center.confirm_prompt: "Dəqiq hədəfi, versiyaları, əhatə dairəsini və təsirləri nəzərdən keçirin. Əməliyyatı nəzərdən keçirin. Ctrl+Enter: təsdiqlə · Esc: ləğv et" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Əməliyyat ləğv edildi. Daxil etdiyiniz mətn saxlanılır."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Yeniləmə: %{kind} · İş elementi: %{work}"
+agent_center.status_ok: "Sorğu uğurlu oldu."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Qəbul edildi; emal hələ davam edir. Gözləyən əməliyyat: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Məlumat daxil edilməlidir: %{id}. Qeydə alınmış sualı açın."
+agent_center.status_conflict: "Hədəf dəyişib. Yeni əmr göndərməzdən əvvəl onu yeniləyin."
+agent_center.status_unsupported: "Bu əməliyyat dəstəklənmir."
+agent_center.status_error: "Sorğu uğursuz oldu. Xəta təfərrüatlarını nəzərdən keçirin."
+agent_center.service_unavailable: "Agent Center əlçatan deyil. Onu wta center serve ilə başladın. Əmri başqa terminalda icra edin." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Sorğu uğursuz oldu: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Hadisə axınının bağlantısı kəsildi."
+agent_center.unsupported: "Əmr dəstəklənmir: %{command}"
+agent_center.console_only: "Bu əmr interaktiv Agent Center konsolu tələb edir." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Əmrdəki dırnaq işarəsini bağlayın."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} üçün dəyər yoxdur."
+agent_center.duplicate_argument: "Arqument təkrarlandı: %{argument}"
+agent_center.target_required: "Hədəf identifikatorunu göstərin."
+agent_center.invalid_version: "Versiya müsbət tam ədəd olmalıdır."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} qeydini yeniləyin və ya dəqiq versiyasını göstərin."
+agent_center.work_required: "İş elementi seçin və ya --work <id> göstərin." # {Locked="--work","<id>"}
+agent_center.project_required: "Layihə seçin və ya /project use <id> / --project <id> göstərin." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Gözlənilməyən arqumentlər: %{arguments}"
+agent_center.empty_message: "Mesaj daxil edin."
+agent_center.findings_required: "Çatdırılma meyarına bağlı və tələb olunan dəyişikliyi göstərən ən azı bir düzəliş tapıntısı obyekti təqdim edin."
+agent_center.command_id_mutation_only: "--command-id yalnız vəziyyəti dəyişən əmrlər üçün keçərlidir." # {Locked="--command-id"}
+agent_center.confirmation_required: "Dəqiq hədəfi, versiyaları, əhatə dairəsini və təsirləri nəzərdən keçirin. Əməliyyatı nəzərdən keçirin, sonra --confirm əlavə edin." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center üçün sorğu yaratmaq mümkün olmadı." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center cavabını oxumaq mümkün olmadı." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Cavab sahəsi yoxdur və ya etibarsızdır: %{field}"
+agent_center.invalid_command_id: "--command-id UUID olmalıdır." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Sorğu bağlantısı dayandı."
+agent_center.host_unavailable: "%{command} üçün qabıq hostu adapteri mövcud deyil. Hostun klaviatura əməliyyatlarından istifadə edin."

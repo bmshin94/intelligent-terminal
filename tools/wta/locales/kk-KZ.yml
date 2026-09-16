@@ -267,3 +267,56 @@ system.config_update_failed: "%{option} жаңарту сәтсіз аяқтал
 system.yolo_disable_pending: "агент провайдері сеанстың талап етілген артықшылықсыз күйде екенін растаған жоқ"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Автоматты мақұлдау ұйымыңыздың саясаты арқылы өшірілген."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Белгісіз модель %{model} — қолжетімді тізімді көру үшін /model теріңіз."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Жұмыс элементтері"
+agent_center.activity: "Әрекеттер · Әңгіме"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Жұмыс элементі: %{work} | Жоба: %{project}"
+agent_center.welcome: "Жобаны таңдаңыз немесе /project use <id> көрсетіңіз. Мақсатты немесе /help теріңіз." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: жіберу · Shift+Enter: жаңа жол · Tab: толықтыру · F2: жұмыс элементін ауыстыру · Ctrl+C: шығу · PgUp/PgDn: оқу · Ctrl+End: ең соңғысы" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Назар аударуды қажет етеді: %{count}"
+agent_center.sending: "Тіркелген сұрау жіберілуде…"
+agent_center.confirm_title: "Тіркелген әрекетті растау"
+agent_center.confirm_prompt: "Нақты нысананы, нұсқаларды, ауқымды және әсерлерді тексеріңіз. Әрекетті қарап шығыңыз. Ctrl+Enter: растау · Esc: бас тарту" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Әрекеттен бас тартылды. Енгізген мәтініңіз сақталады."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Жаңарту: %{kind} · Жұмыс элементі: %{work}"
+agent_center.status_ok: "Сұрау сәтті орындалды."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Қабылданды; өңдеу әлі жалғасуда. Күтудегі операция: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Енгізу қажет: %{id}. Тіркелген сұрақты ашыңыз."
+agent_center.status_conflict: "Нысана өзгерді. Жаңа пәрмен жібермес бұрын оны жаңартыңыз."
+agent_center.status_unsupported: "Бұл операцияға қолдау көрсетілмейді."
+agent_center.status_error: "Сұрау орындалмады. Қате туралы мәліметтерді қараңыз."
+agent_center.service_unavailable: "Agent Center қолжетімсіз. Оны wta center serve пәрменімен іске қосыңыз. Пәрменді басқа терминалда орындаңыз." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Сұрау орындалмады: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Оқиғалар ағынының қосылымы үзілді."
+agent_center.unsupported: "Пәрменге қолдау көрсетілмейді: %{command}"
+agent_center.console_only: "Бұл пәрменге интерактивті Agent Center консолі қажет." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Пәрмендегі тырнақшаны жабыңыз."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} мәні жоқ."
+agent_center.duplicate_argument: "Аргумент қайталанды: %{argument}"
+agent_center.target_required: "Нысана идентификаторын көрсетіңіз."
+agent_center.invalid_version: "Нұсқа оң бүтін сан болуы керек."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} жазбасын жаңартыңыз немесе оның нақты нұсқасын көрсетіңіз."
+agent_center.work_required: "Жұмыс элементін таңдаңыз немесе --work <id> көрсетіңіз." # {Locked="--work","<id>"}
+agent_center.project_required: "Жобаны таңдаңыз немесе /project use <id> / --project <id> көрсетіңіз." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Күтпеген аргументтер: %{arguments}"
+agent_center.empty_message: "Хабар енгізіңіз."
+agent_center.findings_required: "Жеткізу шартымен байланысқан және сұралған өзгерісті сипаттайтын кемінде бір түзету ескертпесінің объектісін көрсетіңіз."
+agent_center.command_id_mutation_only: "--command-id тек күйді өзгертетін пәрмендер үшін жарамды." # {Locked="--command-id"}
+agent_center.confirmation_required: "Нақты нысананы, нұсқаларды, ауқымды және әсерлерді тексеріңіз. Әрекетті қарап шығып, --confirm қосыңыз." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center сұрауын құрастыру мүмкін болмады." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center жауабын оқу мүмкін болмады." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Жауап өрісі жоқ немесе жарамсыз: %{field}"
+agent_center.invalid_command_id: "--command-id UUID болуы керек." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Сұрау қосылымы тоқтады."
+agent_center.host_unavailable: "%{command} үшін қабық хостының адаптері қолжетімді емес. Хосттың пернетақта әрекеттерін пайдаланыңыз."

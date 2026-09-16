@@ -271,6 +271,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(CreateTerminalMuxXamlType);
 
         TEST_METHOD(CreateTerminalPage);
+        TEST_METHOD(AgentCenterLayoutStartsWithoutShells);
         TEST_METHOD(PaneContextPropagatesCaptureFailure);
         TEST_METHOD(AgentSessionRestoreRequiresPersistedBufferPath);
         TEST_METHOD(AgentPaneRestoreRecordRoundTrips);
@@ -511,6 +512,79 @@ namespace TerminalAppLocalTests
             VERIFY_IS_NOT_NULL(page);
         });
         VERIFY_SUCCEEDED(result);
+    }
+
+    void TabTests::AgentCenterLayoutStartsWithoutShells()
+    {
+        _windowProperties = winrt::make_self<winrt::TerminalApp::implementation::WindowProperties>();
+        _createContentManager();
+        const winrt::TerminalApp::WindowProperties props = *_windowProperties;
+        const winrt::TerminalApp::ContentManager manager = *_contentManager;
+        VERIFY_SUCCEEDED(RunOnUIThread([props, manager]() {
+            const auto page = winrt::make_self<winrt::TerminalApp::implementation::TerminalPage>(props, manager);
+            page->_tabContent = page->TabContent();
+            VERIFY_IS_FALSE(page->_agentCenterEnabled);
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->WindowWorkspaceHost().Visibility());
+
+            page->_agentCenterEnabled = true;
+            page->_InitializeAgentConsoleLayout();
+            VERIFY_ARE_EQUAL(0u, page->NumberOfTabs());
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->WindowWorkspaceHost().Visibility());
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_tabContent.Visibility());
+            VERIFY_IS_TRUE(page->AgentConsoleHost().Parent() == page->_tabContent.Parent());
+            VERIFY_ARE_EQUAL(0, Grid::GetRow(page->AgentConsoleHost()));
+            VERIFY_ARE_EQUAL(1, Grid::GetRow(page->_tabContent));
+
+            page->_SetAgentCenterShellVisible(true);
+            VERIFY_IS_FALSE(page->_agentCenterShellVisible);
+            VERIFY_ARE_EQUAL(0u, page->NumberOfTabs());
+            VERIFY_IS_FALSE(page->CanDragDrop());
+            VERIFY_IS_NULL(page->GetWindowLayout());
+
+            const auto settings = winrt::make_self<ControlUnitTests::MockControlSettings>();
+            const auto shellConnection = winrt::make_self<TestConnection>(
+                ::Microsoft::Console::Utils::CreateGuid(),
+                winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+            const auto consoleConnection = winrt::make_self<TestConnection>(
+                ::Microsoft::Console::Utils::CreateGuid(),
+                winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+            const winrt::Microsoft::Terminal::Control::TermControl shell{ *settings, *settings, *shellConnection };
+            const winrt::Microsoft::Terminal::Control::TermControl console{ *settings, *settings, *consoleConnection };
+            page->_agentConsole = console;
+            page->AgentConsoleHost().Children().Append(console);
+            const auto content = winrt::make<winrt::TerminalApp::implementation::TerminalPaneContent>(
+                Profile{}, std::shared_ptr<winrt::TerminalApp::implementation::TerminalSettingsCache>{}, shell);
+            const auto tab = winrt::make_self<winrt::TerminalApp::implementation::Tab>(std::make_shared<Pane>(content));
+            page->_tabs.Append(*tab);
+            page->_tabContent.Children().Append(tab->Content());
+
+            page->_SetAgentCenterShellVisible(true);
+            VERIFY_IS_TRUE(page->_agentCenterShellVisible);
+            page->_SetAgentCenterShellVisible(false);
+            VERIFY_ARE_EQUAL(Visibility::Collapsed, page->_tabContent.Visibility());
+            page->_SetAgentCenterShellVisible(true);
+            VERIFY_ARE_EQUAL(Visibility::Visible, page->_tabContent.Visibility());
+            VERIFY_ARE_EQUAL(1u, page->NumberOfTabs());
+            VERIFY_IS_TRUE(page->_agentConsole == console);
+            VERIFY_ARE_EQUAL(0u, shellConnection->CloseCount());
+            VERIFY_ARE_EQUAL(0u, consoleConnection->CloseCount());
+
+            const auto hwnd = reinterpret_cast<HWND>(static_cast<uintptr_t>(0x1234));
+            VERIFY_SUCCEEDED(page->Initialize(hwnd));
+            VERIFY_ARE_EQUAL(reinterpret_cast<uint64_t>(hwnd), console.OwningHwnd());
+
+            page->_settings = CascadiaSettings{ LR"({
+                "theme": "light",
+                "profiles": [{ "name": "appearance", "commandline": "never-launched.exe", "font": { "size": 19 } }]
+            })", {} };
+            page->_UpdateAgentConsoleSettings();
+            VERIFY_ARE_EQUAL(19.0f, console.Settings().FontSize());
+            VERIFY_ARE_EQUAL(ElementTheme::Light, console.RequestedTheme());
+            VERIFY_IS_TRUE(page->_agentConsole == console);
+            VERIFY_IS_TRUE(console.Connection() == *consoleConnection);
+            VERIFY_ARE_EQUAL(0u, consoleConnection->CloseCount());
+            tab->Shutdown();
+        }));
     }
 
     void TabTests::AgentSessionRestoreRequiresPersistedBufferPath()

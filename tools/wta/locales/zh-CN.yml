@@ -262,3 +262,57 @@ system.config_update_failed: "更新 %{option} 失败：%{error}"
 system.yolo_disable_pending: "智能体提供商尚未确认所需的非特权会话状态"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: 你所在组织的策略已禁用自动批准。"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "未知模型 %{model} — 键入 /model 查看可用列表。"  # {Locked="%{model}","/model"}
+
+# Agent Center: AI agents; work items contain tasks and are not sessions.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "工作项"
+agent_center.activity: "对话与活动"
+# %{work} and %{project} are identifiers.
+agent_center.header: "当前工作项：%{work} · 项目：%{project}"
+agent_center.welcome: "使用 /project use <id> 选择项目，然后输入目标或 /help。" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter：发送 · Shift+Enter：换行 · Tab：补全 · F2：切换工作项 · PgUp/PgDn：阅读 · Ctrl+End：最新内容 · Ctrl+C：退出" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "需要关注：%{count}"
+agent_center.sending: "正在发送已记录的请求…"
+agent_center.confirm_title: "确认已记录的操作"
+agent_center.confirm_prompt: "请检查确切的目标、版本、范围和影响。Ctrl+Enter：确认 · Esc：取消" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "已取消确认。输入内容已保留。"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "%{kind} · 工作项 %{work}"
+# Request success does not imply work completion or acceptance of a task/result.
+agent_center.status_ok: "请求成功。"
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "已接受；操作 %{id} 仍待处理。"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "%{id} 需要输入。请打开已记录的问题。"
+agent_center.status_conflict: "目标已更改。请先刷新目标，再提交新命令。"
+agent_center.status_unsupported: "此操作不可用。"
+agent_center.status_error: "请求失败。请检查失败详情。"
+agent_center.service_unavailable: "Agent Center 不可用。请在另一个终端中运行 wta center serve。" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center 请求失败：%{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "实时更新流已停止。"
+agent_center.unsupported: "此实验功能不支持 %{command}。"
+agent_center.console_only: "此命令需要交互式 Agent Center 控制台。" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "请在提交前补全参数的引号。"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "缺少参数：%{argument}。"
+agent_center.duplicate_argument: "参数重复：%{argument}"
+agent_center.target_required: "请指定目标标识符。"
+agent_center.invalid_version: "版本必须为正整数。"
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "请刷新 %{kind} %{id}，或指定其确切版本。"
+agent_center.work_required: "请选择工作项或指定 --work <id>。" # {Locked="--work","<id>"}
+agent_center.project_required: "请使用 /project use <id> 选择项目，或指定 --project <id>。" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "意外的参数：%{arguments}"
+agent_center.empty_message: "请输入目标、问题或命令。"
+# A requested revision must be associated with a delivery criterion.
+agent_center.findings_required: "请提供至少一个修订问题对象，明确关联交付标准并说明请求的修改。"
+agent_center.command_id_mutation_only: "--command-id 仅适用于会更改状态的命令。" # {Locked="--command-id"}
+agent_center.confirmation_required: "请检查确切的目标和版本，然后指定 --confirm。" # {Locked="--confirm"}
+agent_center.invalid_request: "无法构造 Agent Center 请求。" # {Locked="Agent Center"}
+agent_center.invalid_response: "无法读取 Agent Center 响应。" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "服务视图中的 %{field} 字段缺失或无效。"
+agent_center.invalid_command_id: "--command-id 必须为 UUID。" # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "请求连接已停止。"
+agent_center.host_unavailable: "没有可用于 %{command} 的外壳宿主适配器。请使用宿主的键盘操作。"

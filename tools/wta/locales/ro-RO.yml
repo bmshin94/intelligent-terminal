@@ -266,3 +266,56 @@ system.config_update_failed: "Nu s-a putut actualiza %{option}: %{error}"
 system.yolo_disable_pending: "furnizorul nu a confirmat starea neprivilegiată necesară a sesiunii"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Aprobarea automată este dezactivată de politica organizației dumneavoastră."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Model necunoscut %{model} — tastați /model pentru a vedea lista disponibilă."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Elemente de lucru"
+agent_center.activity: "Activitate · Conversație"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Lucru: %{work} | Proiect: %{project}"
+agent_center.welcome: "Selectați un proiect sau specificați /project use <id>. Tastați un obiectiv sau /help." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: trimite · Shift+Enter: linie nouă · Tab: completează · F2: schimbă elementul de lucru · Ctrl+C: ieșire · PgUp/PgDn: citire · Ctrl+End: cele mai recente" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Necesită atenție: %{count}"
+agent_center.sending: "Se trimite solicitarea capturată…"
+agent_center.confirm_title: "Confirmați acțiunea capturată"
+agent_center.confirm_prompt: "Verificați ținta exactă, versiunile, domeniul și efectele. Examinați acțiunea. Ctrl+Enter: confirmă · Esc: anulează" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Acțiune anulată. Textul introdus este păstrat."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Actualizare: %{kind} · Lucru: %{work}"
+agent_center.status_ok: "Solicitarea a reușit."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Acceptată; procesarea continuă. Operațiune în așteptare: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Este necesară introducerea datelor: %{id}. Deschideți întrebarea înregistrată."
+agent_center.status_conflict: "Ținta s-a schimbat. Reîmprospătați-o înainte de a trimite o comandă nouă."
+agent_center.status_unsupported: "Această operațiune nu este acceptată."
+agent_center.status_error: "Solicitarea a eșuat. Examinați detaliile erorii."
+agent_center.service_unavailable: "Agent Center nu este disponibil. Porniți-l cu wta center serve. Rulați comanda în alt terminal." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Solicitarea a eșuat: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Fluxul de evenimente s-a deconectat."
+agent_center.unsupported: "Comandă neacceptată: %{command}"
+agent_center.console_only: "Utilizați această comandă în consola Agent Center." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Închideți ghilimelele din comandă."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "Lipsește valoarea pentru %{argument}."
+agent_center.duplicate_argument: "Argument repetat: %{argument}"
+agent_center.target_required: "Specificați un identificator de destinație."
+agent_center.invalid_version: "Versiunea trebuie să fie un număr întreg pozitiv."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "Reîmprospătați %{kind} %{id} sau specificați versiunea exactă."
+agent_center.work_required: "Selectați un element de lucru sau specificați --work <id>." # {Locked="--work","<id>"}
+agent_center.project_required: "Selectați un proiect sau specificați /project use <id> / --project <id>." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Argumente neașteptate: %{arguments}"
+agent_center.empty_message: "Introduceți un mesaj."
+agent_center.findings_required: "Furnizați cel puțin un obiect cu o constatare de revizuire, asociat unui criteriu de livrare și care descrie modificarea solicitată."
+agent_center.command_id_mutation_only: "--command-id este valid doar pentru comenzile care modifică starea." # {Locked="--command-id"}
+agent_center.confirmation_required: "Verificați ținta exactă, versiunile, domeniul și efectele. Examinați acțiunea, apoi adăugați --confirm." # {Locked="--confirm"}
+agent_center.invalid_request: "Nu s-a putut crea solicitarea către Agent Center." # {Locked="Agent Center"}
+agent_center.invalid_response: "Nu s-a putut citi răspunsul Agent Center." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Câmp de răspuns lipsă sau nevalid: %{field}"
+agent_center.invalid_command_id: "--command-id trebuie să fie un UUID." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Conexiunea pentru solicitări s-a oprit."
+agent_center.host_unavailable: "Nu este disponibil niciun adaptor de gazdă shell pentru %{command}. Utilizați acțiunile de la tastatură ale gazdei."

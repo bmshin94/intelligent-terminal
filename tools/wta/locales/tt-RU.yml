@@ -267,3 +267,56 @@ system.config_update_failed: "%{option} яңарту уңышсыз булды: 
 system.yolo_disable_pending: "агент провайдеры сеансның таләп ителгәнчә өстен хокукларсыз булуын расламады"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: Автоматик раслау оешмагыз сәясәте буенча сүндерелгән."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "Билгесез модель %{model} — мөмкин булган исемлекне күрү өчен /model языгыз."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "Эш элементлары"
+agent_center.activity: "Эшчәнлек · Әңгәмә"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "Эш элементы: %{work} | Проект: %{project}"
+agent_center.welcome: "Проектны сайлагыз яки /project use <id> күрсәтегез. Максат яки /help языгыз." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: җибәрү · Shift+Enter: яңа юл · Tab: тулыландыру · F2: эш элементын алыштыру · Ctrl+C: чыгу · PgUp/PgDn: уку · Ctrl+End: иң соңгысы" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "Игътибар кирәк: %{count}"
+agent_center.sending: "Теркәлгән сорау җибәрелә…"
+agent_center.confirm_title: "Теркәлгән гамәлне раслау"
+agent_center.confirm_prompt: "Төгәл максатны, версияләрне, колачны һәм нәтиҗәләрне карап чыгыгыз. Гамәлне карап чыгыгыз. Ctrl+Enter: раслау · Esc: баш тарту" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "Гамәлдән баш тартылды. Керткән текстыгыз саклана."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "Яңарту: %{kind} · Эш элементы: %{work}"
+agent_center.status_ok: "Сорау уңышлы үтәлде."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "Кабул ителде; эшкәртү әле дәвам итә. Көтүдәге операция: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "Мәгълүмат кертү кирәк: %{id}. Теркәлгән сорауны ачыгыз."
+agent_center.status_conflict: "Максат үзгәрде. Яңа боерык җибәргәнче аны яңартыгыз."
+agent_center.status_unsupported: "Бу операция хупланмый."
+agent_center.status_error: "Сорау үтәлмәде. Хата турында мәгълүматны карап чыгыгыз."
+agent_center.service_unavailable: "Agent Center эшләми. Аны wta center serve белән эшләтеп җибәрегез. Боерыкны башка терминалда үтәгез." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — Сорау үтәлмәде: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "Вакыйгалар агымы белән тоташу өзелде."
+agent_center.unsupported: "Боерык хупланмый: %{command}"
+agent_center.console_only: "Бу боерыкны Agent Center консолендә кулланыгыз." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "Боерыктагы куштырнакны ябыгыз."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "%{argument} өчен кыйммәт юк."
+agent_center.duplicate_argument: "Аргумент кабатланган: %{argument}"
+agent_center.target_required: "Максат идентификаторын күрсәтегез."
+agent_center.invalid_version: "Версия уңай бөтен сан булырга тиеш."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} язмасын яңартыгыз яки аның төгәл версиясен күрсәтегез."
+agent_center.work_required: "Эш элементын сайлагыз яки --work <id> күрсәтегез." # {Locked="--work","<id>"}
+agent_center.project_required: "Проектны сайлагыз яки /project use <id> / --project <id> күрсәтегез." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "Көтелмәгән аргументлар: %{arguments}"
+agent_center.empty_message: "Хәбәр кертегез."
+agent_center.findings_required: "Тапшыру критерие белән бәйле һәм соралган үзгәрешне тасвирлаучы кимендә бер төзәтүгә кагылышлы тикшерү нәтиҗәсе объектын күрсәтегез."
+agent_center.command_id_mutation_only: "--command-id халәтне үзгәртә торган боерыклар өчен генә яраклы." # {Locked="--command-id"}
+agent_center.confirmation_required: "Төгәл максатны, версияләрне, колачны һәм нәтиҗәләрне карап чыгыгыз. Гамәлне карап чыгыгыз, аннары --confirm өстәгез." # {Locked="--confirm"}
+agent_center.invalid_request: "Agent Center өчен сорау төзеп булмады." # {Locked="Agent Center"}
+agent_center.invalid_response: "Agent Center җавабын укып булмады." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "Җавап кыры юк яки яраксыз: %{field}"
+agent_center.invalid_command_id: "--command-id UUID булырга тиеш." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "Сораулар тоташуы туктады."
+agent_center.host_unavailable: "%{command} өчен кабык хосты адаптеры юк. Хостның төймәсар гамәлләрен кулланыгыз."

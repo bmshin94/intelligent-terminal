@@ -24,6 +24,8 @@ futures = "0.3"
 unicode-width = "0.2"
 textwrap = "0.16"
 serde = { version = "1", features = ["derive"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
+schemars = "1"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Globalization",
@@ -66,3 +68,6 @@ strsim = "0.11"
 # direct dep does not change the resolved graph; only the `parsing` feature
 # is added on top of what those crates already enable.
 time = { version = "0.3", features = ["parsing"] }
+
+[build-dependencies]
+rust-i18n-support = "3"

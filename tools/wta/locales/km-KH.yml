@@ -282,3 +282,56 @@ system.config_update_failed: "បរាជ័យក្នុងការធ្�
 system.yolo_disable_pending: "អ្នកផ្តល់សេវាភ្នាក់ងារ AI មិនទាន់បានបញ្ជាក់ថាវគ្គស្ថិតក្នុងស្ថានភាពគ្មានសិទ្ធិពិសេសតាមតម្រូវការនៅឡើយទេ"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: ការអនុម័តដោយស្វ័យប្រវត្តិត្រូវបានបិទដោយគោលការណ៍របស់ស្ថាប័នអ្នក។"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "មិនស្គាល់ម៉ូដែល %{model} — វាយ /model ដើម្បីមើលបញ្ជីដែលមាន។"  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "ធាតុការងារ"
+agent_center.activity: "សកម្មភាព · ការសន្ទនា"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "ធាតុការងារ៖ %{work} | គម្រោង៖ %{project}"
+agent_center.welcome: "ជ្រើសរើសគម្រោង ឬបញ្ជាក់ /project use <id>។ វាយគោលដៅ ឬ /help។" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter៖ ផ្ញើ · Shift+Enter៖ បន្ទាត់ថ្មី · Tab៖ បំពេញ · F2៖ ប្ដូរធាតុការងារ · Ctrl+C៖ ចាកចេញ · PgUp/PgDn: អាន · Ctrl+End: ថ្មីបំផុត" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "ត្រូវការការយកចិត្តទុកដាក់: %{count}"
+agent_center.sending: "កំពុងផ្ញើសំណើដែលបានកត់ត្រា…"
+agent_center.confirm_title: "បញ្ជាក់សកម្មភាពដែលបានកត់ត្រា"
+agent_center.confirm_prompt: "ពិនិត្យគោលដៅជាក់លាក់ កំណែ វិសាលភាព និងផលប៉ះពាល់។ ពិនិត្យសកម្មភាព។ Ctrl+Enter៖ បញ្ជាក់ · Esc៖ បោះបង់" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "បានបោះបង់សកម្មភាព។ អត្ថបទដែលអ្នកបានបញ្ចូលត្រូវបានរក្សាទុក។"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "បច្ចុប្បន្នភាព៖ %{kind} · ធាតុការងារ៖ %{work}"
+agent_center.status_ok: "សំណើបានជោគជ័យ។"
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "បានទទួលយក ហើយនៅតែកំពុងដំណើរការ។ ប្រតិបត្តិការកំពុងរង់ចាំ៖ %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "ត្រូវការការបញ្ចូល៖ %{id}. បើកសំណួរដែលបានកត់ត្រា។"
+agent_center.status_conflict: "គោលដៅបានផ្លាស់ប្តូរ។ ផ្ទុកវាឡើងវិញមុននឹងផ្ញើពាក្យបញ្ជាថ្មី។"
+agent_center.status_unsupported: "ប្រតិបត្តិការនេះមិនត្រូវបានគាំទ្រទេ។"
+agent_center.status_error: "សំណើបានបរាជ័យ៖. ពិនិត្យព័ត៌មានលម្អិតនៃការបរាជ័យ។"
+agent_center.service_unavailable: "មិនអាចប្រើAgent Centerបានទេ។ ចាប់ផ្ដើមវាដោយប្រើ wta center serve។ ដំណើរការពាក្យបញ្ជាក្នុងស្ថានីយផ្សេងទៀត។" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — សំណើបានបរាជ័យ៖ %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "លំហូរព្រឹត្តិការណ៍ត្រូវបានផ្ដាច់។"
+agent_center.unsupported: "ពាក្យបញ្ជាមិនត្រូវបានគាំទ្រ៖ %{command}"
+agent_center.console_only: "ប្រើពាក្យបញ្ជានេះក្នុងកុងសូលAgent Center។" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "បិទសញ្ញាសម្រង់ក្នុងពាក្យបញ្ជា។"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "ខ្វះតម្លៃសម្រាប់ %{argument}។"
+agent_center.duplicate_argument: "អាគុយម៉ង់ស្ទួន៖ %{argument}"
+agent_center.target_required: "បញ្ជាក់អត្តសញ្ញាណសម្គាល់គោលដៅ។"
+agent_center.invalid_version: "កំណែត្រូវតែជាចំនួនគត់វិជ្ជមាន។"
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "ផ្ទុក %{kind} %{id} ឡើងវិញ ឬបញ្ជាក់កំណែជាក់លាក់របស់វា។"
+agent_center.work_required: "ជ្រើសរើសធាតុការងារ ឬបញ្ជាក់ --work <id>។" # {Locked="--work","<id>"}
+agent_center.project_required: "ជ្រើសរើសគម្រោង ឬបញ្ជាក់ /project use <id> / --project <id>។" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "អាគុយម៉ង់ដែលមិនរំពឹងទុក៖ %{arguments}"
+agent_center.empty_message: "បញ្ចូលសារ។"
+agent_center.findings_required: "ផ្តល់វត្ថុទិន្នន័យនៃលទ្ធផលពិនិត្យកែសម្រួលយ៉ាងហោចណាស់មួយ ដែលភ្ជាប់នឹងលក្ខខណ្ឌប្រគល់ និងពិពណ៌នាអំពីការផ្លាស់ប្តូរដែលបានស្នើ។"
+agent_center.command_id_mutation_only: "--command-id មានសុពលភាពសម្រាប់តែពាក្យបញ្ជាដែលផ្លាស់ប្ដូរស្ថានភាពប៉ុណ្ណោះ។" # {Locked="--command-id"}
+agent_center.confirmation_required: "ពិនិត្យគោលដៅជាក់លាក់ កំណែ វិសាលភាព និងផលប៉ះពាល់។ ពិនិត្យសកម្មភាព រួចបន្ថែម --confirm។" # {Locked="--confirm"}
+agent_center.invalid_request: "មិនអាចបង្កើតសំណើរបស់Agent Centerបានទេ។" # {Locked="Agent Center"}
+agent_center.invalid_response: "មិនអាចអានការឆ្លើយតបរបស់Agent Centerបានទេ។" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "ខ្វះវាលក្នុងការឆ្លើយតប ឬវាលមិនត្រឹមត្រូវ៖ %{field}"
+agent_center.invalid_command_id: "--command-id ត្រូវតែជា UUID។" # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "ការតភ្ជាប់សំណើបានឈប់។"
+agent_center.host_unavailable: "គ្មានអាដាប់ទ័រម៉ាស៊ីនមេសែលសម្រាប់ %{command} ទេ។ ប្រើសកម្មភាពក្តារចុចរបស់ម៉ាស៊ីនមេ។"

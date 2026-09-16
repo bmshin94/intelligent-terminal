@@ -265,3 +265,64 @@ system.config_update_failed: "[!!_Failed to update %{option}: %{error}_!!]"
 system.yolo_disable_pending: "[!!_the provider has not acknowledged the required nonprivileged session state_!!]"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: [!!_Automatic approval is disabled by your organization's policy._!!]"  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "[!!_Unknown model %{model} — type /model to see the available list._!!]"  # {Locked="%{model}","/model"}
+
+# Agent Center is the invariant product name. Work is a durable user-goal
+# record, not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "[!!_Ｗｏｒｋｓ_!!]"
+agent_center.activity: "[!!_Ｃｏｎｖｅｒｓａｔｉｏｎ ａｎｄ ａｃｔｉｖｉｔｙ_!!]"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "[!!_Ｃｕｒｒｅｎｔ ｗｏｒｋ: %{work} · Ｐｒｏｊｅｃｔ: %{project}_!!]"
+agent_center.welcome: "[!!_Ｃｈｏｏｓｅ ａ ｐｒｏｊｅｃｔ ｗｉｔｈ /project use <id>, ｔｈｅｎ ｅｎｔｅｒ ａ ｇｏａｌ ｏｒ /help._!!]" # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "[!!_Enter ｓｅｎｄ · Shift+Enter ｎｅｗｌｉｎｅ · Tab ｃｏｍｐｌｅｔｅ · F2 ｓｗｉｔｃｈ ｗｏｒｋ · PgUp/PgDn ｒｅａｄ · Ctrl+End ｌａｔｅｓｔ · Ctrl+C ｅｘｉｔ_!!]" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "[!!_Ｎｅｅｄｓ ａｔｔｅｎｔｉｏｎ: %{count}_!!]"
+agent_center.sending: "[!!_Ｓｅｎｄｉｎｇ ｔｈｅ ｃａｐｔｕｒｅｄ ｒｅｑｕｅｓｔ…_!!]"
+# The action preview pins the target, entity versions, scope and effects.
+agent_center.confirm_title: "[!!_Ｃｏｎｆｉｒｍ ｔｈｅ ｃａｐｔｕｒｅｄ ａｃｔｉｏｎ_!!]"
+agent_center.confirm_prompt: "[!!_Ｒｅｖｉｅｗ ｔｈｅ ｅｘａｃｔ ｔａｒｇｅｔ, ｖｅｒｓｉｏｎｓ, ｓｃｏｐｅ ａｎｄ ｅｆｆｅｃｔｓ. Ctrl+Enter ｃｏｎｆｉｒｍｓ; Esc ｃａｎｃｅｌｓ._!!]" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "[!!_Ｃｏｎｆｉｒｍａｔｉｏｎ ｃａｎｃｅｌｌｅｄ. Ｙｏｕｒ ｉｎｐｕｔ ｉｓ ｐｒｅｓｅｒｖｅｄ._!!]"
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "[!!_%{kind} · Ｗｏｒｋ %{work}_!!]"
+# Request success does NOT mean execution finished or a task/result was accepted.
+agent_center.status_ok: "[!!_Ｒｅｑｕｅｓｔ ｓｕｃｃｅｅｄｅｄ._!!]"
+# %{id} is an operation identifier. The service accepted the operation; it is still running.
+agent_center.status_pending: "[!!_Ａｃｃｅｐｔｅｄ; ｏｐｅｒａｔｉｏｎ %{id} ｉｓ ｓｔｉｌｌ ｐｅｎｄｉｎｇ._!!]"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "[!!_Ｉｎｐｕｔ ｒｅｑｕｉｒｅｄ ｆｏｒ %{id}. Ｏｐｅｎ ｔｈｅ ｒｅｃｏｒｄｅｄ ｑｕｅｓｔｉｏｎ._!!]"
+agent_center.status_conflict: "[!!_Ｔｈｅ ｔａｒｇｅｔ ｃｈａｎｇｅｄ. Ｒｅｆｒｅｓｈ ｉｔ ｂｅｆｏｒｅ ｓｕｂｍｉｔｔｉｎｇ ａ ｎｅｗ ｃｏｍｍａｎｄ._!!]"
+agent_center.status_unsupported: "[!!_Ｔｈｉｓ ｏｐｅｒａｔｉｏｎ ｉｓ ｕｎａｖａｉｌａｂｌｅ._!!]"
+agent_center.status_error: "[!!_Ｒｅｑｕｅｓｔ ｆａｉｌｅｄ. Ｒｅｖｉｅｗ ｔｈｅ ｆａｉｌｕｒｅ ｄｅｔａｉｌｓ._!!]"
+agent_center.service_unavailable: "[!!_Agent Center ｉｓ ｕｎａｖａｉｌａｂｌｅ. Ｒｕｎ wta center serve ｉｎ ａｎｏｔｈｅｒ ｔｅｒｍｉｎａｌ._!!]" # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "[!!_Agent Center ｒｅｑｕｅｓｔ ｆａｉｌｅｄ: %{method}_!!]" # {Locked="Agent Center"}
+agent_center.stream_failed: "[!!_Ｔｈｅ ｌｉｖｅ ｕｐｄａｔｅ ｓｔｒｅａｍ ｓｔｏｐｐｅｄ._!!]"
+agent_center.unsupported: "[!!_Ｔｈｉｓ ｅｘｐｅｒｉｍｅｎｔ ｄｏｅｓ ｎｏｔ ｓｕｐｐｏｒｔ %{command}._!!]"
+agent_center.console_only: "[!!_Ｔｈｉｓ ｃｏｍｍａｎｄ ｒｅｑｕｉｒｅｓ ａｎ ｉｎｔｅｒａｃｔｉｖｅ Agent Center Ｃｏｎｓｏｌｅ._!!]" # {Locked="Agent Center"}
+agent_center.unclosed_quote: "[!!_Ｃｌｏｓｅ ｔｈｅ ｑｕｏｔｅｄ ａｒｇｕｍｅｎｔ ｂｅｆｏｒｅ ｓｕｂｍｉｔｔｉｎｇ._!!]"
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "[!!_Ｍｉｓｓｉｎｇ ａｒｇｕｍｅｎｔ: %{argument}._!!]"
+agent_center.duplicate_argument: "[!!_Ｒｅｐｅａｔｅｄ ａｒｇｕｍｅｎｔ: %{argument}._!!]"
+agent_center.target_required: "[!!_Ｓｐｅｃｉｆｙ ｔｈｅ ｔａｒｇｅｔ ＩＤ._!!]"
+agent_center.invalid_version: "[!!_Ｖｅｒｓｉｏｎ ｍｕｓｔ ｂｅ ａ ｐｏｓｉｔｉｖｅ ｉｎｔｅｇｅｒ._!!]"
+# %{kind} is a service record type; %{id} is its opaque identifier.
+# The exact version guards the captured entity against intervening changes.
+agent_center.version_required: "[!!_Ｒｅｆｒｅｓｈ %{kind} %{id}, ｏｒ ｓｐｅｃｉｆｙ ｉｔｓ ｅｘａｃｔ ｖｅｒｓｉｏｎ._!!]"
+agent_center.work_required: "[!!_Ｓｅｌｅｃｔ ａ ｗｏｒｋ, ｏｒ ｓｐｅｃｉｆｙ --work <id>._!!]" # {Locked="--work","<id>"}
+agent_center.project_required: "[!!_Ｃｈｏｏｓｅ ａ ｐｒｏｊｅｃｔ ｗｉｔｈ /project use <id>, ｏｒ ｓｐｅｃｉｆｙ --project <id>._!!]" # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "[!!_Ｕｎｅｘｐｅｃｔｅｄ ａｒｇｕｍｅｎｔｓ: %{arguments}._!!]"
+agent_center.empty_message: "[!!_Ｅｎｔｅｒ ａ ｇｏａｌ, ｑｕｅｓｔｉｏｎ, ｏｒ ｃｏｍｍａｎｄ._!!]"
+# A revision finding states a requested change mapped to an explicit delivery criterion.
+agent_center.findings_required: "[!!_Ｐｒｏｖｉｄｅ ａｔ ｌｅａｓｔ ｏｎｅ ｃｒｉｔｅｒｉｏｎ-ｂｏｕｎｄ ｒｅｖｉｓｉｏｎ ｆｉｎｄｉｎｇ._!!]"
+# Mutation means a command that changes service state, not a biological mutation.
+agent_center.command_id_mutation_only: "[!!_--command-id ｉｓ ｏｎｌｙ ｖａｌｉｄ ｆｏｒ ａ ｍｕｔａｔｉｏｎ._!!]" # {Locked="--command-id"}
+agent_center.confirmation_required: "[!!_Ｓｐｅｃｉｆｙ --confirm ａｆｔｅｒ ｒｅｖｉｅｗｉｎｇ ｔｈｅ ｅｘａｃｔ ｔａｒｇｅｔ ａｎｄ ｖｅｒｓｉｏｎｓ._!!]" # {Locked="--confirm"}
+agent_center.invalid_request: "[!!_Ｕｎａｂｌｅ ｔｏ ｃｏｎｓｔｒｕｃｔ ｔｈｅ Agent Center ｒｅｑｕｅｓｔ._!!]" # {Locked="Agent Center"}
+agent_center.invalid_response: "[!!_Ｕｎａｂｌｅ ｔｏ ｒｅａｄ ｔｈｅ Agent Center ｒｅｓｐｏｎｓｅ._!!]" # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "[!!_Ｔｈｅ ｓｅｒｖｉｃｅ ｖｉｅｗ ｉｓ ｍｉｓｓｉｎｇ ａ ｖａｌｉｄ %{field}._!!]"
+agent_center.invalid_command_id: "[!!_--command-id ｍｕｓｔ ｂｅ ａ UUID._!!]" # {Locked="--command-id","UUID"}
+# Client request-processing task/channel closed, not an AI execution worker.
+agent_center.worker_stopped: "[!!_Ｔｈｅ ｒｅｑｕｅｓｔ ｃｏｎｎｅｃｔｉｏｎ ｈａｓ ｓｔｏｐｐｅｄ._!!]"
+# %{command} is a literal shell-presentation command. No host adapter is available;
+# suggest the host's keyboard actions without implying successful execution.
+agent_center.host_unavailable: "[!!_Ｎｏ ｓｈｅｌｌ ｈｏｓｔ ａｄａｐｔｅｒ ｉｓ ａｖａｉｌａｂｌｅ ｆｏｒ %{command}. Ｕｓｅ ｔｈｅ ｈｏｓｔ ｋｅｙｂｏａｒｄ ａｃｔｉｏｎｓ._!!]"

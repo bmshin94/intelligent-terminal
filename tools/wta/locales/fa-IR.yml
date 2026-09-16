@@ -267,3 +267,56 @@ system.config_update_failed: "به‌روزرسانی %{option} ناموفق ب�
 system.yolo_disable_pending: "ارائه‌دهندهٔ عامل هوش مصنوعی تأیید نکرده است که نشست در وضعیت الزامیِ بدون امتیاز قرار دارد"  # Shown after the localized failure prefix while prompts remain blocked until the AI agent provider confirms that its privileged session mode is off. Provider means an AI agent provider, not a network provider.
 system.provider_command_blocked_by_policy: "%{command}: تأیید خودکار طبق خط‌مشی سازمان شما غیرفعال است."  # {Locked="%{command}"} Shown when AllowAutomaticApproval blocks a provider-advertised privileged command.
 system.model_unknown: "مدل ناشناخته %{model} — برای دیدن فهرست در دسترس، /model را تایپ کنید."  # {Locked="%{model}","/model"}
+
+# Agent Center: "agent" means an AI agent. Work is a goal-directed work item,
+# not an agent session; a work item may contain multiple tasks.
+agent_center.title: "Agent Center" # {Locked}
+agent_center.works: "اقلام کاری"
+agent_center.activity: "فعالیت · گفتگو"
+# %{work} and %{project} are identifiers of the selected work item and project.
+agent_center.header: "قلم کاری: %{work} | پروژه: %{project}"
+agent_center.welcome: "یک پروژه انتخاب کنید یا /project use <id> را مشخص کنید. یک هدف یا /help را تایپ کنید." # {Locked="/project use","<id>","/help"}
+agent_center.input_help: "Enter: ارسال · Shift+Enter: خط جدید · Tab: تکمیل · F2: تغییر قلم کاری · Ctrl+C: خروج · PgUp/PgDn: خواندن · Ctrl+End: تازه‌ترین" # {Locked="Enter","Shift+Enter","Tab","F2","PgUp/PgDn","Ctrl+End","Ctrl+C"}
+agent_center.inbox_count: "نیازمند توجه: %{count}"
+agent_center.sending: "در حال ارسال درخواست ثبت‌شده…"
+agent_center.confirm_title: "تأیید اقدام ثبت‌شده"
+agent_center.confirm_prompt: "هدف دقیق، نسخه‌ها، محدوده و اثرات را بررسی کنید. اقدام را بررسی کنید. Ctrl+Enter: تأیید · Esc: لغو" # {Locked="Ctrl+Enter","Esc"}
+agent_center.confirm_cancelled: "اقدام لغو شد. متن واردشده شما حفظ می‌شود."
+# %{kind} is a protocol event kind; %{work} is a work item identifier.
+agent_center.background_update: "به‌روزرسانی: %{kind} · قلم کاری: %{work}"
+agent_center.status_ok: "درخواست موفق بود."
+# %{id} is an operation identifier, not a count.
+agent_center.status_pending: "پذیرفته شد؛ پردازش همچنان ادامه دارد. عملیات در انتظار: %{id}"
+# %{id} is an input request identifier.
+agent_center.status_needs_input: "ورودی لازم است: %{id}. پرسش ثبت‌شده را باز کنید."
+agent_center.status_conflict: "هدف تغییر کرده است. پیش از ارسال فرمان جدید آن را تازه‌سازی کنید."
+agent_center.status_unsupported: "این عملیات پشتیبانی نمی‌شود."
+agent_center.status_error: "درخواست ناموفق بود. جزئیات خطا را بررسی کنید."
+agent_center.service_unavailable: "Agent Center در دسترس نیست. آن را با wta center serve راه‌اندازی کنید. فرمان را در پایانه دیگری اجرا کنید." # {Locked="Agent Center","wta center serve"}
+# %{method} is the literal protocol method name.
+agent_center.request_failed: "Agent Center — درخواست ناموفق بود: %{method}" # {Locked="Agent Center"}
+agent_center.stream_failed: "اتصال جریان رویدادها قطع شد."
+agent_center.unsupported: "فرمان پشتیبانی نمی‌شود: %{command}"
+agent_center.console_only: "از این فرمان در کنسول Agent Center استفاده کنید." # {Locked="Agent Center"}
+agent_center.unclosed_quote: "علامت نقل‌قول را در فرمان ببندید."
+# %{argument} is a literal command-line option, including its leading dashes.
+agent_center.missing_argument: "مقدار %{argument} وارد نشده است."
+agent_center.duplicate_argument: "آرگومان تکراری: %{argument}"
+agent_center.target_required: "شناسهٔ هدف را مشخص کنید."
+agent_center.invalid_version: "نسخه باید یک عدد صحیح مثبت باشد."
+# %{kind} is a protocol object type; %{id} is its identifier.
+agent_center.version_required: "%{kind} %{id} را تازه‌سازی کنید یا نسخه دقیق آن را مشخص کنید."
+agent_center.work_required: "یک قلم کاری انتخاب کنید یا --work <id> را مشخص کنید." # {Locked="--work","<id>"}
+agent_center.project_required: "یک پروژه انتخاب کنید یا /project use <id> / --project <id> را مشخص کنید." # {Locked="/project use","--project","<id>"}
+agent_center.unexpected_arguments: "آرگومان‌های غیرمنتظره: %{arguments}"
+agent_center.empty_message: "پیامی وارد کنید."
+agent_center.findings_required: "حداقل یک شیء یافته بازبینی ارائه کنید که به معیار تحویل مرتبط باشد و تغییر درخواستی را شرح دهد."
+agent_center.command_id_mutation_only: "--command-id فقط برای فرمان‌هایی معتبر است که وضعیت را تغییر می‌دهند." # {Locked="--command-id"}
+agent_center.confirmation_required: "هدف دقیق، نسخه‌ها، محدوده و اثرات را بررسی کنید. اقدام را بررسی کنید، سپس --confirm را اضافه کنید." # {Locked="--confirm"}
+agent_center.invalid_request: "ایجاد درخواست Agent Center ممکن نشد." # {Locked="Agent Center"}
+agent_center.invalid_response: "خواندن پاسخ Agent Center ممکن نشد." # {Locked="Agent Center"}
+# %{field} is a literal protocol field name; the field is missing or has an invalid value.
+agent_center.missing_field: "فیلد پاسخ وجود ندارد یا نامعتبر است: %{field}"
+agent_center.invalid_command_id: "--command-id باید یک UUID باشد." # {Locked="--command-id","UUID"}
+agent_center.worker_stopped: "اتصال درخواست‌ها متوقف شده است."
+agent_center.host_unavailable: "هیچ سازگارکننده میزبان پوسته‌ای برای %{command} در دسترس نیست. از عملکردهای صفحه‌کلید میزبان استفاده کنید."

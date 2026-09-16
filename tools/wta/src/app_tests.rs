@@ -19420,6 +19420,8 @@ fn completed_tool_call_defaults_compact_and_expands_independently() {
 
 #[test]
 fn failed_completed_tool_keeps_bounded_diagnostic_preview() {
+    let _locale = crate::test_support::lock_locale();
+    rust_i18n::set_locale("en-US");
     let mut app = test_app();
     app.state = ConnectionState::Connected;
     app.current_tab_mut().completed_turns.push(CompletedTurn {
