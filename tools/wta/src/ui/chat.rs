@@ -4261,7 +4261,7 @@ mod tests {
     }
 
     #[test]
-    fn markdown_context_reflow_restores_overwide_grapheme() {
+    fn markdown_layout_reflow_restores_overwide_grapheme() {
         let tab = crate::app::TabSession::default();
         let key = AgentMarkdownKey::Active(0);
 
@@ -4271,7 +4271,7 @@ mod tests {
         assert_eq!(line_text(&narrow[0]), "● -");
         assert_eq!(line_text(&wide[0]), "● 界");
         assert_eq!(tab.agent_markdown.borrow().source(key), Some("界"));
-        assert_eq!(tab.agent_markdown.borrow().diagnostics().context_reflows, 1);
+        assert_eq!(tab.agent_markdown.borrow().diagnostics().layout_reflows, 1);
     }
 
     #[test]

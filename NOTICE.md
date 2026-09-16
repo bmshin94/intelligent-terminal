@@ -816,7 +816,7 @@ if it were canonical for the whole group.
 - **tracing-log** v0.2.0 -- [https://github.com/tokio-rs/tracing](https://github.com/tokio-rs/tracing) -- `MIT`
 - **tracing-subscriber** v0.3.23 -- [https://github.com/tokio-rs/tracing](https://github.com/tokio-rs/tracing) -- `MIT`
 - **triomphe** v0.1.15 -- [https://github.com/Manishearth/triomphe](https://github.com/Manishearth/triomphe) -- `Apache-2.0 OR MIT`
-- **tui-markdown** v0.3.9 -- [https://github.com/DinahK-2SO/tui-markdown/tree/94215e0624b3afac6b15cce25fdf25874e126b82](https://github.com/DinahK-2SO/tui-markdown/tree/94215e0624b3afac6b15cce25fdf25874e126b82) -- commit `94215e0624b3afac6b15cce25fdf25874e126b82` -- `Apache-2.0 OR MIT`
+- **tui-markdown** v0.3.9 -- [https://github.com/DinahK-2SO/tui-markdown/tree/114de9f3f7de077263b85492b61495007a847136](https://github.com/DinahK-2SO/tui-markdown/tree/114de9f3f7de077263b85492b61495007a847136) -- commit `114de9f3f7de077263b85492b61495007a847136` -- `Apache-2.0 OR MIT`
 - **typenum** v1.19.0 -- [https://github.com/paholg/typenum](https://github.com/paholg/typenum) -- `Apache-2.0 OR MIT`
 - **ucd-trie** v0.1.7 -- [https://github.com/BurntSushi/ucd-generate](https://github.com/BurntSushi/ucd-generate) -- `Apache-2.0 OR MIT`
 - **unicase** v2.9.0 -- [https://github.com/seanmonstar/unicase](https://github.com/seanmonstar/unicase) -- `Apache-2.0 OR MIT`

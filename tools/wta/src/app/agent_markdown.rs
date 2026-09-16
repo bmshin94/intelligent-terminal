@@ -2,9 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use ratatui::prelude::{Color, Line, Modifier, Span, Style};
-use tui_markdown::{
-    AlertKind, Options, RenderContext, StreamingMarkdown, StyleSheet, WorkCounters,
-};
+use tui_markdown::{AlertKind, Options, StreamingMarkdown, StyleSheet, WorkCounters};
 
 use super::ChatMessage;
 
@@ -118,7 +116,7 @@ pub(crate) enum AgentMarkdownKey {
 
 struct AgentMarkdownProjection {
     identity: u64,
-    context: RenderContext,
+    body_width: u16,
     document: StreamingMarkdown<AgentStyleSheet>,
     finished: bool,
     first_content_row: Option<usize>,
@@ -137,7 +135,7 @@ pub(crate) struct AgentMarkdownDiagnostics {
     pub rendered_events: u64,
     pub recomputed_blocks: u64,
     pub full_recomputations: u64,
-    pub context_reflows: u64,
+    pub layout_reflows: u64,
     pub materialized_rows: u64,
     pub projection_updates: u64,
 }
@@ -164,7 +162,7 @@ impl AgentMarkdownDiagnostics {
         self.full_recomputations = self
             .full_recomputations
             .saturating_add(work.full_recomputations);
-        self.context_reflows = self.context_reflows.saturating_add(work.context_reflows);
+        self.layout_reflows = self.layout_reflows.saturating_add(work.layout_reflows);
     }
 }
 
@@ -206,7 +204,7 @@ impl AgentMarkdownState {
                 if let Some(body_width) = self
                     .active
                     .get(&message_index)
-                    .map(|projection| projection.context.width())
+                    .map(|projection| projection.body_width)
                 {
                     self.prepare_row_count(
                         AgentMarkdownKey::Active(message_index),
@@ -272,7 +270,6 @@ impl AgentMarkdownState {
         body_width: u16,
         finished: bool,
     ) -> usize {
-        let context = RenderContext::new(body_width);
         let is_new = match key {
             AgentMarkdownKey::Active(index) => !self.active.contains_key(&index),
             AgentMarkdownKey::History {
@@ -285,8 +282,10 @@ impl AgentMarkdownState {
             self.next_identity = self.next_identity.wrapping_add(1);
             let projection = AgentMarkdownProjection {
                 identity,
-                context,
-                document: StreamingMarkdown::new(Options::new(AgentStyleSheet), context),
+                body_width,
+                document: StreamingMarkdown::new(
+                    Options::new(AgentStyleSheet).width(Some(body_width)),
+                ),
                 finished: false,
                 first_content_row: None,
                 prepared: None,
@@ -325,9 +324,9 @@ impl AgentMarkdownState {
 
         let before = projection.document.counters();
         let mut changed = false;
-        if projection.context != context {
-            projection.document.set_context(context);
-            projection.context = context;
+        if projection.body_width != body_width {
+            projection.document.set_width(Some(body_width));
+            projection.body_width = body_width;
             changed = true;
         }
 
@@ -497,4 +496,147 @@ fn prefixed_lines(
             Line::from(spans)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn markdown_unchanged_viewport_borrows_snapshot_and_retains_cache() {
+        for finished in [false, true] {
+            let mut state = AgentMarkdownState::default();
+            let key = AgentMarkdownKey::Active(0);
+            let source = "First **stable** paragraph.\n\nSecond paragraph.\n\nTail";
+            let row_count = state.prepare_row_count(key, source, 40, finished);
+            let first = state.materialize_rows(key, 0..3);
+            assert_eq!(first.len(), 3);
+
+            let projection = &state.active[&0];
+            let identity = projection.identity;
+            let source_ptr = projection.document.source().as_ptr();
+            let snapshot_ptr = projection.document.current().lines.as_ptr();
+            let cache_ptr = projection.prepared.as_ref().unwrap().lines.as_ptr();
+            let borrowed = projection.document.prepare_rows(1, 2);
+            assert_eq!(
+                borrowed.rows().as_ptr(),
+                projection.document.current().lines[1..3].as_ptr()
+            );
+            let before = state.diagnostics();
+
+            assert_eq!(
+                state.prepare_row_count(key, source, 40, finished),
+                row_count
+            );
+            assert_eq!(state.materialize_rows(key, 1..3), first[1..3]);
+
+            let projection = &state.active[&0];
+            assert_eq!(state.diagnostics(), before);
+            assert_eq!(projection.identity, identity);
+            assert_eq!(projection.finished, finished);
+            assert_eq!(projection.document.source().as_ptr(), source_ptr);
+            assert_eq!(projection.document.current().lines.as_ptr(), snapshot_ptr);
+            assert_eq!(
+                projection.prepared.as_ref().unwrap().lines.as_ptr(),
+                cache_ptr
+            );
+        }
+    }
+
+    #[test]
+    fn markdown_resize_without_tables_preserves_suffix_replay() {
+        let mut state = AgentMarkdownState::default();
+        let key = AgentMarkdownKey::Active(0);
+        let mut source = "A **confirmed** paragraph.\n\n".repeat(32);
+        source.push_str("Pending");
+        state.prepare(key, &source, 40, false);
+        let identity = state.identity(key);
+        let source_ptr = state.source(key).unwrap().as_ptr();
+        let before_resize = state.counters(key).unwrap();
+
+        let resized = state.prepare(key, &source, 12, false);
+        let after_resize = state.counters(key).unwrap();
+        let resize_work = after_resize - before_resize;
+        assert_eq!(resize_work.processed_source_bytes, 0);
+        assert_eq!(resize_work.parsed_events, 0);
+        assert_eq!(resize_work.rendered_events, 0);
+        assert_eq!(resize_work.recomputed_blocks, 0);
+        assert_eq!(resize_work.full_recomputations, 0);
+        assert_eq!(resize_work.layout_reflows, 1);
+        assert_eq!(state.identity(key), identity);
+        assert_eq!(state.source(key), Some(source.as_str()));
+        assert_eq!(state.source(key).unwrap().as_ptr(), source_ptr);
+        assert!(resized.iter().all(|line| line.width() <= 14));
+
+        let mut control = AgentMarkdownState::default();
+        control.prepare_row_count(key, &source, 12, false);
+        let before_control_append = control.counters(key).unwrap();
+        source.push_str(" **suffix**");
+        let appended = state.prepare(key, &source, 12, false);
+        control.prepare_row_count(key, &source, 12, false);
+        let append_work = state.counters(key).unwrap() - after_resize;
+        let control_work = control.counters(key).unwrap() - before_control_append;
+
+        assert!(append_work.processed_source_bytes > 0);
+        assert!(append_work.processed_source_bytes < source.len() as u64);
+        assert_eq!(
+            append_work.processed_source_bytes,
+            control_work.processed_source_bytes
+        );
+        assert_eq!(append_work.parsed_events, control_work.parsed_events);
+        assert_eq!(append_work.rendered_events, control_work.rendered_events);
+        assert_eq!(
+            append_work.recomputed_blocks,
+            control_work.recomputed_blocks
+        );
+        assert_eq!(append_work.full_recomputations, 0);
+        assert_eq!(append_work.layout_reflows, 0);
+        assert_eq!(state.identity(key), identity);
+        assert_eq!(state.source(key), Some(source.as_str()));
+        let mut fresh = AgentMarkdownState::default();
+        assert_eq!(appended, fresh.prepare(key, &source, 12, true));
+    }
+
+    #[test]
+    fn markdown_finished_resize_reuses_snapshot_when_moved_to_history() {
+        let mut state = AgentMarkdownState::default();
+        let active_key = AgentMarkdownKey::Active(0);
+        let history_key = AgentMarkdownKey::History {
+            turn_index: 3,
+            detail_index: 0,
+        };
+        let source = "A **completed** response with wrapping.\n\nSecond paragraph.";
+        state.prepare(active_key, source, 30, true);
+        let identity = state.identity(active_key);
+        let before_resize = state.counters(active_key).unwrap();
+        let resized = state.prepare(active_key, source, 12, true);
+        let resize_work = state.counters(active_key).unwrap() - before_resize;
+        assert_eq!(resize_work.processed_source_bytes, 0);
+        assert_eq!(resize_work.parsed_events, 0);
+        assert_eq!(resize_work.rendered_events, 0);
+        assert_eq!(resize_work.full_recomputations, 0);
+        assert_eq!(resize_work.layout_reflows, 1);
+        assert_eq!(state.identity(active_key), identity);
+
+        let projection = &state.active[&0];
+        let source_ptr = projection.document.source().as_ptr();
+        let snapshot_ptr = projection.document.current().lines.as_ptr();
+        let cache_ptr = projection.prepared.as_ref().unwrap().lines.as_ptr();
+        let before_move = state.diagnostics();
+        state.move_active_to_history(3, &[ChatMessage::Agent(source.into())]);
+        assert_eq!(state.identity(active_key), None);
+        assert_eq!(state.identity(history_key), identity);
+        assert_eq!(state.prepare(history_key, source, 12, true), resized);
+
+        let projection = &state.history[&(3, 0)];
+        assert!(projection.finished);
+        assert_eq!(projection.document.source(), source);
+        assert_eq!(projection.document.source().as_ptr(), source_ptr);
+        assert_eq!(projection.document.current().lines.as_ptr(), snapshot_ptr);
+        assert_eq!(
+            projection.prepared.as_ref().unwrap().lines.as_ptr(),
+            cache_ptr
+        );
+        assert_eq!(state.diagnostics(), before_move);
+    }
 }
