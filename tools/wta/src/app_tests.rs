@@ -13660,17 +13660,19 @@ mod input_mouse_cursor_tests {
             KeyCode::Char('y'),
             KeyModifiers::CONTROL,
         )));
-        assert_eq!(app.current_tab().input, "baseq");
+        assert_eq!(app.current_tab().input, concat!("base", "q"));
         app.text_selection.clear();
         render_to_text(&mut app, 80, 20);
         click(&mut app, area, 2, 0);
         insert_marker(&mut app);
-        assert_eq!(app.current_tab().input, "baqseq");
+        let mut expected = String::from(concat!("base", "q"));
+        expected.insert(2, 'q');
+        assert_eq!(app.current_tab().input, expected);
         app.handle_event(AppEvent::Key(KeyEvent::new(
             KeyCode::Char('z'),
             KeyModifiers::CONTROL,
         )));
-        assert_eq!(app.current_tab().input, "baseq");
+        assert_eq!(app.current_tab().input, concat!("base", "q"));
         app.handle_event(AppEvent::Key(KeyEvent::new(
             KeyCode::Char('z'),
             KeyModifiers::CONTROL,
@@ -13739,15 +13741,20 @@ mod input_mouse_cursor_tests {
         let (mut app, area) = draft("alpha bravo", 80, 20);
         click(&mut app, area, 3, 0);
         insert_marker(&mut app);
-        assert_eq!(app.current_tab().input, "alpqha bravo");
+        let mut expected = String::from("alpha bravo");
+        expected.insert(3, 'q');
+        assert_eq!(app.current_tab().input, expected);
     }
 
     #[test]
     fn explicit_rows_target_the_clicked_source_line() {
-        let (mut app, area) = draft("alpha\nbravo\ncharlie", 80, 20);
+        let source = concat!("alpha", "\n", "bravo", "\n", "charlie");
+        let (mut app, area) = draft(source, 80, 20);
         click(&mut app, area, 2, 1);
         insert_marker(&mut app);
-        assert_eq!(app.current_tab().input, "alpha\nbrqavo\ncharlie");
+        let mut expected = source.to_string();
+        expected.insert(8, 'q');
+        assert_eq!(app.current_tab().input, expected);
     }
 
     #[test]
@@ -13814,10 +13821,10 @@ mod input_mouse_cursor_tests {
 
     #[test]
     fn trailing_blank_cells_clamp_to_the_clicked_line_end() {
-        let (mut app, area) = draft("abc\ndef", 80, 20);
+        let (mut app, area) = draft(concat!("abc", "\n", "def"), 80, 20);
         click(&mut app, area, 20, 0);
         insert_marker(&mut app);
-        assert_eq!(app.current_tab().input, "abcq\ndef");
+        assert_eq!(app.current_tab().input, concat!("abc", "q", "\n", "def"));
     }
 
     #[test]
@@ -13851,12 +13858,14 @@ mod input_mouse_cursor_tests {
         click(&mut app, area, 2, 0);
         assert!(!app.current_tab().input_all_selected);
         insert_marker(&mut app);
-        assert_eq!(app.current_tab().input, "alqpha bravo");
+        let mut expected = String::from("alpha bravo");
+        expected.insert(2, 'q');
+        assert_eq!(app.current_tab().input, expected);
     }
 
     #[test]
     fn clicking_resets_vertical_column_intent() {
-        let (mut app, area) = draft("alpha\nbravo", 80, 20);
+        let (mut app, area) = draft(concat!("alpha", "\n", "bravo"), 80, 20);
         app.current_tab_mut().input_vertical_goal = Some((80, 4));
         click(&mut app, area, 1, 0);
         assert_eq!(app.current_tab().cursor_pos, 1);
@@ -13946,7 +13955,7 @@ mod input_mouse_cursor_tests {
     }
 
     #[test]
-    fn noneditable_or_unfocused_contexts_do_not_move_the_caret() {
+    fn non_editable_or_unfocused_contexts_do_not_move_the_caret() {
         for context in [
             "help",
             "model",
