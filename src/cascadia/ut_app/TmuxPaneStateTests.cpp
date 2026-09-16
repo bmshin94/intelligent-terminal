@@ -21,6 +21,8 @@ namespace TerminalAppUnitTests
         TEST_METHOD(MeasuresFullClientGridWithoutInventedOuterBorders);
         TEST_METHOD(WaitsForFinitePositiveClientAndFontDimensions);
         TEST_METHOD(ClampsClientGridToSupportedLimits);
+        TEST_METHOD(ParsesSnapshotDimensionsAlongsideCursor);
+        TEST_METHOD(RejectsInconsistentSnapshotDimensions);
     };
 
     void TmuxPaneStateTests::AcceptsUnsetAlternateCursorFromRealTmux()
@@ -125,5 +127,25 @@ namespace TerminalAppUnitTests
         const auto tiny = MeasureClientSize(1, 1, 10, 20);
         VERIFY_ARE_EQUAL(1u, tiny->columns);
         VERIFY_ARE_EQUAL(1u, tiny->rows);
+    }
+
+    void TmuxPaneStateTests::ParsesSnapshotDimensionsAlongsideCursor()
+    {
+        const auto snapshot = ParsePaneSnapshotState("80 24 69 0 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1");
+        VERIFY_ARE_EQUAL(80u, snapshot.dimensions.columns);
+        VERIFY_ARE_EQUAL(24u, snapshot.dimensions.rows);
+        VERIFY_ARE_EQUAL(69u, snapshot.pane.cursor.x);
+        const auto wrapped = ParsePaneSnapshotState("80 24 80 0 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1");
+        VERIFY_ARE_EQUAL(80u, wrapped.pane.cursor.x);
+    }
+
+    void TmuxPaneStateTests::RejectsInconsistentSnapshotDimensions()
+    {
+        VERIFY_THROWS(ParsePaneSnapshotState("0 24 0 0 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1"), ProtocolError);
+        VERIFY_THROWS(ParsePaneSnapshotState("80 0 0 0 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1"), ProtocolError);
+        VERIFY_THROWS(ParsePaneSnapshotState("32768 24 0 0 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1"), ProtocolError);
+        VERIFY_THROWS(ParsePaneSnapshotState("80 24 81 0 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1"), ProtocolError);
+        VERIFY_THROWS(ParsePaneSnapshotState("80 24 0 24 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1"), ProtocolError);
+        VERIFY_THROWS(ParsePaneSnapshotState("80 24 0 0 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 24 1"), ProtocolError);
     }
 }

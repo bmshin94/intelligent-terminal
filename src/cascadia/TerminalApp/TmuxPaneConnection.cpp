@@ -53,10 +53,19 @@ namespace winrt::TerminalApp::implementation
 
     void TmuxPaneConnection::Resize(const uint32_t rows, const uint32_t columns)
     {
+        // ControlCore calls Resize while holding its terminal lock. Never take
+        // _outputMutex here: output delivery acquires those locks in reverse.
+        _viewportSize.store((static_cast<uint64_t>(rows) << 32) | columns);
         if (State() < ConnectionState::Closing && _resize && rows && columns)
         {
             _resize(rows, columns);
         }
+    }
+
+    bool TmuxPaneConnection::IsViewportReady(const uint32_t rows, const uint32_t columns) const noexcept
+    {
+        return rows && columns && _started.load() && State() < ConnectionState::Closing &&
+               _viewportSize.load() == ((static_cast<uint64_t>(rows) << 32) | columns);
     }
 
     void TmuxPaneConnection::Close()

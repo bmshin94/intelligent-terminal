@@ -705,7 +705,12 @@ namespace winrt::TerminalApp::implementation
                     self->_input(id, input);
                 }
             },
-            nullptr);
+            [weak = weak_from_this(), id](uint32_t, uint32_t) {
+                if (const auto self = weak.lock())
+                {
+                    self->_post([id](auto& owner) { owner._hydrateIfReady(id); });
+                }
+            });
         const auto profile = page->_settings.GetProfileForArgs(NewTerminalArgs{});
         const auto settings = Settings::TerminalSettings::CreateWithProfile(page->_settings, profile);
         settings.DefaultSettings()->InitialCols(gsl::narrow<int32_t>(columns));
@@ -729,6 +734,7 @@ namespace winrt::TerminalApp::implementation
                     it->second.initialized = true;
                     self->_updateDimensions(it->second, it->second.columns, it->second.rows);
                     self->_scheduleResize();
+                    self->_post([id](auto& owner) { owner._hydrateIfReady(id); });
                 }
             }
         });
@@ -959,15 +965,11 @@ namespace winrt::TerminalApp::implementation
 
         for (const auto& [id, view] : _panes)
         {
-            bool hydrate;
             {
                 std::lock_guard lock{ view.stream->mutex };
-                hydrate = !view.stream->ready && !view.stream->hydrating;
+                view.stream->awaitingInventory = false;
             }
-            if (hydrate)
-            {
-                _hydrate(id, view.stream);
-            }
+            _hydrateIfReady(id);
         }
         if (changed)
         {
@@ -990,6 +992,13 @@ namespace winrt::TerminalApp::implementation
 
     void TmuxController::_hydrate(const Id id, const std::shared_ptr<Stream>& stream)
     {
+        const auto& view = _panes.at(id);
+        const auto rows = view.rows;
+        const auto columns = view.columns;
+        if (!view.initialized || !stream->connection->IsViewportReady(rows, columns))
+        {
+            return;
+        }
         uint64_t generation;
         {
             std::lock_guard lock{ stream->mutex };
@@ -1006,11 +1015,11 @@ namespace winrt::TerminalApp::implementation
             stream->ready = false;
             stream->captured = false;
             stream->backlog.clear();
-            stream->state.clear();
+            stream->state.reset();
             stream->saved.clear();
             stream->current.clear();
         }
-        auto capture = [weak = weak_from_this(), stream, generation](const Event& event, const int part) {
+        auto capture = [weak = weak_from_this(), id, stream, generation, rows, columns](const Event& event, const int part) {
             const auto self = weak.lock();
             if (!self || self->_stopped || self->_failed)
             {
@@ -1032,7 +1041,7 @@ namespace winrt::TerminalApp::implementation
                 }
                 if (part == 0)
                 {
-                    stream->state = event.text;
+                    stream->state = Protocol::ParsePaneSnapshotState(event.text);
                 }
                 else if (part == 1)
                 {
@@ -1045,17 +1054,15 @@ namespace winrt::TerminalApp::implementation
                 }
                 else
                 {
-                    self->_finishHydration(stream, event.text);
+                    self->_post([id, stream, generation, rows, columns, pending = event.text](auto& owner) {
+                        owner._completeHydration(id, stream, generation, rows, columns, pending);
+                    });
                 }
-            }
-            if (part == 3)
-            {
-                stream->connection->SetState(ConnectionState::Connected);
             }
         };
         std::vector<std::pair<std::string, ResponseHandler>> commands;
         commands.emplace_back(fmt::format(
-                                  "display-message -p -t %{} '#{{cursor_x}} #{{cursor_y}} #{{alternate_on}} #{{alternate_saved_x}} #{{alternate_saved_y}} #{{cursor_flag}} #{{insert_flag}} #{{keypad_cursor_flag}} #{{keypad_flag}} #{{mouse_standard_flag}} #{{mouse_button_flag}} #{{mouse_any_flag}} #{{mouse_utf8_flag}} #{{mouse_sgr_flag}} #{{scroll_region_upper}} #{{scroll_region_lower}} #{{wrap_flag}}'",
+                                  "display-message -p -t %{} '#{{pane_width}} #{{pane_height}} #{{cursor_x}} #{{cursor_y}} #{{alternate_on}} #{{alternate_saved_x}} #{{alternate_saved_y}} #{{cursor_flag}} #{{insert_flag}} #{{keypad_cursor_flag}} #{{keypad_flag}} #{{mouse_standard_flag}} #{{mouse_button_flag}} #{{mouse_any_flag}} #{{mouse_utf8_flag}} #{{mouse_sgr_flag}} #{{scroll_region_upper}} #{{scroll_region_lower}} #{{wrap_flag}}'",
                                   id),
                               [capture](const Event& event) { capture(event, 0); });
         commands.emplace_back(fmt::format("capture-pane -aepqCJN -S -2000 -t %{}", id), [capture](const Event& event) { capture(event, 1); });
@@ -1064,17 +1071,97 @@ namespace winrt::TerminalApp::implementation
         _sendBatch(std::move(commands), true);
     }
 
+    void TmuxController::_hydrateIfReady(const Id id)
+    {
+        const auto it = _panes.find(id);
+        if (it == _panes.end() || _failed || _stopped || _exiting)
+        {
+            return;
+        }
+        const auto& view = it->second;
+        if (!view.initialized || !view.stream->connection->IsViewportReady(view.rows, view.columns))
+        {
+            return;
+        }
+        {
+            std::lock_guard lock{ view.stream->mutex };
+            if (view.stream->ready || view.stream->hydrating || view.stream->awaitingInventory)
+            {
+                return;
+            }
+        }
+        _hydrate(id, view.stream);
+    }
+
+    void TmuxController::_completeHydration(const Id id, const std::shared_ptr<Stream>& stream, const uint64_t generation, const uint32_t rows, const uint32_t columns, const std::string_view pending)
+    {
+        const auto it = _panes.find(id);
+        if (it == _panes.end() || it->second.stream != stream || _failed || _stopped || _exiting)
+        {
+            return;
+        }
+        bool retry = false;
+        bool refresh = false;
+        {
+            std::lock_guard lock{ stream->mutex };
+            if (stream->generation != generation || !stream->hydrating)
+            {
+                return;
+            }
+            const auto& view = it->second;
+            if (!stream->state)
+            {
+                throw Protocol::ProtocolError{ "Missing tmux snapshot state" };
+            }
+            refresh = stream->state->dimensions != Protocol::ClientSize{ columns, rows };
+            if (refresh || view.rows != rows || view.columns != columns || !stream->connection->IsViewportReady(rows, columns))
+            {
+                ++stream->generation;
+                stream->hydrating = false;
+                stream->captured = false;
+                stream->attempts = 0;
+                stream->backlog.clear();
+                stream->awaitingInventory = refresh;
+                retry = true;
+            }
+            else
+            {
+                // Apply on the UI thread after its resize has completed, so the
+                // captured coordinates cannot be clamped to a temporary grid.
+                _finishHydration(stream, pending);
+            }
+        }
+        if (retry)
+        {
+            if (refresh)
+            {
+                Refresh();
+            }
+            else
+            {
+                _hydrateIfReady(id);
+            }
+        }
+        else
+        {
+            stream->connection->SetState(ConnectionState::Connected);
+        }
+    }
+
     void TmuxController::_finishHydration(const std::shared_ptr<Stream>& stream, const std::string_view pending)
     {
-        const auto state = Protocol::ParsePaneState(stream->state);
-        auto output = Protocol::RestorePaneState(state, stream->saved, stream->current);
+        if (!stream->state)
+        {
+            throw Protocol::ProtocolError{ "Missing tmux snapshot state" };
+        }
+        auto output = Protocol::RestorePaneState(stream->state->pane, stream->saved, stream->current);
         output.append(Protocol::DecodeOctal(pending));
         output.append(stream->backlog);
         stream->connection->WriteOutput(output);
         stream->backlog.clear();
         stream->saved.clear();
         stream->current.clear();
-        stream->state.clear();
+        stream->state.reset();
         stream->captured = false;
         stream->hydrating = false;
         stream->ready = true;

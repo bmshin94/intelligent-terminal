@@ -6,6 +6,7 @@
 #include "Pane.h"
 #include "Tab.h"
 #include "TmuxPaneConnection.h"
+#include "TmuxPaneState.h"
 #include "TmuxProtocol.h"
 #include "TmuxProcess.h"
 
@@ -54,11 +55,12 @@ namespace winrt::TerminalApp::implementation
             bool ready = false;
             bool captured = false;
             bool hydrating = false;
+            bool awaitingInventory = false;
             uint32_t attempts = 0;
             uint64_t generation = 0;
             std::string current;
             std::string saved;
-            std::string state;
+            std::optional<::Microsoft::Terminal::Tmux::PaneSnapshotState> state;
             std::string backlog;
         };
 
@@ -100,6 +102,8 @@ namespace winrt::TerminalApp::implementation
         std::shared_ptr<Pane> _buildLayout(const Layout& layout);
         void _collectLeaves(const Layout& layout, std::unordered_map<Id, std::pair<uint32_t, uint32_t>>& leaves) const;
         void _hydrate(Id id, const std::shared_ptr<Stream>& stream);
+        void _hydrateIfReady(Id id);
+        void _completeHydration(Id id, const std::shared_ptr<Stream>& stream, uint64_t generation, uint32_t rows, uint32_t columns, std::string_view pending);
         void _finishHydration(const std::shared_ptr<Stream>& stream, std::string_view pending);
         void _input(Id id, std::string_view bytes);
         void _focus(Id id);

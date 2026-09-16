@@ -100,6 +100,12 @@ screens entered without saving a cursor. This is not full iTerm2 state parity: s
 does not expose (including bracketed-paste state on current supported releases),
 tab stops, and some extended keyboard modes are not reconstructed on attachment.
 Modes changed by subsequent application output work through the normal VT parser.
+Initial pane capture waits until the local terminal has initialized at the backend's
+actual row/column dimensions. The captured dimensions and native viewport are
+checked again before applying the snapshot on the UI thread; a resize during
+capture triggers a fresh snapshot rather than clamping the cursor to a temporary
+grid. Cursor positions inside an edited command line are preserved, not forced
+to the end of the prompt.
 
 The initial implementation supports ordinary tiled layouts. Mouse divider dragging,
 local pane creation, pane/tab transfer between native windows, local assistant panes,

@@ -354,6 +354,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(TmuxHydrationAcceptsUnsetSavedCursor);
         TEST_METHOD(TmuxResizeWaitsForInitializedFontAndRefreshesInventory);
         TEST_METHOD(TmuxInitialAttachSchedulesResizeWithoutConsumingCommandResponses);
+        TEST_METHOD(TmuxSnapshotRejectsViewportChangesDuringCapture);
         TEST_METHOD(BuildStartupActionsContentPreservesAgentFirstPaneOwnership);
         TEST_METHOD(AgentPaneTransferIdentityRoundTripsWithContent);
         TEST_METHOD(AgentPaneTransferIdentityIsNotPersistedByDefault);
@@ -2674,29 +2675,47 @@ namespace TerminalAppLocalTests
             winrt::guid{ L"{6239a42c-1111-49a3-80bd-e8fdd045185c}" },
             winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
         const auto page = _commonSetup(*connection);
-        TestOnUIThread([&]() {
-            using Controller = winrt::TerminalApp::implementation::TmuxController;
-            using Event = ::Microsoft::Terminal::Tmux::Event;
-            const auto controller = std::make_shared<Controller>(*page);
-            page->_tmuxCommandline = L"test-protocol";
-            page->_tmuxController = controller;
-            controller->_initialResponse = true;
-            std::vector<std::string> commands;
-            controller->_writeCommand = [&](std::string command) { commands.emplace_back(std::move(command)); };
-            auto cleanup = wil::scope_exit([&]() {
-                controller->Stop();
+        using Controller = winrt::TerminalApp::implementation::TmuxController;
+        std::shared_ptr<Controller> controller;
+        std::shared_ptr<Pane> root;
+        std::vector<std::string> commands;
+        auto cleanup = wil::scope_exit([&]() {
+            RunOnUIThread([&]() {
+                if (controller)
+                {
+                    controller->Stop();
+                }
+                winrt::Windows::UI::Xaml::Window::Current().Content(nullptr);
+                if (root)
+                {
+                    root->Shutdown();
+                }
                 for (const auto& tab : page->_tabs)
                 {
                     tab.Shutdown();
                 }
                 page->_tmuxController.reset();
             });
+        });
+        TestOnUIThread([&]() {
+            controller = std::make_shared<Controller>(*page);
+            page->_tmuxCommandline = L"test-protocol";
+            page->_tmuxController = controller;
+            controller->_initialResponse = true;
+            controller->_writeCommand = [&](std::string command) { commands.emplace_back(std::move(command)); };
             controller->_panes.emplace(0, controller->_createPane(0, 80, 24));
-            const auto stream = controller->_panes.at(0).stream;
-            controller->_hydrate(0, stream);
+            root = controller->_panes.at(0).pane;
+            controller->_hydrateIfReady(0);
+            VERIFY_IS_TRUE(commands.empty());
+            winrt::Windows::UI::Xaml::Window::Current().Content(root->GetRootElement());
+            winrt::Windows::UI::Xaml::Window::Current().Activate();
+        });
+        _waitForContentTransferReviewUI([&]() { return !commands.empty(); });
+        TestOnUIThread([&]() {
+            using Event = ::Microsoft::Terminal::Tmux::Event;
             VERIFY_ARE_EQUAL(size_t{ 1 }, commands.size());
             for (const auto text : {
-                     "29 1 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1",
+                     "80 24 29 1 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1",
                      "",
                      "shell prompt",
                      "" })
@@ -2708,6 +2727,11 @@ namespace TerminalAppLocalTests
                 response.text = text;
                 controller->_handleEvent(response);
             }
+            VERIFY_IS_FALSE(controller->_panes.at(0).stream->ready);
+        });
+        _waitForContentTransferReviewUI([&]() { return controller->_panes.at(0).stream->ready; });
+        TestOnUIThread([&]() {
+            const auto stream = controller->_panes.at(0).stream;
             VERIFY_IS_TRUE(stream->ready);
             VERIFY_IS_FALSE(stream->hydrating);
             VERIFY_IS_FALSE(controller->_failed);
@@ -2719,6 +2743,46 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(commands.back().find("send-keys -H -t %0 6c 73 0d") != std::string::npos);
             const auto& view = controller->_panes.at(0);
             VERIFY_IS_TRUE(view.pane->GetRootElement().Background() == view.control.BackgroundBrush());
+        });
+    }
+
+    void TabTests::TmuxSnapshotRejectsViewportChangesDuringCapture()
+    {
+        const auto connection = winrt::make_self<TestConnection>(
+            winrt::guid{ L"{6239a42c-1111-49a3-80bd-e8fdd045185c}" },
+            winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+        const auto page = _commonSetup(*connection);
+        TestOnUIThread([&]() {
+            const auto controller = std::make_shared<winrt::TerminalApp::implementation::TmuxController>(*page);
+            page->_tmuxCommandline = L"test-protocol";
+            page->_tmuxController = controller;
+            auto cleanup = wil::scope_exit([&]() {
+                controller->Stop();
+                page->_GetFocusedTabImpl()->Shutdown();
+                page->_tmuxController.reset();
+            });
+            controller->_panes.emplace(0, controller->_createPane(0, 80, 24));
+            const auto stream = controller->_panes.at(0).stream;
+            stream->state = ::Microsoft::Terminal::Tmux::ParsePaneSnapshotState(
+                "80 24 69 0 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1");
+            stream->generation = 1;
+            stream->hydrating = true;
+            stream->captured = true;
+            stream->current = "old snapshot";
+            controller->_completeHydration(0, stream, 1, 24, 80, {});
+            VERIFY_IS_FALSE(stream->ready);
+            VERIFY_IS_FALSE(stream->hydrating);
+            VERIFY_ARE_EQUAL(uint64_t{ 2 }, stream->generation);
+
+            stream->generation = 3;
+            stream->hydrating = true;
+            stream->state = ::Microsoft::Terminal::Tmux::ParsePaneSnapshotState(
+                "90 24 69 0 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1");
+            controller->_completeHydration(0, stream, 3, 24, 80, {});
+            VERIFY_IS_TRUE(stream->awaitingInventory);
+            VERIFY_IS_FALSE(stream->ready);
+            VERIFY_IS_FALSE(stream->hydrating);
+            VERIFY_IS_TRUE(stream->connection->State() == winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connecting);
         });
     }
 

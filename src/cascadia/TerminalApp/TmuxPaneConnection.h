@@ -4,6 +4,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -30,6 +31,7 @@ namespace winrt::TerminalApp::implementation
 
         void WriteOutput(std::string_view bytes);
         void SetState(Microsoft::Terminal::TerminalConnection::ConnectionState state);
+        bool IsViewportReady(uint32_t rows, uint32_t columns) const noexcept;
 
         til::event<Microsoft::Terminal::TerminalConnection::TerminalOutputHandler> TerminalOutput;
         til::typed_event<Microsoft::Terminal::TerminalConnection::ITerminalConnection, Windows::Foundation::IInspectable> StateChanged;
@@ -46,6 +48,7 @@ namespace winrt::TerminalApp::implementation
         til::u16state _encoder;
         til::u8state _decoder;
         std::wstring _pendingOutput;
-        bool _started = false;
+        std::atomic<bool> _started = false;
+        std::atomic<uint64_t> _viewportSize = 0;
     };
 }

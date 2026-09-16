@@ -36,6 +36,7 @@
     <ClCompile Include="TmuxProcessTests.cpp" />
     <ClCompile Include="TmuxPaneConnectionTests.cpp" />
     <ClCompile Include="TmuxPaneStateTests.cpp" />
+    <ClCompile Include="TmuxSnapshotTests.cpp" />
     <ClCompile Include="RtlHelperTests.cpp" />
     <ClCompile Include="SharedWtaTests.cpp" />
     <ClCompile Include="precomp.cpp">
@@ -46,6 +47,7 @@
   <!-- ========================= Project References ======================== -->
   <ItemGroup>
     <ProjectReference Include="$(OpenConsoleDir)\src\cascadia\TerminalApp\TerminalAppLib.vcxproj" />
+    <ProjectReference Include="$(OpenConsoleDir)src\cascadia\TerminalCore\lib\TerminalCore-lib.vcxproj" />
     <ProjectReference Include="$(OpenConsoleDir)\src\cascadia\TerminalSettingsModel\Microsoft.Terminal.Settings.ModelLib.vcxproj" />
     <ProjectReference Include="$(OpenConsoleDir)\src\types\lib\types.vcxproj" />
     <ProjectReference Include="$(OpenConsoleDir)src\propslib\propslib.vcxproj" />

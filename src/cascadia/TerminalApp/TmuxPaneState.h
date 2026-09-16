@@ -12,6 +12,14 @@
 
 namespace Microsoft::Terminal::Tmux
 {
+    struct ClientSize
+    {
+        uint32_t columns;
+        uint32_t rows;
+
+        bool operator==(const ClientSize&) const = default;
+    };
+
     struct PaneState
     {
         struct Cursor
@@ -106,6 +114,41 @@ namespace Microsoft::Terminal::Tmux
         return state;
     }
 
+    struct PaneSnapshotState
+    {
+        ClientSize dimensions;
+        PaneState pane;
+    };
+
+    inline PaneSnapshotState ParsePaneSnapshotState(std::string_view text)
+    {
+        const auto dimension = [&]() {
+            const auto start = text.find_first_not_of(" \t\r\n");
+            if (start == std::string_view::npos)
+            {
+                throw ProtocolError{ "Missing tmux snapshot dimensions" };
+            }
+            text.remove_prefix(start);
+            const auto end = text.find_first_of(" \t\r\n");
+            const auto value = details::Number(text.substr(0, end));
+            text = end == std::string_view::npos ? std::string_view{} : text.substr(end);
+            if (!value || value > 32767)
+            {
+                throw ProtocolError{ "Invalid tmux snapshot dimensions" };
+            }
+            return static_cast<uint32_t>(value);
+        };
+        const auto columns = dimension();
+        const auto rows = dimension();
+        const auto pane = ParsePaneState(text);
+        // tmux allows cursor_x == pane_width for a pending automatic wrap.
+        if (pane.cursor.x > columns || pane.cursor.y >= rows || pane.scrollBottom >= rows)
+        {
+            throw ProtocolError{ "Tmux pane state lies outside its captured dimensions" };
+        }
+        return { { columns, rows }, pane };
+    }
+
     inline std::string RestorePaneState(const PaneState& state, const std::string_view savedScreen, const std::string_view currentScreen)
     {
         const auto screen = [](const std::string_view captured) {
@@ -159,14 +202,6 @@ namespace Microsoft::Terminal::Tmux
         output.append(cursor(state.cursor));
         return output;
     }
-
-    struct ClientSize
-    {
-        uint32_t columns;
-        uint32_t rows;
-
-        bool operator==(const ClientSize&) const = default;
-    };
 
     inline std::optional<ClientSize> MeasureClientSize(const double width, const double height, const double cellWidth, const double cellHeight)
     {

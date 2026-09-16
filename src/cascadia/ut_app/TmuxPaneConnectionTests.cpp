@@ -21,6 +21,8 @@ namespace TerminalAppUnitTests
         TEST_METHOD(ClosedPaneCannotBeReconnectedByLateCapture);
         TEST_METHOD(PreservesSurrogatePairsAcrossInputEvents);
         TEST_METHOD(RealTmuxUnsetCursorSnapshotEnablesInput);
+        TEST_METHOD(ViewportReadinessRequiresStartAndExactGrid);
+        TEST_METHOD(ResizeRecordsGridBeforeNotifyingOwner);
     };
 
     void TmuxPaneConnectionTests::OwnsDistinctStableIdentity()
@@ -124,5 +126,36 @@ namespace TerminalAppUnitTests
         connection->WriteInput(command);
         VERIFY_IS_TRUE(connection->State() == ConnectionState::Connected);
         VERIFY_ARE_EQUAL(std::string{ "ls -l\r" }, input);
+    }
+
+    void TmuxPaneConnectionTests::ViewportReadinessRequiresStartAndExactGrid()
+    {
+        const auto connection = winrt::make_self<TmuxPaneConnection>(nullptr, nullptr);
+        connection->Resize(6, 40);
+        VERIFY_IS_FALSE(connection->IsViewportReady(6, 40));
+        connection->Start();
+        VERIFY_IS_TRUE(connection->IsViewportReady(6, 40));
+        VERIFY_IS_FALSE(connection->IsViewportReady(6, 80));
+        connection->Resize(6, 80);
+        VERIFY_IS_TRUE(connection->IsViewportReady(6, 80));
+        VERIFY_IS_FALSE(connection->IsViewportReady(7, 80));
+        VERIFY_IS_FALSE(connection->IsViewportReady(0, 0));
+        connection->Close();
+        VERIFY_IS_FALSE(connection->IsViewportReady(6, 80));
+    }
+
+    void TmuxPaneConnectionTests::ResizeRecordsGridBeforeNotifyingOwner()
+    {
+        winrt::com_ptr<TmuxPaneConnection> connection;
+        uint32_t resized = 0;
+        connection = winrt::make_self<TmuxPaneConnection>(
+            nullptr, [&](const uint32_t rows, const uint32_t columns) {
+                VERIFY_IS_TRUE(connection->IsViewportReady(rows, columns));
+                ++resized;
+            });
+        connection->Start();
+        connection->Resize(24, 80);
+        connection->Resize(30, 120);
+        VERIFY_ARE_EQUAL(2u, resized);
     }
 }
