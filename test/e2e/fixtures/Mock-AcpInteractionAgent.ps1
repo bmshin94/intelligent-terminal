@@ -352,7 +352,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     }
                 }
             }
-            elseif ($promptText -match '(?m)^MARKDOWN_(SAMPLE|TABLE|STREAM|PING)\b') {
+            elseif ($promptText -match '(?m)^MARKDOWN_(SAMPLE|TABLE|STREAM|PING|CRLF)\b') {
                 $scenario = $Matches[1]
                 switch ($scenario) {
                     'SAMPLE' {
@@ -402,6 +402,26 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     }
                     'PING' {
                         Send-TextUpdate -SessionId $sessionId -Text '# MDSECOND'
+                    }
+                    'CRLF' {
+                        foreach ($line in @(
+                            '```unknown'
+                            'MDCRLFCODEFIRST'
+                            ''
+                            'MDCRLFCODELAST'
+                            '```'
+                            ''
+                            '<pre>'
+                            'MDCRLFHTMLFIRST'
+                            ''
+                            'MDCRLFHTMLLAST'
+                            '</pre>'
+                            ''
+                            'MDCRLFEND'
+                        )) {
+                            Send-TextUpdate -SessionId $sessionId -Text "$line`r"
+                            Send-TextUpdate -SessionId $sessionId -Text "`n"
+                        }
                     }
                 }
                 Send-AcpMessage @{

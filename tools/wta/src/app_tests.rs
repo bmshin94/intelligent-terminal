@@ -11273,6 +11273,35 @@ fn render_to_buffer(app: &mut App, width: u16, height: u16) -> ratatui::buffer::
 }
 
 #[test]
+fn markdown_crlf_literal_blocks_preserve_displayed_lines() {
+    let _locale = crate::test_support::lock_locale();
+    let lf = "```unknown\nFIRST_CODE_LINE\n\nLAST_CODE_LINE\n```\n\n<pre>\nFIRST_HTML_LINE\n\nLAST_HTML_LINE\n</pre>";
+    let crlf = lf.replace('\n', "\r\n");
+    let mut expected = test_app();
+    submit_test_prompt(&mut expected, "render");
+    expected.turn_observe_chunk(DEFAULT_TAB_ID, ChunkKind::Message, lf);
+    expected.turn_close_terminal_event(DEFAULT_TAB_ID);
+
+    let mut actual = test_app();
+    submit_test_prompt(&mut actual, "render");
+    for chunk in crlf.as_bytes().chunks(1) {
+        let chunk = std::str::from_utf8(chunk).expect("ASCII fixture");
+        actual.turn_observe_chunk(DEFAULT_TAB_ID, ChunkKind::Message, chunk);
+    }
+    actual.turn_close_terminal_event(DEFAULT_TAB_ID);
+
+    assert_eq!(
+        render_to_buffer(&mut actual, 80, 30),
+        render_to_buffer(&mut expected, 80, 30),
+        "parser text-event boundaries must not remove or duplicate visible literal lines"
+    );
+    assert!(actual.current_tab().completed_turns[0]
+        .details
+        .iter()
+        .any(|message| matches!(message, ChatMessage::Agent(text) if text == &crlf)));
+}
+
+#[test]
 fn markdown_streaming_projection_excludes_unrevealed_network_backlog() {
     let mut app = test_app();
     submit_test_prompt(&mut app, "render");

@@ -263,6 +263,29 @@ Describe 'Feature: agent Markdown rendering' -Tag 'Feature', 'AgentMarkdown' -Sk
         Assert-MarkdownSample -Frame $frame -Raw
     }
 
+    It 'CRLF Markdown preserves literal blank lines across the ACP boundary' {
+        Start-MarkdownTerminal
+        Send-AgentPrompt -App $script:app -PaneSessionId $script:paneId -Text 'MARKDOWN_CRLF' | Out-Null
+        $frame = Wait-MarkdownComplete -Scenario CRLF -Marker MDCRLFEND
+        $before = Get-MarkdownIdentity
+        $frame | Should -Not -Match '```unknown'
+        foreach ($kind in @('CODE', 'HTML')) {
+            $first = Get-MarkdownCell -Frame $frame -Text "MDCRLF${kind}FIRST"
+            $last = Get-MarkdownCell -Frame $frame -Text "MDCRLF${kind}LAST"
+            ($last.Row - $first.Row) | Should -Be 2 `
+                -Because 'one original blank line must remain, not disappear or be duplicated'
+        }
+
+        Set-WtSetting -App $script:app -Key renderAgentMarkdown -Value $false | Out-Null
+        $raw = Wait-MarkdownFrame -Pattern '```unknown'
+        foreach ($kind in @('CODE', 'HTML')) {
+            $first = Get-MarkdownCell -Frame $raw -Text "MDCRLF${kind}FIRST"
+            $last = Get-MarkdownCell -Frame $raw -Text "MDCRLF${kind}LAST"
+            ($last.Row - $first.Row) | Should -Be 2
+        }
+        Assert-MarkdownIdentity -Before $before -Prompts 1
+    }
+
     It 'Markdown Settings toggle is accessible and updates the existing reply' {
         Start-MarkdownTerminal
         Send-AgentPrompt -App $script:app -PaneSessionId $script:paneId -Text 'MARKDOWN_SAMPLE **USERLITERAL**' | Out-Null
