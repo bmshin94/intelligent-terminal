@@ -129,7 +129,7 @@ values past Terminal's environment expansion before invoking the same absolute
 system OpenSSH executable used for listing. Both SSH child processes receive
 only the environment needed for Windows and SSH authentication, not inherited
 provider credentials or WTA routing data. A fixed terminal type overrides
-configured `SetEnv` values. Explicit login-shell startup output is sent to
+configured `SetEnv` values. For POSIX, explicit login-shell startup output is sent to
 stderr so it cannot corrupt the ACP stream; login PATH setup is preserved.
 SSH escape commands are disabled, so the resume transport cannot add new
 forwarding channels interactively.
@@ -145,10 +145,65 @@ running WTA master:
 ```powershell
 wta sessions list --ssh dev@linux-host --cli copilot --json
 wta sessions list --ssh work-alias --port 2222 --cli copilot
+wta sessions list --ssh devbox-alias --ssh-platform windows --cli copilot --json
 ```
 
 This standalone diagnostic reads remote history only; it does not query the
 master's shared pane bindings, so its rows remain `Historical`.
+
+#### Windows Dev Box MVP
+
+Remote platforms are explicit: `posix` (the default) or `windows`; there is no
+automatic detection. Set this marker in the **source terminal profile's**
+existing `environment` map, not in the helper's process environment:
+
+```json
+{
+    "name": "My Dev Box",
+    "commandline": "ssh devbox-alias",
+    "environment": { "WTA_SESSIONS_SSH_PLATFORM": "windows" }
+}
+```
+
+Omitting the marker, or setting it to `posix`, retains the POSIX path. Other
+values produce an unsupported SSH source error. The diagnostic CLI uses
+`--ssh-platform windows` independently of profile settings.
+
+Windows SSH supports **Copilot only**. Listing opens a direct ACP connection
+using the fixed remote command `cmd.exe /d /q /v:off /c copilot --acp --stdio`,
+without a POSIX shell or descriptor wrapper. Copilot must be installed,
+authenticated, and available in the remote user's PATH without shell profile
+startup. Resume uses an SSH PTY and Windows PowerShell 5.1 with an encoded
+command. Remote cwd and session ID are Base64 data, not executable source.
+The MVP accepts hyphenated UUID Copilot IDs and ordinary absolute drive paths
+such as `Q:\Copilot` and `C:\Windows\system32`; UNC, provider, device and relative
+paths are unsupported. Location failures stop the launch. Encoded commands
+must fit the remote CMD 8191-character limit (with 256 characters reserved for
+sshd's shell invocation) and local Windows command-line limits.
+
+Use an OpenSSH **Host alias** for domain accounts such as
+`redmond\haonantang`, identity files and nondefault ports. Put `User`, `IdentityFile`
+and `Port` in that alias's SSH configuration; do not embed a backslash domain
+user in the profile destination. Both listing and resume require already
+verified host keys and public-key/agent authentication working with
+`BatchMode=yes`; there are no password or host-key prompts.
+
+For the validated logged-in, per-user Dev Box sshd setup, keep that Windows
+user logged in and its sshd process running. Signing out, restarting sshd or
+rebooting interrupts access; restart the per-user sshd after login as required.
+This MVP neither installs/manages sshd nor implements
+`wta ssh-host install/status/uninstall`; it does not provide a persistent
+remote shell lifecycle.
+
+Platform does not change destination/port/agent registry identity. The master
+pins it when the first history fetch succeeds and is published (including an
+empty successful list). Failed first fetches can retry with either platform.
+Profiles sharing a source must agree thereafter; conflicting lists and
+activations fail without altering pane bindings. To intentionally change a
+published source's platform, align its profiles and restart the master.
+Snapshots carry platform and incompatible cached rows are never displayed.
+Update Terminal and WTA together: older strict readers reject Windows
+metadata instead of silently launching a POSIX command.
 
 Requirements and boundaries:
 
@@ -161,7 +216,7 @@ Requirements and boundaries:
   normal SSH connection first to verify the host key and configure key/agent
   authentication. Background listing uses batch authentication and strict host
   key checking; it never accepts an unknown host or prompts for a password.
-- The remote host needs a POSIX login shell and an installed, authenticated
+- POSIX remote hosts need a POSIX login shell and an installed, authenticated
   agent with ACP `session/list` support. Agents that use an ACP adapter retain
   their usual adapter/runtime requirements. No remote WTA daemon, hooks, or
   tmux installation is needed.

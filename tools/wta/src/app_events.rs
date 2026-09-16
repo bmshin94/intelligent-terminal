@@ -2568,11 +2568,12 @@ impl App {
             }
             AppEvent::SshRegistryResult {
                 source,
+                platform,
                 sequence,
                 action,
                 result,
             } => {
-                self.handle_ssh_registry_result(source, sequence, action, result);
+                self.handle_ssh_registry_result(source, platform, sequence, action, result);
             }
             AppEvent::SshSessionsChanged(source) => {
                 self.request_cached_ssh_source(&source);

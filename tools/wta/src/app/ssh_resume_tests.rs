@@ -6,6 +6,203 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
+#[tokio::test]
+async fn ssh_cached_followups_do_not_dirty_the_other_platform_in_a_loop() {
+    let _locale = crate::test_support::lock_locale();
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let registry = SharedRegistry::new();
+            let source = source("devbox");
+            let mut helper = Helper::new("posix", &source, &registry);
+            for (id, platform, sequence) in [
+                ("posix", SshPlatform::Posix, 1),
+                ("windows", SshPlatform::Windows, 2),
+            ] {
+                let tab = helper.app.tab_mut(id);
+                tab.current_view = View::Agents;
+                tab.agents_view.ssh_source = Some(source.clone());
+                tab.agents_view.ssh_profile =
+                    super::ssh_profile::SessionsProfile::Ssh(source.target.clone(), platform);
+                tab.agents_view.snapshot = Some(Vec::new());
+                helper
+                    .app
+                    .ssh_resumes
+                    .pending_cached
+                    .insert((source.clone(), platform), sequence);
+                helper
+                    .app
+                    .ssh_resumes
+                    .dirty_cached
+                    .insert((source.clone(), platform));
+            }
+            helper.app.ssh_resumes.sequence = 2;
+            let snapshot = Snapshot {
+                source: source.clone(),
+                platform: SshPlatform::Posix,
+                epoch: uuid::Uuid::new_v4(),
+                revision: 1,
+                sessions: Vec::new(),
+            };
+            helper.app.handle_ssh_registry_result(
+                source.clone(),
+                SshPlatform::Posix,
+                1,
+                SshRegistryAction::Cached,
+                Ok(snapshot),
+            );
+            helper.app.handle_ssh_registry_result(
+                source.clone(),
+                SshPlatform::Windows,
+                2,
+                SshRegistryAction::Cached,
+                Err("platform conflict".into()),
+            );
+            assert!(helper.app.ssh_resumes.dirty_cached.is_empty());
+            assert_eq!(helper.app.ssh_resumes.pending_cached.len(), 2);
+            assert!(helper.master.try_recv().is_err());
+        })
+        .await;
+}
+
+#[test]
+fn ssh_helper_never_applies_wrong_platform_cache_and_errors_are_platform_scoped() {
+    let _locale = crate::test_support::lock_locale();
+    let (mut app, _) = test_app_with_master_rx();
+    let source = source("same-target");
+    for (tab_id, platform) in [
+        ("posix", SshPlatform::Posix),
+        ("windows", SshPlatform::Windows),
+    ] {
+        let tab = app.tab_mut(tab_id);
+        tab.current_view = View::Agents;
+        tab.agents_view.ssh_source = Some(source.clone());
+        tab.agents_view.ssh_profile =
+            super::ssh_profile::SessionsProfile::Ssh(source.target.clone(), platform);
+        tab.agents_view.snapshot = Some(Vec::new());
+    }
+    let cached = Snapshot {
+        source: source.clone(),
+        platform: SshPlatform::Posix,
+        epoch: uuid::Uuid::new_v4(),
+        revision: 7,
+        sessions: vec![history(&source)],
+    };
+    app.ssh_resumes.accept(cached.clone(), 1).unwrap();
+    app.refresh_ssh_resume_snapshots();
+    assert_eq!(
+        app.tab_mut("posix")
+            .agents_view
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(app
+        .tab_mut("windows")
+        .agents_view
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .is_empty());
+    app.set_shared_ssh_error(
+        &source,
+        SshPlatform::Windows,
+        Some("platform conflict".into()),
+        SshErrorOperation::Activate,
+    );
+    assert!(app.tab_mut("posix").agents_view.ssh_error.is_none());
+    assert_eq!(
+        app.tab_mut("windows").agents_view.ssh_error.as_deref(),
+        Some("platform conflict")
+    );
+    app.set_shared_ssh_error(
+        &source,
+        SshPlatform::Windows,
+        None,
+        SshErrorOperation::Cached,
+    );
+    assert!(app.tab_mut("windows").agents_view.ssh_error.is_some());
+
+    app.ssh_resumes
+        .pending_cached
+        .insert((source.clone(), SshPlatform::Windows), 2);
+    app.handle_ssh_registry_result(
+        source.clone(),
+        SshPlatform::Windows,
+        2,
+        SshRegistryAction::Cached,
+        Ok(cached.clone()),
+    );
+    assert_eq!(
+        app.ssh_resumes.snapshots[&source].snapshot.platform,
+        SshPlatform::Posix
+    );
+    assert!(app
+        .tab_mut("windows")
+        .agents_view
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .is_empty());
+    assert!(app.tab_mut("posix").agents_view.ssh_error.is_none());
+
+    let mut changed_platform = cached;
+    changed_platform.platform = SshPlatform::Windows;
+    assert!(app.ssh_resumes.accept(changed_platform, 3).is_err());
+}
+
+#[test]
+fn ssh_helper_ignores_late_history_after_platform_change_and_rejects_legacy_response() {
+    let _locale = crate::test_support::lock_locale();
+    let (mut app, _) = test_app_with_master_rx();
+    let source = source("devbox");
+    let tab_id = "windows";
+    let tab = app.tab_mut(tab_id);
+    tab.current_view = View::Agents;
+    tab.agents_view.ssh_source = Some(source.clone());
+    tab.agents_view.ssh_profile =
+        super::ssh_profile::SessionsProfile::Ssh(source.target.clone(), SshPlatform::Windows);
+    tab.agents_view.snapshot = Some(Vec::new());
+    tab.agents_view.latest_request_id = Some(8);
+    tab.agents_view.refetch_in_flight = true;
+    let legacy: Snapshot = serde_json::from_value(serde_json::json!({
+        "source": source, "epoch": uuid::Uuid::new_v4().to_string(),
+        "revision": 1, "sessions": [history(&source)]
+    }))
+    .unwrap();
+    let action = SshRegistryAction::History {
+        tab_id: tab_id.into(),
+        request_id: 8,
+    };
+    app.handle_ssh_registry_result(
+        source.clone(),
+        SshPlatform::Posix,
+        1,
+        action.clone(),
+        Ok(legacy.clone()),
+    );
+    assert!(app.tab_mut(tab_id).agents_view.refetch_in_flight);
+    assert!(app.tab_mut(tab_id).agents_view.ssh_error.is_none());
+    app.handle_ssh_registry_result(source.clone(), SshPlatform::Windows, 2, action, Ok(legacy));
+    assert!(!app.tab_mut(tab_id).agents_view.refetch_in_flight);
+    assert!(app
+        .tab_mut(tab_id)
+        .agents_view
+        .ssh_error
+        .as_deref()
+        .unwrap()
+        .contains("platform"));
+    assert!(app
+        .tab_mut(tab_id)
+        .agents_view
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .is_empty());
+    assert!(!app.ssh_resumes.snapshots.contains_key(&source));
+}
+
 // Separate helper Apps use one shared registry endpoint. Native lifecycle
 // execution and wire dispatch are covered by the master's own tests.
 struct SharedRegistry {
@@ -92,6 +289,7 @@ impl SshRegistryClient for SharedRegistry {
         }
         Ok(Snapshot {
             source,
+            platform: SshPlatform::Posix,
             epoch: self.epoch,
             revision: self.revision.load(Ordering::SeqCst),
             sessions: registry.snapshot().await,
@@ -140,6 +338,7 @@ impl Helper {
             Some(source.target.destination()),
             source.target.port(),
             None,
+            None,
         );
         Self {
             app,
@@ -174,6 +373,32 @@ impl Helper {
             .next()
             .unwrap()
     }
+}
+
+#[test]
+fn ssh_resume_pending_is_platform_scoped() {
+    let _locale = crate::test_support::lock_locale();
+    let (mut app, _) = test_app_with_master_rx();
+    let source = source("same-target");
+    let session = session_info_to_agent_session(&history(&source));
+    {
+        let tab = app.current_tab_mut();
+        tab.agents_view.ssh_source = Some(source.clone());
+        tab.agents_view.ssh_profile =
+            super::ssh_profile::SessionsProfile::Ssh(source.target.clone(), SshPlatform::Posix);
+    }
+    app.ssh_resumes
+        .pending_actions
+        .insert((source.clone(), SshPlatform::Posix, session.key.clone()), 1);
+    assert!(app.ssh_resume_pending(&session));
+
+    app.current_tab_mut().agents_view.ssh_profile =
+        super::ssh_profile::SessionsProfile::Ssh(source.target.clone(), SshPlatform::Windows);
+    assert!(!app.ssh_resume_pending(&session));
+    app.ssh_resumes
+        .pending_actions
+        .insert((source, SshPlatform::Windows, session.key.clone()), 2);
+    assert!(app.ssh_resume_pending(&session));
 }
 
 #[tokio::test]
@@ -420,6 +645,7 @@ fn snapshot_revisions_and_master_epochs_reject_stale_idle_history() {
         row.status = Some(status);
         Snapshot {
             source: source.clone(),
+            platform: SshPlatform::Posix,
             epoch,
             revision,
             sessions: vec![row],
@@ -451,6 +677,7 @@ fn shared_snapshot_validation_rejects_cross_source_or_cross_agent_rows() {
     row.location = SessionLocation::Host;
     let snapshot = Snapshot {
         source: source.clone(),
+        platform: SshPlatform::Posix,
         epoch: uuid::Uuid::new_v4(),
         revision: 1,
         sessions: vec![row],
@@ -462,6 +689,7 @@ fn shared_snapshot_validation_rejects_cross_source_or_cross_agent_rows() {
         .accept(
             Snapshot {
                 source,
+                platform: SshPlatform::Posix,
                 epoch: uuid::Uuid::new_v4(),
                 revision: 1,
                 sessions: vec![row]

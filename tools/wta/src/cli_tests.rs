@@ -18,6 +18,90 @@ fn ssh_resume_launcher_is_hidden_and_requires_its_payload() {
 }
 
 #[test]
+fn ssh_platform_cli_is_explicit_and_defaults_to_posix() {
+    for platform in ["posix", "windows"] {
+        let args = Cli::try_parse_from([
+            "wta",
+            "sessions",
+            "list",
+            "--ssh",
+            "devbox",
+            "--ssh-platform",
+            platform,
+        ])
+        .unwrap();
+        let Some(Command::Sessions {
+            action: SessionsAction::List { ssh_platform, .. },
+        }) = args.command
+        else {
+            panic!("sessions list expected")
+        };
+        assert_eq!(
+            ssh_platform,
+            if platform == "windows" {
+                ssh_sessions::SshPlatform::Windows
+            } else {
+                ssh_sessions::SshPlatform::Posix
+            }
+        );
+        let config = helper_config(
+            Cli::try_parse_from([
+                "wta",
+                "--sessions-ssh-target",
+                "devbox",
+                "--sessions-ssh-platform",
+                platform,
+            ])
+            .unwrap(),
+        );
+        assert_eq!(config.sessions_ssh_platform, Some(ssh_platform));
+    }
+    for args in [
+        vec!["wta", "sessions", "list", "--ssh-platform", "windows"],
+        vec![
+            "wta",
+            "sessions",
+            "list",
+            "--ssh",
+            "devbox",
+            "--ssh-platform",
+            "auto",
+        ],
+        vec![
+            "wta",
+            "sessions",
+            "list",
+            "--ssh",
+            "devbox",
+            "--ssh-platform",
+            "Windows",
+        ],
+        vec![
+            "wta",
+            "sessions",
+            "list",
+            "--master",
+            "pipe",
+            "--ssh-platform",
+            "windows",
+        ],
+        vec!["wta", "--sessions-ssh-platform", "windows"],
+        vec![
+            "wta",
+            "--sessions-ssh-target",
+            "devbox",
+            "--sessions-ssh-platform",
+            "auto",
+        ],
+    ] {
+        assert!(Cli::try_parse_from(&args).is_err(), "{args:?}");
+    }
+    assert!(helper_config(Cli::try_parse_from(["wta"]).unwrap())
+        .sessions_ssh_platform
+        .is_none());
+}
+
+#[test]
 fn ssh_profile_helper_flags_preserve_target_port_and_initial_view() {
     let cli = Cli::try_parse_from([
         "wta",
@@ -212,12 +296,14 @@ fn sessions_list_cli_parses_json_and_master_override() {
                     ssh,
                     port,
                     cli,
+                    ssh_platform,
                 },
         }) => {
             assert_eq!(master.as_deref(), Some(r"\\.\pipe\wta-master-test"));
             assert!(ssh.is_none());
             assert!(port.is_none());
             assert!(cli.is_none());
+            assert_eq!(ssh_platform, ssh_sessions::SshPlatform::Posix);
             // Default keeps the historical debug behavior — show
             // every origin. MVP sessions picker has its own default in
             // `app::resolve_sessions_origin_filter`; this CLI default is
@@ -256,6 +342,7 @@ fn sessions_list_cli_parses_ssh_target_port_agent_origin_and_json() {
                     port,
                     cli,
                     origin,
+                    ssh_platform,
                 },
         }) => {
             assert!(master.is_none());
@@ -263,6 +350,7 @@ fn sessions_list_cli_parses_ssh_target_port_agent_origin_and_json() {
             assert_eq!(port, Some(2222));
             assert_eq!(cli.as_deref(), Some("codex"));
             assert_eq!(origin, SessionsOriginArg::Shell);
+            assert_eq!(ssh_platform, ssh_sessions::SshPlatform::Posix);
         }
         other => panic!("expected SSH sessions list, got {other:?}"),
     }
@@ -280,6 +368,7 @@ fn sessions_list_cli_ssh_defaults_do_not_change_host_arguments() {
                     port,
                     cli,
                     origin,
+                    ssh_platform,
                 },
         }) => {
             assert!(master.is_none());
@@ -290,6 +379,7 @@ fn sessions_list_cli_ssh_defaults_do_not_change_host_arguments() {
                 "copilot"
             );
             assert_eq!(origin, SessionsOriginArg::All);
+            assert_eq!(ssh_platform, ssh_sessions::SshPlatform::Posix);
         }
         other => panic!("expected SSH sessions list, got {other:?}"),
     }

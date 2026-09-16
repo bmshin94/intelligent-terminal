@@ -4,6 +4,7 @@
 use super::*;
 use crate::agent_sessions::{AgentSession, CliSource, SessionLocation};
 use crate::ssh_session_registry::{Request, Snapshot, Source};
+use crate::ssh_sessions::SshPlatform;
 
 #[cfg(test)]
 #[path = "ssh_resume_tests.rs"]
@@ -21,6 +22,7 @@ struct PipeRegistryClient {
 #[async_trait::async_trait(?Send)]
 impl SshRegistryClient for PipeRegistryClient {
     async fn request(&self, request: Request) -> Result<Snapshot> {
+        let platform = request.platform();
         let params = serde_json::value::to_raw_value(&request)?;
         let response = crate::cli::sessions::request_from_master(
             Some(self.pipe.clone()),
@@ -29,8 +31,16 @@ impl SshRegistryClient for PipeRegistryClient {
                 params.into(),
             ),
         )
-        .await?;
-        Ok(serde_json::from_str(response.0.get())?)
+        .await.map_err(|error| {
+            if platform == SshPlatform::Windows {
+                error.context("Windows SSH registry request failed; if the platform field is unsupported, update Terminal and WTA together")
+            } else {
+                error
+            }
+        })?;
+        serde_json::from_str(response.0.get()).map_err(|error| anyhow::anyhow!(
+            "Invalid SSH snapshot or unsupported platform; update Terminal and WTA together: {error}"
+        ))
     }
 }
 
@@ -58,10 +68,10 @@ enum SshErrorOperation {
 pub(crate) struct SshResumes {
     client: Option<Arc<dyn SshRegistryClient>>,
     snapshots: HashMap<Source, CachedSnapshot>,
-    errors: HashMap<Source, SshErrorOperation>,
-    pending_actions: HashMap<(Source, String), u64>,
-    pending_cached: HashMap<Source, u64>,
-    dirty_cached: HashSet<Source>,
+    errors: HashMap<(Source, SshPlatform), SshErrorOperation>,
+    pending_actions: HashMap<(Source, SshPlatform, String), u64>,
+    pending_cached: HashMap<(Source, SshPlatform), u64>,
+    dirty_cached: HashSet<(Source, SshPlatform)>,
     sequence: u64,
     last_poll: Option<std::time::Instant>,
 }
@@ -89,6 +99,10 @@ impl SshResumes {
                 return Ok(());
             }
             if cached.snapshot.epoch == snapshot.epoch {
+                anyhow::ensure!(
+                    cached.snapshot.platform == snapshot.platform,
+                    "SSH platform conflict in a shared snapshot; restart the master to change platforms."
+                );
                 if snapshot.revision < cached.snapshot.revision {
                     return Ok(());
                 }
@@ -139,6 +153,7 @@ impl App {
         sequence: u64,
     ) -> Result<tokio::task::AbortHandle> {
         let (client, sender) = self.ssh_registry_context()?;
+        let platform = request.platform();
         let task = tokio::task::spawn_local(async move {
             let result = client
                 .request(request)
@@ -146,6 +161,7 @@ impl App {
                 .map_err(|error| format!("{error:#}"));
             let _ = sender.send(AppEvent::SshRegistryResult {
                 source,
+                platform,
                 sequence,
                 action,
                 result,
@@ -160,6 +176,7 @@ impl App {
         request_id: u64,
         source: Source,
     ) -> Result<tokio::task::AbortHandle> {
+        let platform = self.tab_mut(tab_id).agents_view.ssh_profile.platform();
         let sequence = self.ssh_resumes.next_sequence();
         self.ssh_resumes.last_poll = Some(std::time::Instant::now());
         self.spawn_ssh_registry_request(
@@ -170,6 +187,7 @@ impl App {
             },
             Request::List {
                 source,
+                platform,
                 refresh_history: true,
             },
             sequence,
@@ -188,6 +206,7 @@ impl App {
                 target: target.clone(),
                 agent_id: agent_id.to_string(),
             },
+            self.current_tab().agents_view.ssh_profile.platform(),
             session.key.clone(),
         ))
     }
@@ -207,7 +226,8 @@ impl App {
                 && CliSource::from_agent_id(&source.agent_id).as_ref() == Some(&session.cli_source),
             "SSH session does not belong to the selected source."
         );
-        let key = (source.clone(), session.key.clone());
+        let platform = self.current_tab().agents_view.ssh_profile.platform();
+        let key = (source.clone(), platform, session.key.clone());
         if self.ssh_resumes.pending_actions.contains_key(&key) {
             return Ok(());
         }
@@ -219,25 +239,44 @@ impl App {
             },
             Request::Activate {
                 source: source.clone(),
+                platform,
                 session_id: session.key.clone(),
             },
             sequence,
         )?;
         self.ssh_resumes.pending_actions.insert(key, sequence);
-        self.set_shared_ssh_error(&source, None, SshErrorOperation::Activate);
+        self.set_shared_ssh_error(&source, platform, None, SshErrorOperation::Activate);
         Ok(())
     }
 
     pub(super) fn request_cached_ssh_source(&mut self, source: &Source) {
+        let platforms: HashSet<_> = self
+            .tab_sessions
+            .values()
+            .filter(|tab| {
+                tab.current_view == View::Agents
+                    && tab.agents_view.snapshot.is_some()
+                    && tab.agents_view.ssh_source.as_ref() == Some(source)
+            })
+            .map(|tab| tab.agents_view.ssh_profile.platform())
+            .collect();
+        for platform in platforms {
+            self.request_cached_ssh_platform(source, platform);
+        }
+    }
+
+    fn request_cached_ssh_platform(&mut self, source: &Source, platform: SshPlatform) {
         if !self.tab_sessions.values().any(|tab| {
             tab.current_view == View::Agents
                 && tab.agents_view.snapshot.is_some()
                 && tab.agents_view.ssh_source.as_ref() == Some(source)
+                && tab.agents_view.ssh_profile.platform() == platform
         }) {
             return;
         }
-        if self.ssh_resumes.pending_cached.contains_key(source) {
-            self.ssh_resumes.dirty_cached.insert(source.clone());
+        let context = (source.clone(), platform);
+        if self.ssh_resumes.pending_cached.contains_key(&context) {
+            self.ssh_resumes.dirty_cached.insert(context);
             return;
         }
         let sequence = self.ssh_resumes.next_sequence();
@@ -246,17 +285,17 @@ impl App {
             SshRegistryAction::Cached,
             Request::List {
                 source: source.clone(),
+                platform,
                 refresh_history: false,
             },
             sequence,
         ) {
             Ok(_) => {
-                self.ssh_resumes
-                    .pending_cached
-                    .insert(source.clone(), sequence);
+                self.ssh_resumes.pending_cached.insert(context, sequence);
             }
             Err(error) => self.set_shared_ssh_error(
                 source,
+                platform,
                 Some(format!("{error:#}")),
                 SshErrorOperation::Cached,
             ),
@@ -291,29 +330,32 @@ impl App {
     pub(super) fn handle_ssh_registry_result(
         &mut self,
         source: Source,
+        platform: SshPlatform,
         sequence: u64,
         action: SshRegistryAction,
         result: std::result::Result<Snapshot, String>,
     ) {
+        let context = (source.clone(), platform);
         match &action {
             SshRegistryAction::Activate { session_id } => {
-                let key = (source.clone(), session_id.clone());
+                let key = (source.clone(), platform, session_id.clone());
                 if self.ssh_resumes.pending_actions.get(&key) != Some(&sequence) {
                     return;
                 }
                 self.ssh_resumes.pending_actions.remove(&key);
             }
             SshRegistryAction::Cached => {
-                if self.ssh_resumes.pending_cached.get(&source) != Some(&sequence) {
+                if self.ssh_resumes.pending_cached.get(&context) != Some(&sequence) {
                     return;
                 }
-                self.ssh_resumes.pending_cached.remove(&source);
+                self.ssh_resumes.pending_cached.remove(&context);
             }
             SshRegistryAction::History { tab_id, request_id } => {
                 if !self.tab_sessions.get(tab_id).is_some_and(|tab| {
                     tab.agents_view.snapshot.is_some()
                         && tab.agents_view.latest_request_id == Some(*request_id)
                         && tab.agents_view.ssh_source.as_ref() == Some(&source)
+                        && tab.agents_view.ssh_profile.platform() == platform
                 }) {
                     return;
                 }
@@ -322,6 +364,8 @@ impl App {
         let result = result.and_then(|snapshot| {
             if snapshot.source != source {
                 Err("SSH registry response did not match the requested source.".to_string())
+            } else if snapshot.platform != platform {
+                Err("SSH registry platform does not match this profile; update Terminal and WTA together and use the source's pinned platform.".to_string())
             } else {
                 self.ssh_resumes
                     .accept(snapshot, sequence)
@@ -334,6 +378,7 @@ impl App {
                 self.ssh_resumes
                     .snapshots
                     .get(&source)
+                    .filter(|cached| cached.snapshot.platform == platform)
                     .map(|cached| {
                         cached
                             .snapshot
@@ -347,9 +392,9 @@ impl App {
             if rows.is_err() {
                 self.ssh_resumes
                     .errors
-                    .insert(source.clone(), SshErrorOperation::History);
+                    .insert(context.clone(), SshErrorOperation::History);
             } else {
-                self.ssh_resumes.errors.remove(&source);
+                self.ssh_resumes.errors.remove(&context);
             }
             self.handle_ssh_sessions_loaded(
                 tab_id,
@@ -364,29 +409,31 @@ impl App {
             } else {
                 SshErrorOperation::Activate
             };
-            self.set_shared_ssh_error(&source, result.err(), operation);
+            self.set_shared_ssh_error(&source, platform, result.err(), operation);
         }
         if succeeded {
             self.refresh_ssh_resume_snapshots();
         }
         if matches!(action, SshRegistryAction::Cached)
-            && self.ssh_resumes.dirty_cached.remove(&source)
+            && self.ssh_resumes.dirty_cached.remove(&context)
         {
-            self.request_cached_ssh_source(&source);
+            self.request_cached_ssh_platform(&source, platform);
         }
         // A failed native operation may still have changed authoritative state
         // (for example, a missing pane becomes Ended). Re-read, never invent it.
         if matches!(action, SshRegistryAction::Activate { .. }) && !succeeded {
-            self.request_cached_ssh_source(&source);
+            self.request_cached_ssh_platform(&source, platform);
         }
     }
 
     fn set_shared_ssh_error(
         &mut self,
         source: &Source,
+        platform: SshPlatform,
         error: Option<String>,
         operation: SshErrorOperation,
     ) {
+        let context = (source.clone(), platform);
         if let Some(error) = &error {
             tracing::warn!(target: "ssh_sessions", %error, "shared SSH session operation failed");
         }
@@ -396,18 +443,20 @@ impl App {
             && self
                 .ssh_resumes
                 .errors
-                .get(source)
+                .get(&context)
                 .is_some_and(|prior| *prior != operation)
         {
             return;
         }
         if error.is_some() {
-            self.ssh_resumes.errors.insert(source.clone(), operation);
+            self.ssh_resumes.errors.insert(context, operation);
         } else {
-            self.ssh_resumes.errors.remove(source);
+            self.ssh_resumes.errors.remove(&context);
         }
         for tab in self.tab_sessions.values_mut() {
-            if tab.agents_view.ssh_source.as_ref() == Some(source) {
+            if tab.agents_view.ssh_source.as_ref() == Some(source)
+                && tab.agents_view.ssh_profile.platform() == platform
+            {
                 tab.agents_view.ssh_error.clone_from(&error);
             }
         }
@@ -425,6 +474,9 @@ impl App {
             let Some(cached) = self.ssh_resumes.snapshots.get(source) else {
                 continue;
             };
+            if cached.snapshot.platform != tab.agents_view.ssh_profile.platform() {
+                continue;
+            }
             *snapshot = cached.snapshot.sessions.clone();
             selections.push((
                 tab_id.clone(),

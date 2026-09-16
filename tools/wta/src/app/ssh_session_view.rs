@@ -37,8 +37,10 @@ mod tests {
         app.current_agent_id.clone_from(&source.agent_id);
         let tab = app.tab_mut(tab_id);
         tab.current_view = View::Agents;
-        tab.agents_view.ssh_profile =
-            super::ssh_profile::SessionsProfile::Ssh(source.target.clone());
+        tab.agents_view.ssh_profile = super::ssh_profile::SessionsProfile::Ssh(
+            source.target.clone(),
+            crate::ssh_sessions::SshPlatform::Posix,
+        );
         tab.agents_view.ssh_source = Some(source.clone());
         tab.agents_view.snapshot = Some(Vec::new());
         tab.agents_view.refetch_in_flight = true;

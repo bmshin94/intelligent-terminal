@@ -26,12 +26,19 @@ namespace Microsoft::Terminal::AgentSource
         UnsupportedSsh,
     };
 
+    enum class SessionsSshPlatform
+    {
+        Posix,
+        Windows,
+    };
+
     struct SessionsSshSource
     {
         SessionsSshKind kind{ SessionsSshKind::NonSsh };
         std::wstring destination;
         std::optional<uint16_t> port;
         std::wstring error;
+        SessionsSshPlatform platform{ SessionsSshPlatform::Posix };
     };
 
     namespace details
@@ -92,7 +99,8 @@ namespace Microsoft::Terminal::AgentSource
     // its command line was customized beyond the target identity we can replay.
     inline SessionsSshSource ResolveSessionsSshSource(
         const std::wstring_view profileSource,
-        std::wstring_view commandline)
+        std::wstring_view commandline,
+        const std::optional<std::wstring_view> platformMarker = std::nullopt)
     {
         const bool generatedSsh = profileSource == L"Windows.Terminal.SSH";
         const auto first = commandline.find_first_not_of(L" \t");
@@ -118,6 +126,10 @@ namespace Microsoft::Terminal::AgentSource
         if (!directSsh)
         {
             return generatedSsh ? details::UnsupportedSessionsSsh(L"The SSH profile must launch ssh.exe directly.") : SessionsSshSource{};
+        }
+        if (platformMarker && *platformMarker != L"windows" && *platformMarker != L"posix")
+        {
+            return { SessionsSshKind::UnsupportedSsh, {}, {}, L"Unsupported SSH source: profile environment WTA_SESSIONS_SSH_PLATFORM must be windows or posix." };
         }
         if (commandline.find(L'\0') != std::wstring_view::npos || !details::HasBalancedCommandlineQuotes(commandline))
         {
@@ -217,7 +229,22 @@ namespace Microsoft::Terminal::AgentSource
         }
 
         auto destination = user ? std::wstring{ *user } + L"@" + std::wstring{ host } : std::wstring{ host };
-        return { SessionsSshKind::ValidTarget, std::move(destination), port, {} };
+        return { SessionsSshKind::ValidTarget, std::move(destination), port, {}, platformMarker == L"windows" ? SessionsSshPlatform::Windows : SessionsSshPlatform::Posix };
+    }
+
+    template<typename EnvironmentMap>
+    inline SessionsSshSource ResolveSessionsSshSourceFromEnvironment(
+        const std::wstring_view profileSource,
+        const std::wstring_view commandline,
+        const EnvironmentMap& profileEnvironment)
+    {
+        constexpr auto marker = L"WTA_SESSIONS_SSH_PLATFORM";
+        if (profileEnvironment && profileEnvironment.HasKey(marker))
+        {
+            const auto value = profileEnvironment.Lookup(marker);
+            return ResolveSessionsSshSource(profileSource, commandline, std::wstring_view{ value });
+        }
+        return ResolveSessionsSshSource(profileSource, commandline);
     }
 
     inline std::vector<std::pair<std::wstring, std::wstring>> BuildSessionsSshHelperArguments(const SessionsSshSource& source)
@@ -234,6 +261,11 @@ namespace Microsoft::Terminal::AgentSource
         if (source.port)
         {
             args.emplace_back(L"--sessions-ssh-port", std::to_wstring(*source.port));
+        }
+        // Omit legacy POSIX preferences so older strict helper CLIs keep working.
+        if (source.platform == SessionsSshPlatform::Windows)
+        {
+            args.emplace_back(L"--sessions-ssh-platform", L"windows");
         }
         return args;
     }
@@ -252,6 +284,10 @@ namespace Microsoft::Terminal::AgentSource
         {
             ssh["destination"] = winrt::to_string(source.destination);
             ssh["port"] = source.port ? Json::Value{ *source.port } : Json::Value{};
+            if (source.platform == SessionsSshPlatform::Windows)
+            {
+                ssh["platform"] = "windows";
+            }
         }
     }
 

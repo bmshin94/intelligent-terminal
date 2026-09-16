@@ -1429,7 +1429,7 @@ namespace winrt::TerminalApp::implementation
         const winrt::Microsoft::Terminal::Settings::Model::Profile& profile)
     {
         return profile ?
-                   ::Microsoft::Terminal::AgentSource::ResolveSessionsSshSource(profile.Source(), profile.Commandline()) :
+                   ::Microsoft::Terminal::AgentSource::ResolveSessionsSshSourceFromEnvironment(profile.Source(), profile.Commandline(), profile.EnvironmentVariables()) :
                    ::Microsoft::Terminal::AgentSource::SessionsSshSource{};
     }
 

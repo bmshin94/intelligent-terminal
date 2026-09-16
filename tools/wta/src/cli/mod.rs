@@ -60,6 +60,7 @@ pub(crate) async fn run(command: Command, json_mode: bool) -> Result<()> {
                 master,
                 ssh,
                 port,
+                ssh_platform,
                 cli,
                 origin,
             } => {
@@ -67,6 +68,7 @@ pub(crate) async fn run(command: Command, json_mode: bool) -> Result<()> {
                     let target = crate::ssh_sessions::SshTarget::new(&destination, port)?;
                     sessions::run_ssh_list(
                         &target,
+                        ssh_platform,
                         cli.as_deref()
                             .unwrap_or(crate::agent_registry::COPILOT_AGENT_ID),
                         origin.to_filter(),

@@ -115,6 +115,7 @@ fn helper_config(cli: Cli) -> helper::config::HelperConfig {
         agent_source_cwd: cli.agent_source_cwd,
         sessions_ssh_target: cli.sessions_ssh_target,
         sessions_ssh_port: cli.sessions_ssh_port,
+        sessions_ssh_platform: cli.sessions_ssh_platform,
         sessions_ssh_error: cli.sessions_ssh_error,
         allowed_agent_ids: cli.allowed_agent_ids,
         initial_auth_agent: cli.initial_auth_agent,

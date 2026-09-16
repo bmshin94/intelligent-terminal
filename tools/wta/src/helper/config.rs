@@ -8,6 +8,7 @@ pub(crate) struct HelperConfig {
     pub(crate) agent_source_cwd: Option<String>,
     pub(crate) sessions_ssh_target: Option<String>,
     pub(crate) sessions_ssh_port: Option<u16>,
+    pub(crate) sessions_ssh_platform: Option<crate::ssh_sessions::SshPlatform>,
     pub(crate) sessions_ssh_error: Option<String>,
     pub(crate) allowed_agent_ids: Vec<String>,
     pub(crate) initial_auth_agent: Option<String>,

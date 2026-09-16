@@ -18,6 +18,30 @@ const INITIALIZE_TIMEOUT: Duration = Duration::from_secs(60);
 const LIST_TIMEOUT: Duration = Duration::from_secs(30);
 const REAP_TIMEOUT: Duration = Duration::from_secs(5);
 
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, clap::ValueEnum,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum SshPlatform {
+    #[default]
+    Posix,
+    Windows,
+}
+
+impl SshPlatform {
+    pub(crate) fn is_posix(&self) -> bool {
+        *self == Self::Posix
+    }
+
+    pub(crate) fn validate_agent(self, agent_id: &str) -> Result<()> {
+        if self == Self::Windows && agent_id != "copilot" {
+            bail!("Windows SSH sessions support only agent_id copilot; select Copilot for this source");
+        }
+        known_profile(agent_id)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "UncheckedSshTarget")]
 pub struct SshTarget {
@@ -139,6 +163,10 @@ fn listing_script(agent_id: &str) -> Result<String> {
 }
 
 fn ssh_arguments(target: &SshTarget, interactive: bool, script: &str) -> Vec<String> {
+    ssh_command_arguments(target, interactive, remote_command(interactive, script))
+}
+
+fn ssh_command_arguments(target: &SshTarget, interactive: bool, command: String) -> Vec<String> {
     let mut args = vec![if interactive { "-t" } else { "-T" }.to_string()];
     for option in [
         "BatchMode=yes",
@@ -165,10 +193,8 @@ fn ssh_arguments(target: &SshTarget, interactive: bool, script: &str) -> Vec<Str
     }
     args.push("--".to_string());
     args.push(target.destination().to_string());
-    // ssh passes the command through the server's shell before sh parses its
-    // own -c argument. Quote the entire script as well as every CLI argument.
-    // The login shell supplies the remote user's PATH (including /snap/bin).
-    args.push(remote_command(interactive, script));
+    // One process argument, never a local shell command.
+    args.push(command);
     args
 }
 
@@ -182,6 +208,22 @@ fn remote_command(interactive: bool, script: &str) -> String {
             "sh -lc {} 3>&1 1>&2",
             sh_quote(&format!("exec 1>&3 3>&-; {script}"))
         )
+    }
+}
+
+fn listing_arguments(
+    target: &SshTarget,
+    agent_id: &str,
+    platform: SshPlatform,
+) -> Result<Vec<String>> {
+    platform.validate_agent(agent_id)?;
+    match platform {
+        SshPlatform::Posix => Ok(ssh_arguments(target, false, &listing_script(agent_id)?)),
+        SshPlatform::Windows => Ok(ssh_command_arguments(
+            target,
+            false,
+            "cmd.exe /d /q /v:off /c copilot --acp --stdio".into(),
+        )),
     }
 }
 
@@ -235,11 +277,17 @@ fn configure_ssh_environment(
 }
 
 /// Call inside a `LocalSet`. No session is created, loaded, or prompted.
-pub(crate) async fn list_sessions(target: &SshTarget, agent_id: &str) -> Result<Vec<AgentSession>> {
-    let script = listing_script(agent_id)?;
-    let mut command = tokio::process::Command::new(system_ssh_executable()?);
+pub(crate) async fn list_sessions(
+    target: &SshTarget,
+    agent_id: &str,
+    platform: SshPlatform,
+) -> Result<Vec<AgentSession>> {
+    let args = listing_arguments(target, agent_id, platform)?;
+    let executable = system_ssh_executable()?;
+    validate_process_length(&executable, &args)?;
+    let mut command = tokio::process::Command::new(executable);
     command
-        .args(ssh_arguments(target, false, &script))
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -315,8 +363,10 @@ pub(crate) fn resume_commandline(
     agent_id: &str,
     session_id: &str,
     cwd: &str,
+    platform: SshPlatform,
 ) -> Result<String> {
-    resume_script(agent_id, session_id, cwd)?;
+    let args = resume_arguments(target, agent_id, session_id, cwd, platform)?;
+    validate_process_length(&system_ssh_executable()?, &args)?;
     let executable = std::env::current_exe().context("Resolve SSH resume launcher")?;
     let executable = executable
         .to_str()
@@ -329,6 +379,7 @@ pub(crate) fn resume_commandline(
         agent_id: agent_id.to_string(),
         session_id: session_id.to_string(),
         cwd: cwd.to_string(),
+        platform,
     })?;
     // JSON Unicode escaping is decoded locally, after Terminal's environment
     // expansion. No shell wrapper, remote decoder, or credential-bearing argv.
@@ -338,9 +389,7 @@ pub(crate) fn resume_commandline(
         quote_windows_commandline_arg(executable),
         quote_windows_commandline_arg(&payload)
     );
-    if commandline.encode_utf16().count() >= 32767 {
-        bail!("SSH resume command exceeds the Windows command line limit");
-    }
+    validate_local_command_length(&commandline)?;
     Ok(commandline)
 }
 
@@ -351,6 +400,129 @@ struct ResumeRequest {
     agent_id: String,
     session_id: String,
     cwd: String,
+    #[serde(default)]
+    platform: SshPlatform,
+}
+
+fn validate_local_command_length(commandline: &str) -> Result<()> {
+    if commandline.encode_utf16().count() >= 32767 {
+        bail!("SSH command exceeds the local Windows 32767-character command line limit");
+    }
+    Ok(())
+}
+
+fn validate_process_length(executable: &std::path::Path, args: &[String]) -> Result<()> {
+    // Include the executable's quotes even when they are not needed.
+    let commandline = format!(
+        "\"{}\" {}",
+        executable
+            .to_str()
+            .context("SSH executable path is not Unicode")?,
+        args.iter()
+            .map(|arg| quote_windows_commandline_arg(arg))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    validate_local_command_length(&commandline)
+}
+
+fn validate_windows_cwd(cwd: &str) -> Result<()> {
+    let bytes = cwd.as_bytes();
+    let valid = bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1..3] == *b":\\"
+        && !cwd[3..]
+            .chars()
+            .any(|c| c.is_control() || "<>:\"/|?*".contains(c))
+        && cwd[3..].split('\\').all(|part| {
+            let basename = part
+                .split('.')
+                .next()
+                .unwrap_or("")
+                .trim_end_matches(' ')
+                .to_ascii_uppercase();
+            let device_number = basename
+                .strip_prefix("COM")
+                .or_else(|| basename.strip_prefix("LPT"));
+            !matches!(
+                basename.as_str(),
+                "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+            ) && !device_number.is_some_and(|number| {
+                matches!(
+                    number,
+                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+                )
+            }) && !part.ends_with(['.', ' '])
+        });
+    if !valid {
+        bail!("Windows SSH cwd must be an ordinary absolute drive directory (for example C:\\repo or Q:\\Copilot); relative, UNC, provider and device paths are unsupported");
+    }
+    Ok(())
+}
+
+fn windows_resume_script(agent_id: &str, session_id: &str, cwd: &str) -> Result<String> {
+    SshPlatform::Windows.validate_agent(agent_id)?;
+    if session_id.len() != 36
+        || !session_id.bytes().enumerate().all(|(i, b)| {
+            if matches!(i, 8 | 13 | 18 | 23) {
+                b == b'-'
+            } else {
+                b.is_ascii_hexdigit()
+            }
+        })
+    {
+        bail!("Windows SSH Copilot session ID must be a 36-character hyphenated UUID; refresh the Copilot history and select a supported session");
+    }
+    validate_windows_cwd(cwd)?;
+    // Only Base64 literals enter executable source. Decoded data is never parsed
+    // as PowerShell, including typographic quotes and percent expansions.
+    let cwd = crate::osc52::base64_encode(cwd.as_bytes());
+    let sid = crate::osc52::base64_encode(session_id.as_bytes());
+    Ok(format!(
+        "$ErrorActionPreference='Stop';\
+         $cmd=$env:ComSpec;\
+         $env:NoDefaultCurrentDirectoryInExePath='1';\
+         $cwd=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{cwd}'));\
+         $sid=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{sid}'));\
+         try {{ Set-Location -LiteralPath $cwd -ErrorAction Stop; \
+         & $cmd /d /q /v:off /c copilot ('--resume=' + $sid); exit $LASTEXITCODE }} \
+         catch {{ [Console]::Error.WriteLine($_.Exception.Message); exit 1 }}"
+    ))
+}
+
+fn validate_windows_remote_length(command: &str) -> Result<()> {
+    // CMD permits 8191 characters. Reserve 256 for sshd's shell path, /c and
+    // quoting rather than assuming the server's exact SystemRoot spelling.
+    if command.encode_utf16().count() > 8191 - 256 {
+        bail!("Windows SSH command exceeds the remote CMD command line budget (8191 characters including a 256-character sshd shell reserve); use a shorter cwd");
+    }
+    Ok(())
+}
+
+fn resume_arguments(
+    target: &SshTarget,
+    agent_id: &str,
+    session_id: &str,
+    cwd: &str,
+    platform: SshPlatform,
+) -> Result<Vec<String>> {
+    match platform {
+        SshPlatform::Posix => Ok(ssh_arguments(
+            target,
+            true,
+            &resume_script(agent_id, session_id, cwd)?,
+        )),
+        SshPlatform::Windows => {
+            let script = windows_resume_script(agent_id, session_id, cwd)?;
+            let bytes: Vec<_> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+            let command = format!(
+                "powershell.exe -NoLogo -NoProfile -EncodedCommand {}",
+                crate::osc52::base64_encode(&bytes)
+            );
+            validate_windows_remote_length(&command)?;
+            Ok(ssh_command_arguments(target, true, command))
+        }
+    }
 }
 
 fn resume_script(agent_id: &str, session_id: &str, cwd: &str) -> Result<String> {
@@ -386,12 +558,23 @@ fn resume_process(
         bail!("Invalid SSH resume payload");
     }
     // Do not attach deserializer errors: unknown field names are payload data.
-    let request: ResumeRequest =
-        serde_json::from_str(payload).map_err(|_| anyhow!("Invalid SSH resume payload"))?;
-    let script = resume_script(&request.agent_id, &request.session_id, &request.cwd)?;
-    let mut command = tokio::process::Command::new(system_ssh_executable()?);
+    let request: ResumeRequest = serde_json::from_str(payload).map_err(|_| {
+        anyhow!(
+            "Invalid SSH resume payload or unsupported platform; update Terminal and WTA together"
+        )
+    })?;
+    let args = resume_arguments(
+        &request.target,
+        &request.agent_id,
+        &request.session_id,
+        &request.cwd,
+        request.platform,
+    )?;
+    let executable = system_ssh_executable()?;
+    validate_process_length(&executable, &args)?;
+    let mut command = tokio::process::Command::new(executable);
     command
-        .args(ssh_arguments(&request.target, true, &script))
+        .args(args)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -412,6 +595,312 @@ pub(crate) async fn run_resume(payload: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const WINDOWS_SID: &str = "12345678-abcd-1234-abcd-123456789abc";
+
+    #[test]
+    fn windows_listing_is_one_fixed_cmd_argument_without_posix_wrappers() {
+        let target = SshTarget::new("devbox", Some(2222)).unwrap();
+        let args = listing_arguments(&target, "copilot", SshPlatform::Windows).unwrap();
+        let posix = listing_arguments(&target, "copilot", SshPlatform::Posix).unwrap();
+        assert_eq!(&args[..args.len() - 1], &posix[..posix.len() - 1]);
+        assert_eq!(
+            args.last().unwrap(),
+            "cmd.exe /d /q /v:off /c copilot --acp --stdio"
+        );
+        assert!(!args.last().unwrap().contains("sh -lc"));
+        assert!(!args.last().unwrap().contains("3>&1"));
+        for agent in [
+            "claude",
+            "codex",
+            "gemini",
+            "opencode",
+            "unknown",
+            "custom:copilot",
+        ] {
+            let error = listing_arguments(&target, agent, SshPlatform::Windows).unwrap_err();
+            assert!(error.to_string().contains("only agent_id copilot"));
+            assert!(resume_arguments(
+                &target,
+                agent,
+                WINDOWS_SID,
+                r"Q:\Copilot",
+                SshPlatform::Windows
+            )
+            .is_err());
+        }
+        assert!(SshTarget::new(r"redmond\haonantang@devbox", None).is_err());
+    }
+
+    #[test]
+    fn windows_cwd_is_remote_drive_data_not_a_local_path_or_provider() {
+        for cwd in [
+            r"C:\",
+            r"C:\Windows\system32",
+            r"Q:\Copilot",
+            r"z:\not-on-this-host",
+            r"Q:\世界\%PATH%\O'Brien’s [repo] & $(whoami);`x`",
+        ] {
+            validate_windows_cwd(cwd).unwrap();
+            let script = windows_resume_script("copilot", WINDOWS_SID, cwd).unwrap();
+            assert!(script.contains(&crate::osc52::base64_encode(cwd.as_bytes())));
+            assert!(!script.contains(cwd));
+            assert!(!script.contains("Invoke-Expression"));
+        }
+        for cwd in [
+            "",
+            ".",
+            r"relative\repo",
+            r"C:repo",
+            r"\repo",
+            "/repo",
+            r"\\host\share",
+            r"\\?\C:\repo",
+            r"\\.\C:\repo",
+            r"\??\C:\repo",
+            r"FileSystem::C:\repo",
+            r"Microsoft.PowerShell.Core\FileSystem::C:\repo",
+            r"HKLM:\Software",
+            r"C:/repo",
+            r"C:\repo:stream",
+            r"C:\NUL",
+            r"C:\CON.txt",
+            r"C:\COM1",
+            r"C:\COM¹",
+            r"C:\LPT².txt",
+            r"C:\CON .txt",
+            "C:\\repo\n",
+            "C:\\repo\0",
+            r"C:\repo*",
+            r"C:\repo?",
+            "C:\\repo.",
+        ] {
+            assert!(validate_windows_cwd(cwd).is_err(), "{cwd:?}");
+        }
+    }
+
+    #[test]
+    fn windows_session_ids_are_exact_uuid_data_and_not_arguments() {
+        for id in [WINDOWS_SID.to_string(), WINDOWS_SID.to_ascii_uppercase()] {
+            let script = windows_resume_script("copilot", &id, r"Q:\Copilot").unwrap();
+            assert!(script.contains(&crate::osc52::base64_encode(id.as_bytes())));
+            assert!(!script.contains(&id));
+            assert!(script.contains(
+                "& $cmd /d /q /v:off /c copilot ('--resume=' + $sid); exit $LASTEXITCODE"
+            ));
+        }
+        for id in [
+            "",
+            "id",
+            "-option",
+            "--help",
+            "name with space",
+            "a;b",
+            "a'b",
+            "a’b",
+            "a%PATH%",
+            "a\n",
+            "a\0",
+            "12345678-abcd-1234-abcd-123456789abz",
+            "{12345678-abcd-1234-abcd-123456789abc}",
+            "12345678abcd1234abcd123456789abc",
+            "12345678-abcd-1234-abcd-123456789abc --help",
+        ] {
+            assert!(
+                windows_resume_script("copilot", id, r"Q:\Copilot").is_err(),
+                "{id:?}"
+            );
+        }
+        assert!(windows_resume_script("copilot", &"a".repeat(10000), r"Q:\Copilot").is_err());
+        assert!(resume_script("copilot", "arbitrary'POSIX id", "/repo").is_ok());
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_resume_payload_roundtrips_data_and_uses_utf16le_powershell_pty() {
+        let target = SshTarget::new("devbox", None).unwrap();
+        let cwd = r"Q:\Copilot\世界 %PATH% O’Brien";
+        let command =
+            resume_commandline(&target, "copilot", WINDOWS_SID, cwd, SshPlatform::Windows).unwrap();
+        assert!(!command.contains('%'));
+        let launcher = windows_argv(&command);
+        let request: ResumeRequest = serde_json::from_str(&launcher[3]).unwrap();
+        assert_eq!(request.platform, SshPlatform::Windows);
+        assert_eq!(request.cwd, cwd);
+        assert_eq!(request.session_id, WINDOWS_SID);
+        let process = resume_process(&launcher[3], []).unwrap();
+        let args: Vec<_> = process
+            .as_std()
+            .get_args()
+            .map(|s| s.to_str().unwrap())
+            .collect();
+        assert_eq!(args[0], "-t");
+        let script = windows_resume_script("copilot", WINDOWS_SID, cwd).unwrap();
+        let bytes: Vec<_> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        assert_eq!(
+            *args.last().unwrap(),
+            format!(
+                "powershell.exe -NoLogo -NoProfile -EncodedCommand {}",
+                crate::osc52::base64_encode(&bytes)
+            )
+        );
+        assert!(!args.last().unwrap().contains("sh -lc"));
+    }
+
+    #[test]
+    fn ssh_resume_missing_platform_is_posix_and_unknown_fields_fail_closed() {
+        let legacy = serde_json::json!({
+            "target": { "destination": "host", "port": null },
+            "agent_id": "copilot", "session_id": "arbitrary-posix-id", "cwd": "/repo"
+        });
+        let restored: ResumeRequest = serde_json::from_value(legacy.clone()).unwrap();
+        assert_eq!(restored.platform, SshPlatform::Posix);
+        assert_eq!(serde_json::to_value(restored).unwrap()["platform"], "posix");
+        for field in ["platform", "future_field"] {
+            let mut value = legacy.clone();
+            value[field] = serde_json::json!("auto");
+            assert!(resume_process(&value.to_string(), []).is_err());
+        }
+        let mut wrong = legacy;
+        wrong["platform"] = serde_json::json!("windows");
+        assert!(resume_process(&wrong.to_string(), []).is_err());
+    }
+
+    #[test]
+    fn ssh_command_length_limits_count_utf16_and_include_transport_overhead() {
+        assert!(validate_local_command_length(&"x".repeat(32766)).is_ok());
+        assert!(validate_local_command_length(&"x".repeat(32767)).is_err());
+        assert!(validate_local_command_length(&"😀".repeat(16383)).is_ok());
+        assert!(validate_local_command_length(&"😀".repeat(16384)).is_err());
+        assert!(validate_windows_remote_length(&"x".repeat(8191 - 256)).is_ok());
+        assert!(validate_windows_remote_length(&"x".repeat(8192 - 256)).is_err());
+        let target = SshTarget::new("host", None).unwrap();
+        assert!(resume_arguments(
+            &target,
+            "copilot",
+            WINDOWS_SID,
+            &format!("Q:\\{}", "a".repeat(3000)),
+            SshPlatform::Windows
+        )
+        .is_err());
+        let executable = std::path::Path::new(r"C:\Windows\System32\OpenSSH\ssh.exe");
+        let overhead = executable.to_str().unwrap().encode_utf16().count() + 3;
+        assert!(validate_process_length(executable, &["x".repeat(32766 - overhead)]).is_ok());
+        assert!(validate_process_length(executable, &["x".repeat(32767 - overhead)]).is_err());
+    }
+
+    #[cfg(windows)]
+    fn run_windows_powershell_with_path(
+        script: &str,
+        path_prefix: Option<&std::path::Path>,
+    ) -> std::process::Output {
+        let executable = PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
+        let bytes: Vec<_> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let mut command = std::process::Command::new(executable);
+        command
+            .args(["-NoLogo", "-NoProfile", "-EncodedCommand"])
+            .arg(crate::osc52::base64_encode(&bytes));
+        if let Some(prefix) = path_prefix {
+            let path = std::env::join_paths(std::iter::once(prefix.to_path_buf()).chain(
+                std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+            ))
+            .unwrap();
+            command.env("PATH", path);
+        }
+        command.output().unwrap()
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_powershell_51_decodes_data_and_uses_cmd_shim() {
+        let cwd = r"Q:\世界\%PATH%\O'Brien’s [repo] & $(whoami);`x`";
+        let shim_dir =
+            std::env::temp_dir().join(format!("wta-ssh-copilot-shim-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&shim_dir).unwrap();
+        std::fs::write(
+            shim_dir.join("copilot.cmd"),
+            "@echo off\r\necho %*\r\nexit /b 23\r\n",
+        )
+        .unwrap();
+        std::fs::write(
+            shim_dir.join("copilot.ps1"),
+            "throw 'PowerShell shim must not run'\r\n",
+        )
+        .unwrap();
+        let stubs = "function Set-Location { param($LiteralPath,$ErrorAction) \
+            [Console]::WriteLine([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($LiteralPath))) };";
+        let script = windows_resume_script("copilot", WINDOWS_SID, cwd).unwrap();
+        let output = run_windows_powershell_with_path(&format!("{stubs}{script}"), Some(&shim_dir));
+        let _ = std::fs::remove_dir_all(&shim_dir);
+        assert_eq!(output.status.code(), Some(23), "{:?}", output);
+        let text = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(
+            text.lines().collect::<Vec<_>>(),
+            [
+                crate::osc52::base64_encode(cwd.as_bytes()),
+                format!("--resume={WINDOWS_SID}")
+            ]
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_powershell_51_location_failure_never_runs_copilot() {
+        let cwd = std::env::current_dir().unwrap();
+        let shim_dir =
+            std::env::temp_dir().join(format!("wta-ssh-copilot-shim-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&shim_dir).unwrap();
+        std::fs::write(
+            shim_dir.join("copilot.cmd"),
+            "@echo off\r\necho copilot-ran\r\nexit /b 19\r\n",
+        )
+        .unwrap();
+        let valid = windows_resume_script("copilot", WINDOWS_SID, cwd.to_str().unwrap()).unwrap();
+        assert_eq!(
+            run_windows_powershell_with_path(&valid, Some(&shim_dir))
+                .status
+                .code(),
+            Some(19)
+        );
+        let missing = cwd.join(format!("missing-ssh-test-{}", uuid::Uuid::new_v4()));
+        let invalid =
+            windows_resume_script("copilot", WINDOWS_SID, missing.to_str().unwrap()).unwrap();
+        let output = run_windows_powershell_with_path(&invalid, Some(&shim_dir));
+        let _ = std::fs::remove_dir_all(&shim_dir);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn windows_powershell_51_does_not_run_a_cwd_copilot_shim() {
+        let root =
+            std::env::temp_dir().join(format!("wta-ssh-copilot-search-{}", uuid::Uuid::new_v4()));
+        let cwd = root.join("repo");
+        let shim_dir = root.join("path");
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::create_dir(&shim_dir).unwrap();
+        std::fs::write(
+            cwd.join("copilot.cmd"),
+            "@echo off\r\necho cwd-hijack\r\nexit /b 31\r\n",
+        )
+        .unwrap();
+        std::fs::write(
+            shim_dir.join("copilot.cmd"),
+            "@echo off\r\necho trusted %*\r\nexit /b 23\r\n",
+        )
+        .unwrap();
+        let script = windows_resume_script("copilot", WINDOWS_SID, cwd.to_str().unwrap()).unwrap();
+        let output = run_windows_powershell_with_path(&script, Some(&shim_dir));
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(output.status.code(), Some(23), "{:?}", output);
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap().trim(),
+            format!("trusted --resume={WINDOWS_SID}")
+        );
+    }
 
     #[cfg(windows)]
     fn windows_argv(commandline: &str) -> Vec<String> {
@@ -654,7 +1143,14 @@ mod tests {
     fn resume_uses_each_cli_resume_flag_and_remote_cwd_without_host_resolution() {
         let target = SshTarget::new("Alias", None).unwrap();
         for profile in crate::agent_registry::KNOWN_AGENTS {
-            let command = resume_commandline(&target, profile.id, "sid", "/remote/repo").unwrap();
+            let command = resume_commandline(
+                &target,
+                profile.id,
+                "sid",
+                "/remote/repo",
+                SshPlatform::Posix,
+            )
+            .unwrap();
             let launcher = windows_argv(&command);
             assert_eq!(
                 PathBuf::from(&launcher[0]),
@@ -690,7 +1186,7 @@ mod tests {
         let target = SshTarget::new("user@[::1]", Some(2222)).unwrap();
         let id = r#"session'";$(echo injected)`id`&%PATH%\"#;
         let cwd = r#"/home/a b/世界/%PATH%/'";$(touch nope)\last"#;
-        let command = resume_commandline(&target, "codex", id, cwd).unwrap();
+        let command = resume_commandline(&target, "codex", id, cwd, SshPlatform::Posix).unwrap();
         assert!(!command.contains('%'));
         let launcher = windows_argv(&command);
         let request: ResumeRequest = serde_json::from_str(&launcher[3]).unwrap();
@@ -719,7 +1215,9 @@ mod tests {
     fn resume_rejects_options_controls_unknown_agents_and_non_posix_cwd() {
         let target = SshTarget::new("host", None).unwrap();
         for id in ["", " ", "-x", "--help", "id\0", "id\n", "id\r"] {
-            assert!(resume_commandline(&target, "copilot", id, "/repo").is_err());
+            assert!(
+                resume_commandline(&target, "copilot", id, "/repo", SshPlatform::Posix).is_err()
+            );
         }
         for cwd in [
             "",
@@ -731,17 +1229,22 @@ mod tests {
             "/repo\0",
             "/repo\n",
         ] {
-            assert!(resume_commandline(&target, "copilot", "sid", cwd).is_err());
+            assert!(
+                resume_commandline(&target, "copilot", "sid", cwd, SshPlatform::Posix).is_err()
+            );
         }
         for agent in ["unknown", "custom:copilot", "copilot;id"] {
-            assert!(resume_commandline(&target, agent, "sid", "/repo").is_err());
+            assert!(
+                resume_commandline(&target, agent, "sid", "/repo", SshPlatform::Posix).is_err()
+            );
         }
-        assert!(resume_commandline(&target, "copilot", "sid", "/").is_ok());
+        assert!(resume_commandline(&target, "copilot", "sid", "/", SshPlatform::Posix).is_ok());
     }
 
     #[test]
     fn resume_child_scrubs_inherited_environment_and_checks_payload() {
         let request = ResumeRequest {
+            platform: SshPlatform::Posix,
             target: SshTarget::new("host", None).unwrap(),
             agent_id: "copilot".into(),
             session_id: "sid".into(),

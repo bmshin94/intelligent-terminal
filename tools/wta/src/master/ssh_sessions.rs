@@ -19,6 +19,7 @@ use crate::session_registry::{
     agent_session_to_session_info, title_is_displayable, InMemoryRegistry, SessionRegistry,
 };
 use crate::ssh_session_registry::{build_changed_notification, Request, Snapshot, Source};
+use crate::ssh_sessions::SshPlatform;
 
 const MAX_EARLY_CLOSES: usize = 1024;
 
@@ -59,12 +60,24 @@ struct SourceState {
 struct SourceMetadata {
     revision: u64,
     history_loaded: bool,
+    platform: Option<SshPlatform>,
     listed_ids: HashSet<acp::schema::v1::SessionId>,
     outstanding_creates: usize,
     early_closes: HashSet<uuid::Uuid>,
 }
 
 impl SourceMetadata {
+    fn validate_platform(&self, requested: SshPlatform) -> acp::Result<()> {
+        if let Some(pinned) = self.platform {
+            if pinned != requested {
+                return Err(acp::Error::invalid_params().data(serde_json::json!({
+                    "message": format!("SSH platform conflict: source is pinned to {pinned:?}, not {requested:?}. Use the same platform in profiles sharing this target and agent; restart the master to change it.")
+                })));
+            }
+        }
+        Ok(())
+    }
+
     fn finished_create(&mut self) {
         self.outstanding_creates -= 1;
         if self.outstanding_creates == 0 {
@@ -102,6 +115,10 @@ pub(super) async fn handle(
     let source = match &request {
         Request::List { source, .. } | Request::Activate { source, .. } => source,
     };
+    request
+        .platform()
+        .validate_agent(&source.agent_id)
+        .map_err(request_error)?;
     validate_source(state, source)?;
     let state = Arc::clone(state);
     // The task owns its mutations and completion. Dropping the requesting
@@ -111,19 +128,23 @@ pub(super) async fn handle(
         match request {
             Request::List {
                 source,
+                platform,
                 refresh_history,
             } => {
                 list(
                     &state,
                     &source,
+                    platform,
                     refresh_history,
-                    crate::ssh_sessions::list_sessions(&source.target, &source.agent_id),
+                    crate::ssh_sessions::list_sessions(&source.target, &source.agent_id, platform),
                 )
                 .await
             }
-            Request::Activate { source, session_id } => {
-                activate(&state, &source, &session_id).await
-            }
+            Request::Activate {
+                source,
+                platform,
+                session_id,
+            } => activate(&state, &source, platform, &session_id).await,
         }
     })
     .await
@@ -148,6 +169,9 @@ async fn snapshot_locked(
     sessions.sort_by(|a, b| a.session_id.0.cmp(&b.session_id.0));
     Snapshot {
         source: source.clone(),
+        platform: metadata
+            .platform
+            .expect("snapshots require successfully published history"),
         epoch: state.ssh_sessions.epoch,
         revision: metadata.revision,
         sessions,
@@ -162,20 +186,33 @@ async fn changed(state: &MasterStateInner, source: &Source, metadata: &mut Sourc
 async fn list<F>(
     state: &MasterStateInner,
     source: &Source,
+    platform: SshPlatform,
     refresh_history: bool,
     history: F,
 ) -> acp::Result<Snapshot>
 where
     F: Future<Output = anyhow::Result<Vec<AgentSession>>>,
 {
+    platform
+        .validate_agent(&source.agent_id)
+        .map_err(request_error)?;
     let scoped = state.ssh_sessions.source(source).await;
-    if !refresh_history && scoped.operations.lock().await.history_loaded {
-        return Ok(snapshot(state, source, &scoped).await);
+    {
+        let metadata = scoped.operations.lock().await;
+        metadata.validate_platform(platform)?;
+        if !refresh_history && metadata.history_loaded {
+            return Ok(snapshot_locked(state, source, &scoped, &metadata).await);
+        }
     }
     let _refresh = scoped.refresh.lock().await;
-    if refresh_history || !scoped.operations.lock().await.history_loaded {
+    let history_loaded = {
+        let metadata = scoped.operations.lock().await;
+        metadata.validate_platform(platform)?;
+        metadata.history_loaded
+    };
+    if refresh_history || !history_loaded {
         let rows = history.await.map_err(request_error)?;
-        merge_history(state, source, &scoped, rows).await;
+        merge_history(state, source, &scoped, platform, rows).await?;
     }
     Ok(snapshot(state, source, &scoped).await)
 }
@@ -187,9 +224,11 @@ async fn merge_history(
     state: &MasterStateInner,
     source: &Source,
     scoped: &SourceState,
+    platform: SshPlatform,
     rows: Vec<AgentSession>,
-) {
+) -> acp::Result<()> {
     let mut metadata = scoped.operations.lock().await;
+    metadata.validate_platform(platform)?;
     let listed_ids: HashSet<_> = rows
         .iter()
         .map(|row| acp::schema::v1::SessionId::new(row.key.clone()))
@@ -251,20 +290,29 @@ async fn merge_history(
         }
     }
     metadata.listed_ids = listed_ids;
+    // The refresh gate serializes contenders; publication and pinning are one
+    // operation. A failed fetch leaves this source available to either platform.
+    metadata.platform = Some(platform);
     metadata.history_loaded = true;
     if updated {
         changed(state, source, &mut metadata).await;
     }
+    Ok(())
 }
 
 async fn activate(
     state: &MasterStateInner,
     source: &Source,
+    platform: SshPlatform,
     session_id: &str,
 ) -> acp::Result<Snapshot> {
+    platform
+        .validate_agent(&source.agent_id)
+        .map_err(request_error)?;
     let scoped = state.ssh_sessions.source(source).await;
     let sid = acp::schema::v1::SessionId::new(session_id.to_owned());
     let mut metadata = scoped.operations.lock().await;
+    metadata.validate_platform(platform)?;
     let info = scoped.registry.lookup(&sid).await.ok_or_else(|| {
         acp::Error::invalid_params().data(serde_json::json!({
             "message": "SSH session must first be listed in this source"
@@ -291,6 +339,7 @@ async fn activate(
         info.cwd
             .to_str()
             .ok_or_else(|| request_error(anyhow!("SSH session cwd is not UTF-8")))?,
+        platform,
     )
     .map_err(request_error)?;
     let wt = state
@@ -311,7 +360,7 @@ async fn activate(
     }
     drop(metadata);
 
-    // POSIX cwd belongs inside the quoted SSH command, not WT's Windows cwd.
+    // The remote cwd belongs inside the SSH command, never WT's local cwd.
     let created = wt
         .request(
             "create_tab",

@@ -339,6 +339,7 @@ pub enum AppEvent {
     },
     SshRegistryResult {
         source: crate::ssh_session_registry::Source,
+        platform: crate::ssh_sessions::SshPlatform,
         sequence: u64,
         action: crate::app::SshRegistryAction,
         result: Result<crate::ssh_session_registry::Snapshot, String>,

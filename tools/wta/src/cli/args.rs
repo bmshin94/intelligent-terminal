@@ -57,6 +57,9 @@ pub(crate) struct Cli {
     #[arg(long, hide = true, requires = "sessions_ssh_target", value_parser = clap::value_parser!(u16).range(1..))]
     pub(crate) sessions_ssh_port: Option<u16>,
 
+    #[arg(long, hide = true, requires = "sessions_ssh_target", value_enum)]
+    pub(crate) sessions_ssh_platform: Option<crate::ssh_sessions::SshPlatform>,
+
     /// Unsupported SSH profile metadata must not fall back to local history.
     #[arg(long, hide = true)]
     pub(crate) sessions_ssh_error: Option<String>,
@@ -505,6 +508,15 @@ pub(crate) enum SessionsAction {
         /// Override the SSH port (otherwise use the user's SSH configuration).
         #[arg(long, requires = "ssh", value_parser = clap::value_parser!(u16).range(1..))]
         port: Option<u16>,
+        /// Explicit remote platform; no detection (defaults to posix).
+        #[arg(
+            long,
+            requires = "ssh",
+            conflicts_with = "master",
+            value_enum,
+            default_value = "posix"
+        )]
+        ssh_platform: crate::ssh_sessions::SshPlatform,
         /// Built-in remote agent CLI id (defaults to copilot in SSH mode).
         #[arg(long, requires = "ssh", value_parser = parse_ssh_cli)]
         cli: Option<String>,

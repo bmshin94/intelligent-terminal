@@ -1021,6 +1021,7 @@ async fn run_acp_app(
                 config.sessions_ssh_target.as_deref(),
                 config.sessions_ssh_port,
                 config.sessions_ssh_error.as_deref(),
+                config.sessions_ssh_platform,
             );
 
             // Plan-C boot-time initial-load: if WT spawned us with

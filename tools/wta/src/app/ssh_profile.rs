@@ -2,7 +2,7 @@
 //! independent of the helper's ACP agent execution source.
 
 use super::*;
-use crate::ssh_sessions::SshTarget;
+use crate::ssh_sessions::{SshPlatform, SshTarget};
 
 #[cfg(test)]
 #[path = "ssh_profile_tests.rs"]
@@ -12,23 +12,28 @@ mod tests;
 pub(crate) enum SessionsProfile {
     #[default]
     Agent,
-    Ssh(SshTarget),
+    Ssh(SshTarget, SshPlatform),
     Invalid(String),
 }
 
 impl SessionsProfile {
-    fn from_startup(target: Option<&str>, port: Option<u16>, error: Option<&str>) -> Self {
+    fn from_startup(
+        target: Option<&str>,
+        port: Option<u16>,
+        error: Option<&str>,
+        platform: Option<SshPlatform>,
+    ) -> Self {
         if let Some(error) = error {
             return Self::Invalid(error.to_string());
         }
         match target {
             Some(target) => match SshTarget::new(target, port) {
-                Ok(target) => Self::Ssh(target),
+                Ok(target) => Self::Ssh(target, platform.unwrap_or_default()),
                 Err(error) => Self::Invalid(format!("{error:#}")),
             },
-            None if port.is_some() => {
-                Self::Invalid("SSH session profile has a port but no destination.".into())
-            }
+            None if port.is_some() || platform.is_some() => Self::Invalid(
+                "SSH session profile has a port or platform but no destination.".into(),
+            ),
             None => Self::Agent,
         }
     }
@@ -40,9 +45,24 @@ impl SessionsProfile {
         if let Some(error) = value.get("error").and_then(serde_json::Value::as_str) {
             return Self::Invalid(error.to_string());
         }
-        match serde_json::from_value::<SshTarget>(value.clone()) {
-            Ok(target) => Self::Ssh(target),
-            Err(error) => Self::Invalid(format!("Invalid SSH session profile metadata: {error}")),
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct WireProfile {
+            destination: String,
+            port: Option<u16>,
+            #[serde(default)]
+            platform: SshPlatform,
+        }
+        match serde_json::from_value::<WireProfile>(value.clone()) {
+            Ok(profile) => Self::from_startup(Some(&profile.destination), profile.port, None, Some(profile.platform)),
+            Err(error) => Self::Invalid(format!("Invalid or unsupported SSH session profile/platform metadata: {error}. Update Terminal and WTA together.")),
+        }
+    }
+
+    pub(super) fn platform(&self) -> SshPlatform {
+        match self {
+            Self::Ssh(_, platform) => *platform,
+            _ => SshPlatform::Posix,
         }
     }
 }
@@ -53,9 +73,13 @@ impl App {
         target: Option<&str>,
         port: Option<u16>,
         error: Option<&str>,
+        platform: Option<SshPlatform>,
     ) {
         let tab_id = self.active_tab_key().to_string();
-        self.set_sessions_profile(&tab_id, SessionsProfile::from_startup(target, port, error));
+        self.set_sessions_profile(
+            &tab_id,
+            SessionsProfile::from_startup(target, port, error, platform),
+        );
     }
 
     pub(super) fn update_sessions_profile_from_event(&mut self, params: &serde_json::Value) {
@@ -116,7 +140,7 @@ impl App {
         let tab = self.tab_mut(tab_id);
         let profile = tab.agents_view.ssh_profile.clone();
         let source = match &profile {
-            SessionsProfile::Ssh(target) => Some(ssh_session_view::SshSessionsSource {
+            SessionsProfile::Ssh(target, _) => Some(ssh_session_view::SshSessionsSource {
                 target: target.clone(),
                 agent_id: self.current_agent_id.clone(),
             }),
@@ -153,7 +177,7 @@ impl App {
         let tabs: Vec<_> = self
             .tab_sessions
             .iter()
-            .filter(|(_, tab)| matches!(tab.agents_view.ssh_profile, SessionsProfile::Ssh(_)))
+            .filter(|(_, tab)| matches!(tab.agents_view.ssh_profile, SessionsProfile::Ssh(..)))
             .map(|(id, tab)| (id.clone(), tab.agents_view.ssh_source.clone()))
             .collect();
         for (tab_id, previous) in tabs {

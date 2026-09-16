@@ -16,13 +16,16 @@ pub(crate) async fn run_list(
 
 pub(crate) async fn run_ssh_list(
     target: &crate::ssh_sessions::SshTarget,
+    platform: crate::ssh_sessions::SshPlatform,
     agent_id: &str,
     origin_filter: crate::agent_sessions::OriginFilter,
     json_mode: bool,
 ) -> Result<()> {
     let local = tokio::task::LocalSet::new();
     let sessions = local
-        .run_until(crate::ssh_sessions::list_sessions(target, agent_id))
+        .run_until(crate::ssh_sessions::list_sessions(
+            target, agent_id, platform,
+        ))
         .await?;
     let sessions = sessions
         .iter()

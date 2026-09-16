@@ -6,6 +6,192 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use tokio::sync::{mpsc, oneshot, OnceCell};
 
+#[tokio::test]
+async fn ssh_failed_first_fetch_does_not_pin_and_success_rejects_platform_conflicts() {
+    for (first, second) in [
+        (SshPlatform::Posix, SshPlatform::Windows),
+        (SshPlatform::Windows, SshPlatform::Posix),
+    ] {
+        let state = make_state();
+        let source = source("devbox", None, "copilot");
+        assert!(list(&state, &source, first, false, async {
+            Err(anyhow!("first fetch failed"))
+        })
+        .await
+        .is_err());
+        let scoped = state.ssh_sessions.source(&source).await;
+        {
+            let metadata = scoped.operations.lock().await;
+            assert_eq!(metadata.platform, None);
+            assert_eq!(metadata.revision, 0);
+        }
+        let published = list(&state, &source, second, false, async { Ok(Vec::new()) })
+            .await
+            .unwrap();
+        assert_eq!(published.platform, second);
+        assert_eq!(published.revision, 1);
+        for refresh in [false, true] {
+            let error = list(&state, &source, first, refresh, async {
+                panic!("conflict must not fetch")
+            })
+            .await
+            .unwrap_err();
+            assert!(format!("{error:?}").contains("platform conflict"));
+        }
+        let error = activate(&state, &source, first, "unknown")
+            .await
+            .unwrap_err();
+        assert!(format!("{error:?}").contains("platform conflict"));
+        let after = snapshot(&state, &source, &scoped).await;
+        assert_eq!(after.platform, second);
+        assert_eq!(after.revision, published.revision);
+        assert_eq!(after.sessions, published.sessions);
+        assert_eq!(state.ssh_sessions.sources.lock().await.len(), 1);
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn ssh_concurrent_first_platforms_pin_only_the_published_winner() {
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let state = make_state();
+            let source = source("devbox", None, "copilot");
+            let (started_tx, started_rx) = oneshot::channel();
+            let (release_tx, release_rx) = oneshot::channel();
+            let a_state = state.clone();
+            let a_source = source.clone();
+            let first = tokio::task::spawn_local(async move {
+                list(&a_state, &a_source, SshPlatform::Windows, false, async {
+                    started_tx.send(()).unwrap();
+                    release_rx.await.unwrap();
+                    Ok(Vec::new())
+                })
+                .await
+            });
+            started_rx.await.unwrap();
+            let scoped = state.ssh_sessions.source(&source).await;
+            assert_eq!(scoped.operations.lock().await.platform, None);
+            let b_state = state.clone();
+            let b_source = source.clone();
+            let second = tokio::task::spawn_local(async move {
+                list(&b_state, &b_source, SshPlatform::Posix, false, async {
+                    panic!("loser must validate after waiting for refresh")
+                })
+                .await
+            });
+            release_tx.send(()).unwrap();
+            assert_eq!(first.await.unwrap().unwrap().platform, SshPlatform::Windows);
+            assert!(
+                format!("{:?}", second.await.unwrap().unwrap_err()).contains("platform conflict")
+            );
+            assert_eq!(scoped.operations.lock().await.revision, 1);
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn ssh_windows_concurrent_activation_creates_one_pane_and_conflict_preserves_binding() {
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let (state, mut native) = harness();
+            let source = source("devbox", None, "copilot");
+            let sid = "12345678-abcd-1234-abcd-123456789abc";
+            let mut row = history(&source, sid, "Original title");
+            row.cwd = r"Q:\Copilot".into();
+            list(&state, &source, SshPlatform::Windows, true, async {
+                Ok(vec![row])
+            })
+            .await
+            .unwrap();
+            let handler = caller(&state, 1);
+            let request = Request::Activate {
+                source: source.clone(),
+                platform: SshPlatform::Windows,
+                session_id: sid.into(),
+            };
+            let a = handler.clone();
+            let first_request = request.clone();
+            let first = tokio::task::spawn_local(async move { call(&a, first_request).await });
+            let create = native.recv().await.unwrap();
+            assert_eq!(create.method, "create_tab");
+            assert!(create.params.get("cwd").is_none());
+            assert_eq!(
+                create.params["commandline"],
+                crate::ssh_sessions::resume_commandline(
+                    &source.target,
+                    "copilot",
+                    sid,
+                    r"Q:\Copilot",
+                    SshPlatform::Windows
+                )
+                .unwrap()
+            );
+            let pending = call(&caller(&state, 2), request).await.unwrap();
+            assert_eq!(pending.platform, SshPlatform::Windows);
+            assert_eq!(pending.sessions[0].status, Some(AgentStatus::Idle));
+            assert_eq!(pending.sessions[0].pane_session_id, None);
+            assert!(native.try_recv().is_err());
+            let pane = uuid::Uuid::new_v4();
+            create
+                .reply
+                .send(Ok(serde_json::json!({ "session_id": pane.to_string() })))
+                .unwrap();
+            focused(&mut native, pane).await;
+            let live = first.await.unwrap().unwrap();
+            let conflict = call(
+                &handler,
+                Request::Activate {
+                    source: source.clone(),
+                    platform: SshPlatform::Posix,
+                    session_id: sid.into(),
+                },
+            )
+            .await
+            .unwrap_err();
+            assert!(format!("{conflict:?}").contains("platform conflict"));
+            let after = call(
+                &handler,
+                Request::List {
+                    source: source.clone(),
+                    platform: SshPlatform::Windows,
+                    refresh_history: false,
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(live.sessions, after.sessions);
+            assert_eq!(live.revision, after.revision);
+            assert_eq!(after.sessions[0].pane_session_id, Some(pane.to_string()));
+            assert!(native.try_recv().is_err());
+        })
+        .await;
+}
+
+#[tokio::test]
+async fn ssh_windows_unsupported_agent_has_no_registry_or_local_fallback() {
+    let state = make_state();
+    let source = source("devbox", None, "claude");
+    let handler = caller(&state, 1);
+    for request in [
+        Request::List {
+            source: source.clone(),
+            platform: SshPlatform::Windows,
+            refresh_history: true,
+        },
+        Request::Activate {
+            source,
+            platform: SshPlatform::Windows,
+            session_id: "sid".into(),
+        },
+    ] {
+        let error = call(&handler, request).await.unwrap_err();
+        assert!(format!("{error:?}").contains("only agent_id copilot"));
+    }
+    assert!(state.ssh_sessions.sources.lock().await.is_empty());
+    assert!(state.registry.snapshot().await.is_empty());
+    assert!(handler.agent.get().is_none());
+}
+
 struct NativeCall {
     method: String,
     params: serde_json::Value,
@@ -92,11 +278,13 @@ async fn seed(state: &MasterStateInner, source: &Source, ids: &[&str]) {
         state,
         source,
         &scoped,
+        SshPlatform::Posix,
         ids.iter()
             .map(|id| history(source, id, "Original title"))
             .collect(),
     )
-    .await;
+    .await
+    .unwrap();
 }
 
 async fn call(handler: &HelperHandler, request: Request) -> acp::Result<Snapshot> {
@@ -114,6 +302,7 @@ fn activation(
 ) -> tokio::task::JoinHandle<acp::Result<Snapshot>> {
     let handler = handler.clone();
     let request = Request::Activate {
+        platform: SshPlatform::Posix,
         source: source.clone(),
         session_id: id.to_owned(),
     };
@@ -124,6 +313,7 @@ async fn cached(handler: &HelperHandler, source: &Source) -> Snapshot {
     call(
         handler,
         Request::List {
+            platform: SshPlatform::Posix,
             source: source.clone(),
             refresh_history: false,
         },
@@ -186,7 +376,8 @@ async fn ssh_resume_in_one_helper_is_idle_and_focusable_in_another() {
                     &source.target,
                     &source.agent_id,
                     "same-id",
-                    "/home/user/project 'quoted'"
+                    "/home/user/project 'quoted'",
+                    SshPlatform::Posix,
                 )
                 .unwrap()
             );
@@ -237,6 +428,7 @@ async fn ssh_simultaneous_helpers_share_one_pending_create() {
             let second = call(
                 &b,
                 Request::Activate {
+                    platform: SshPlatform::Posix,
                     source: source.clone(),
                     session_id: "same-id".to_owned(),
                 },
@@ -366,7 +558,9 @@ async fn ssh_history_merge_preserves_pending_live_and_ended_bindings_and_refresh
             let pane = uuid::Uuid::new_v4();
             let resume = activation(&a, &source, "same-id");
             let native_request = native.recv().await.unwrap();
-            merge_history(&state, &source, &scoped, Vec::new()).await;
+            merge_history(&state, &source, &scoped, SshPlatform::Posix, Vec::new())
+                .await
+                .unwrap();
             let pending = cached(&a, &source).await;
             assert_eq!(pending.sessions.len(), 1);
             assert_eq!(pending.sessions[0].status, Some(AgentStatus::Idle));
@@ -380,9 +574,11 @@ async fn ssh_history_merge_preserves_pending_live_and_ended_bindings_and_refresh
                 &state,
                 &source,
                 &scoped,
+                SshPlatform::Posix,
                 vec![history(&source, "same-id", "Updated title")],
             )
-            .await;
+            .await
+            .unwrap();
             let refreshed = cached(&a, &source).await;
             assert!(refreshed.revision > live.revision);
             assert_eq!(
@@ -395,14 +591,18 @@ async fn ssh_history_merge_preserves_pending_live_and_ended_bindings_and_refresh
                 Some(pane.to_string())
             );
             close(&state, pane, "closed").await;
-            merge_history(&state, &source, &scoped, Vec::new()).await;
+            merge_history(&state, &source, &scoped, SshPlatform::Posix, Vec::new())
+                .await
+                .unwrap();
             merge_history(
                 &state,
                 &source,
                 &scoped,
+                SshPlatform::Posix,
                 vec![history(&source, "same-id", "Ended title")],
             )
-            .await;
+            .await
+            .unwrap();
             let ended = cached(&a, &source).await;
             assert_eq!(ended.sessions[0].status, Some(AgentStatus::Ended));
             assert_eq!(ended.sessions[0].title.as_deref(), Some("Ended title"));
@@ -576,10 +776,12 @@ async fn ssh_registry_initialize_and_policy_do_not_require_a_local_agent() {
             ] {
                 for request in [
                     Request::List {
+                        platform: SshPlatform::Posix,
                         source: source.clone(),
                         refresh_history: true,
                     },
                     Request::Activate {
+                        platform: SshPlatform::Posix,
                         source: source.clone(),
                         session_id: "same-id".to_owned(),
                     },
@@ -672,6 +874,7 @@ async fn ssh_wire_dispatch_matches_both_acp_forms_and_never_forwards_malformed_r
     state.registry.upsert(host.clone()).await;
     for method in [METHOD, METHOD.strip_prefix('_').unwrap()] {
         let raw = serde_json::value::to_raw_value(&Request::List {
+            platform: SshPlatform::Posix,
             source: source.clone(),
             refresh_history: false,
         })
@@ -728,9 +931,11 @@ async fn ssh_snapshot_epochs_are_service_scoped_and_revisions_only_change_with_s
                 &state,
                 &source,
                 &scoped,
+                SshPlatform::Posix,
                 vec![history(&source, "same-id", "Original title")],
             )
-            .await;
+            .await
+            .unwrap();
             assert_eq!(cached(&a, &source).await.revision, first.revision);
             assert_ne!(
                 cached(&caller(&other_master, 1), &source).await.epoch,
@@ -751,26 +956,26 @@ async fn ssh_snapshot_epochs_are_service_scoped_and_revisions_only_change_with_s
 async fn ssh_history_fetch_errors_are_explicit_and_never_replace_a_cached_snapshot() {
     let state = make_state();
     let source = source("ubuntu", None, "copilot");
-    let failure = list(&state, &source, false, async {
+    let failure = list(&state, &source, SshPlatform::Posix, false, async {
         Err(anyhow!("SSH authentication failed"))
     })
     .await;
     assert!(failure.is_err());
     let scoped = state.ssh_sessions.source(&source).await;
     assert!(!scoped.operations.lock().await.history_loaded);
-    let initial = list(&state, &source, false, async {
+    let initial = list(&state, &source, SshPlatform::Posix, false, async {
         Ok(vec![history(&source, "same-id", "Original title")])
     })
     .await
     .unwrap();
-    let cached = list(&state, &source, false, async {
+    let cached = list(&state, &source, SshPlatform::Posix, false, async {
         panic!("cached list must not fetch remote history")
     })
     .await
     .unwrap();
     assert_eq!(cached.revision, initial.revision);
     assert_eq!(cached.sessions, initial.sessions);
-    assert!(list(&state, &source, true, async {
+    assert!(list(&state, &source, SshPlatform::Posix, true, async {
         Err(anyhow!("SSH refresh failed"))
     })
     .await
@@ -778,9 +983,11 @@ async fn ssh_history_fetch_errors_are_explicit_and_never_replace_a_cached_snapsh
     let after_failure = snapshot(&state, &source, &scoped).await;
     assert_eq!(after_failure.revision, initial.revision);
     assert_eq!(after_failure.sessions, initial.sessions);
-    let refreshed = list(&state, &source, true, async { Ok(Vec::new()) })
-        .await
-        .unwrap();
+    let refreshed = list(&state, &source, SshPlatform::Posix, true, async {
+        Ok(Vec::new())
+    })
+    .await
+    .unwrap();
     assert!(refreshed.revision > initial.revision);
     assert!(refreshed.sessions.is_empty());
 }
@@ -795,7 +1002,15 @@ async fn ssh_historical_refresh_updates_metadata_without_losing_a_displayable_ti
     let mut refreshed = history(&source, "same-id", "Updated title");
     refreshed.cwd = PathBuf::from("/home/user/new-project");
     refreshed.last_activity_at = std::time::UNIX_EPOCH + std::time::Duration::from_secs(200);
-    merge_history(&state, &source, &scoped, vec![refreshed.clone()]).await;
+    merge_history(
+        &state,
+        &source,
+        &scoped,
+        SshPlatform::Posix,
+        vec![refreshed.clone()],
+    )
+    .await
+    .unwrap();
     let after = snapshot(&state, &source, &scoped).await;
     assert!(after.revision > before.revision);
     assert_eq!(after.sessions[0].cwd, refreshed.cwd);
@@ -804,7 +1019,15 @@ async fn ssh_historical_refresh_updates_metadata_without_losing_a_displayable_ti
     assert_eq!(after.sessions[0].status, Some(AgentStatus::Historical));
     assert_eq!(after.sessions[0].pane_session_id, None);
     refreshed.title.clear();
-    merge_history(&state, &source, &scoped, vec![refreshed]).await;
+    merge_history(
+        &state,
+        &source,
+        &scoped,
+        SshPlatform::Posix,
+        vec![refreshed],
+    )
+    .await
+    .unwrap();
     let without_title = snapshot(&state, &source, &scoped).await;
     assert_eq!(without_title.revision, after.revision);
     assert_eq!(without_title.sessions, after.sessions);
@@ -825,7 +1048,7 @@ async fn ssh_concurrent_first_lists_share_history_without_blocking_another_sourc
             let a_state = Arc::clone(&state);
             let a_source = source.clone();
             let first = tokio::task::spawn_local(async move {
-                list(&a_state, &a_source, false, async {
+                list(&a_state, &a_source, SshPlatform::Posix, false, async {
                     started_tx.send(()).unwrap();
                     release_rx.await.unwrap();
                     Ok(vec![history(&a_source, "same-id", "Original title")])
@@ -837,13 +1060,13 @@ async fn ssh_concurrent_first_lists_share_history_without_blocking_another_sourc
             let b_state = Arc::clone(&state);
             let b_source = source.clone();
             let second = tokio::task::spawn_local(async move {
-                list(&b_state, &b_source, false, async {
+                list(&b_state, &b_source, SshPlatform::Posix, false, async {
                     panic!("another first-list caller must reuse the loaded history")
                 })
                 .await
                 .unwrap()
             });
-            let independent = list(&state, &other, false, async {
+            let independent = list(&state, &other, SshPlatform::Posix, false, async {
                 Ok(vec![history(&other, "same-id", "Other title")])
             })
             .await
@@ -871,6 +1094,7 @@ async fn ssh_activation_requires_a_listed_row_and_valid_stored_resume_metadata()
             assert!(call(
                 &a,
                 Request::Activate {
+                    platform: SshPlatform::Posix,
                     source: source.clone(),
                     session_id: "not-listed".to_owned()
                 }
@@ -884,13 +1108,16 @@ async fn ssh_activation_requires_a_listed_row_and_valid_stored_resume_metadata()
                 &state,
                 &source,
                 &scoped,
+                SshPlatform::Posix,
                 vec![invalid, history(&source, "--option", "Original title")],
             )
-            .await;
+            .await
+            .unwrap();
             for session_id in ["bad-cwd", "--option"] {
                 assert!(call(
                     &a,
                     Request::Activate {
+                        platform: SshPlatform::Posix,
                         source: source.clone(),
                         session_id: session_id.to_owned()
                     }

@@ -47,11 +47,73 @@ fn assert_ssh(app: &App, destination: &str, port: Option<u16>, cli: &str) {
 }
 
 #[test]
+fn ssh_profile_explicit_platform_roundtrips_and_unknown_values_are_unsupported() {
+    for (platform, value) in [
+        (SshPlatform::Posix, "posix"),
+        (SshPlatform::Windows, "windows"),
+    ] {
+        let startup = SessionsProfile::from_startup(Some("devbox"), None, None, Some(platform));
+        let runtime =
+            SessionsProfile::from_wire(&json!({ "destination": "devbox", "platform": value }));
+        assert_eq!(startup, runtime);
+        assert_eq!(runtime.platform(), platform);
+    }
+    for value in [
+        json!("auto"),
+        json!("Windows"),
+        json!(""),
+        json!(null),
+        json!(42),
+    ] {
+        assert!(matches!(
+            SessionsProfile::from_wire(&json!({ "destination": "devbox", "platform": value })),
+            SessionsProfile::Invalid(_)
+        ));
+    }
+    assert!(matches!(
+        SessionsProfile::from_startup(None, None, None, Some(SshPlatform::Windows)),
+        SessionsProfile::Invalid(_)
+    ));
+}
+
+#[test]
+fn ssh_profile_platform_change_invalidates_rows_without_changing_source_identity() {
+    let _locale = crate::test_support::lock_locale();
+    let (mut app, _) = app_with_owner();
+    app.set_initial_sessions_ssh_profile(Some("devbox"), None, None, None);
+    let source = app.current_tab().agents_view.ssh_source.clone();
+    let tab = app.current_tab_mut();
+    tab.agents_view.snapshot = Some(vec![crate::session_registry::SessionInfo::new(
+        "old".into(),
+        "/repo".into(),
+    )]);
+    tab.agents_view.refetch_in_flight = true;
+    tab.agents_view.latest_request_id = Some(5);
+    app.set_initial_sessions_ssh_profile(Some("devbox"), None, None, Some(SshPlatform::Windows));
+    assert_eq!(app.current_tab().agents_view.ssh_source, source);
+    assert_eq!(
+        app.current_tab().agents_view.ssh_profile.platform(),
+        SshPlatform::Windows
+    );
+    assert!(app
+        .current_tab()
+        .agents_view
+        .snapshot
+        .as_ref()
+        .unwrap()
+        .is_empty());
+    assert_eq!(app.current_tab().agents_view.latest_request_id, None);
+}
+
+#[test]
 fn ssh_profile_startup_and_runtime_metadata_resolve_the_same_target() {
     for port in [None, Some(2222)] {
-        let expected = SessionsProfile::Ssh(SshTarget::new("user@Alias", port).unwrap());
+        let expected = SessionsProfile::Ssh(
+            SshTarget::new("user@Alias", port).unwrap(),
+            SshPlatform::Posix,
+        );
         assert_eq!(
-            SessionsProfile::from_startup(Some("user@Alias"), port, None),
+            SessionsProfile::from_startup(Some("user@Alias"), port, None, None),
             expected
         );
         assert_eq!(
@@ -60,7 +122,7 @@ fn ssh_profile_startup_and_runtime_metadata_resolve_the_same_target() {
         );
     }
     assert_eq!(
-        SessionsProfile::from_startup(None, None, None),
+        SessionsProfile::from_startup(None, None, None, None),
         SessionsProfile::Agent
     );
     assert_eq!(
@@ -90,15 +152,15 @@ fn ssh_profile_invalid_metadata_is_not_a_host_source() {
         );
     }
     assert!(matches!(
-        SessionsProfile::from_startup(None, Some(22), None),
+        SessionsProfile::from_startup(None, Some(22), None, None),
         SessionsProfile::Invalid(_)
     ));
     assert!(matches!(
-        SessionsProfile::from_startup(Some("bad;target"), None, None),
+        SessionsProfile::from_startup(Some("bad;target"), None, None, None),
         SessionsProfile::Invalid(_)
     ));
     assert_eq!(
-        SessionsProfile::from_startup(None, None, Some("unsupported SSH option")),
+        SessionsProfile::from_startup(None, None, Some("unsupported SSH option"), None),
         SessionsProfile::Invalid("unsupported SSH option".into())
     );
 }
@@ -107,7 +169,7 @@ fn ssh_profile_invalid_metadata_is_not_a_host_source() {
 fn ssh_profile_prewarmed_helper_opens_remote_history() {
     let _locale = crate::test_support::lock_locale();
     let (mut app, mut master) = app_with_owner();
-    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), None, None);
+    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), None, None, None);
     assert_ssh(&app, "wsl-ssh", None, "copilot");
     app.open_agents_view_for_tab("owner-tab".into());
     assert_eq!(app.current_tab().current_view, View::Agents);
@@ -142,7 +204,7 @@ fn ssh_profile_native_button_selects_the_owning_profiles_destination() {
 fn ssh_profile_bare_sessions_uses_profile_not_windows() {
     let _locale = crate::test_support::lock_locale();
     let (mut app, mut master) = app_with_owner();
-    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), Some(2222), None);
+    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), Some(2222), None, None);
     app.current_tab_mut().replace_input("/sessions".into());
     app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
     assert_ssh(&app, "wsl-ssh", Some(2222), "copilot");
@@ -154,7 +216,7 @@ fn ssh_profile_bare_sessions_uses_profile_not_windows() {
 fn ssh_profile_tracks_the_selected_agent() {
     let _locale = crate::test_support::lock_locale();
     let (mut app, _) = app_with_owner();
-    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), None, None);
+    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), None, None, None);
     app.current_agent_id = "claude".into();
     app.open_agents_view_for_tab("owner-tab".into());
     assert_ssh(&app, "wsl-ssh", None, "claude");
@@ -174,7 +236,7 @@ fn ssh_profile_rejects_removed_slash_source_arguments() {
             "/sessions --cli claude",
         ] {
             let (mut app, mut master) = app_with_owner();
-            app.set_initial_sessions_ssh_profile(target, None, None);
+            app.set_initial_sessions_ssh_profile(target, None, None, None);
             let location = app.current_location_filter();
             app.current_tab_mut().replace_input(command.to_string());
             app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
@@ -198,7 +260,7 @@ fn ssh_profile_keeps_windows_and_wsl_default_history_behavior() {
     ] {
         let (mut app, mut master) = app_with_owner();
         app.current_agent_source = agent_source.clone();
-        app.set_initial_sessions_ssh_profile(None, None, None);
+        app.set_initial_sessions_ssh_profile(None, None, None, None);
         open_native(
             &mut app,
             "owner-window",
@@ -221,7 +283,7 @@ fn ssh_profile_keeps_windows_and_wsl_default_history_behavior() {
 fn ssh_profile_agent_rebind_updates_an_open_view_without_using_host_history() {
     let _locale = crate::test_support::lock_locale();
     let (mut app, mut master) = app_with_owner();
-    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), None, None);
+    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), None, None, None);
     app.open_agents_view_for_tab("owner-tab".into());
     app.current_agent_id = "claude".into();
     app.reset_agent_scoped_state();
@@ -234,7 +296,7 @@ fn ssh_profile_agent_rebind_updates_an_open_view_without_using_host_history() {
 fn ssh_profile_updates_cannot_cross_window_or_tab_boundaries() {
     let _locale = crate::test_support::lock_locale();
     let (mut app, mut master) = app_with_owner();
-    app.set_initial_sessions_ssh_profile(Some("own"), None, None);
+    app.set_initial_sessions_ssh_profile(Some("own"), None, None, None);
     for (window, tab) in [
         ("foreign-window", "owner-tab"),
         ("owner-window", "foreign-tab"),
@@ -264,7 +326,7 @@ fn ssh_profile_updates_cannot_cross_window_or_tab_boundaries() {
 fn ssh_profile_change_retires_old_requests_and_null_clears_the_default() {
     let _locale = crate::test_support::lock_locale();
     let (mut app, mut master) = app_with_owner();
-    app.set_initial_sessions_ssh_profile(Some("old"), None, None);
+    app.set_initial_sessions_ssh_profile(Some("old"), None, None, None);
     let tab = app.current_tab_mut();
     tab.agents_view.snapshot = Some(Vec::new());
     tab.agents_view.refetch_in_flight = true;
@@ -349,7 +411,7 @@ fn ssh_profile_policy_blocks_remote_listing_without_falling_back_to_host() {
     let (mut app, mut master) = app_with_owner();
     app.host_agent_allowlist_present = true;
     app.allowed_agent_ids = vec!["claude".into()];
-    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), None, None);
+    app.set_initial_sessions_ssh_profile(Some("wsl-ssh"), None, None, None);
     app.open_agents_view_for_tab("owner-tab".into());
     assert_ssh(&app, "wsl-ssh", None, "copilot");
     assert!(app

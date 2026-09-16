@@ -25,6 +25,7 @@ namespace TerminalAppUnitTests
         TEST_METHOD(RejectsMalformedSshSessionsProfiles);
         TEST_METHOD(BuildsSshSessionsHelperArguments);
         TEST_METHOD(WritesSshSessionsRuntimeMetadata);
+        TEST_METHOD(ReadsSshPlatformFromProfileEnvironment);
     };
 
     void AgentSourceUtilsTests::ReadEnvironmentVariableSupportsLongValues()
@@ -390,5 +391,54 @@ namespace TerminalAppUnitTests
         VERIFY_ARE_EQUAL(std::string{ "42" }, params["window_id"].asString());
         VERIFY_ARE_EQUAL(std::string{ "sessions" }, params["view"].asString());
         VERIFY_IS_TRUE(params["pane_open"].asBool());
+    }
+
+    void AgentSourceUtilsTests::ReadsSshPlatformFromProfileEnvironment()
+    {
+        namespace AgentSource = Microsoft::Terminal::AgentSource;
+        const auto environment = winrt::single_threaded_map<winrt::hstring, winrt::hstring>();
+        const auto resolve = [&]() {
+            return AgentSource::ResolveSessionsSshSourceFromEnvironment({}, L"ssh Dev-Box", environment);
+        };
+        VERIFY_IS_TRUE(resolve().platform == AgentSource::SessionsSshPlatform::Posix);
+        environment.Insert(L"UNRELATED", L"windows");
+        VERIFY_IS_TRUE(resolve().platform == AgentSource::SessionsSshPlatform::Posix);
+
+        constexpr auto marker = L"WTA_SESSIONS_SSH_PLATFORM";
+        environment.Insert(marker, L"windows");
+        const auto windows = resolve();
+        VERIFY_IS_TRUE(windows.kind == AgentSource::SessionsSshKind::ValidTarget);
+        VERIFY_IS_TRUE(windows.platform == AgentSource::SessionsSshPlatform::Windows);
+        const auto args = AgentSource::BuildSessionsSshHelperArguments(windows);
+        VERIFY_ARE_EQUAL(size_t{ 2 }, args.size());
+        VERIFY_ARE_EQUAL(std::wstring{ L"--sessions-ssh-platform" }, args[1].first);
+        VERIFY_ARE_EQUAL(std::wstring{ L"windows" }, args[1].second);
+        Json::Value params;
+        AgentSource::WriteSessionsSshMetadata(params, windows);
+        VERIFY_ARE_EQUAL(std::string{ "windows" }, params["sessions_ssh"]["platform"].asString());
+        VERIFY_ARE_EQUAL(std::string{ "Dev-Box" }, params["sessions_ssh"]["destination"].asString());
+        VERIFY_IS_TRUE(AgentSource::ResolveSessionsSshSourceFromEnvironment({}, LR"(ssh redmond\haonantang@devbox)", environment).kind == AgentSource::SessionsSshKind::UnsupportedSsh);
+
+        environment.Insert(marker, L"posix");
+        const auto posix = resolve();
+        VERIFY_IS_TRUE(posix.platform == AgentSource::SessionsSshPlatform::Posix);
+        VERIFY_ARE_EQUAL(windows.destination, posix.destination);
+        VERIFY_ARE_EQUAL(size_t{ 1 }, AgentSource::BuildSessionsSshHelperArguments(posix).size());
+        AgentSource::WriteSessionsSshMetadata(params, posix);
+        VERIFY_IS_FALSE(params["sessions_ssh"].isMember("platform"));
+
+        for (const auto invalid : { L"", L"auto", L"Windows", L"linux", L"windows " })
+        {
+            environment.Insert(marker, invalid);
+            const auto source = resolve();
+            VERIFY_IS_TRUE(source.kind == AgentSource::SessionsSshKind::UnsupportedSsh);
+            VERIFY_IS_TRUE(source.error.find(marker) != std::wstring::npos);
+            const auto errors = AgentSource::BuildSessionsSshHelperArguments(source);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, errors.size());
+            VERIFY_ARE_EQUAL(std::wstring{ L"--sessions-ssh-error" }, errors[0].first);
+            AgentSource::WriteSessionsSshMetadata(params, source);
+            VERIFY_IS_TRUE(params["sessions_ssh"].isMember("error"));
+            VERIFY_IS_FALSE(params["sessions_ssh"].isMember("destination"));
+        }
     }
 }
