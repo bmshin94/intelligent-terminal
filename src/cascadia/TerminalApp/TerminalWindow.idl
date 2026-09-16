@@ -59,6 +59,7 @@ namespace TerminalApp
         void SetStartupActions(Windows.Foundation.Collections.IVector<Microsoft.Terminal.Settings.Model.ActionAndArgs> actions);
         void SetStartupTmux(String commandline, String workingDirectory);
         Boolean IsTmuxWindow { get; };
+        String TmuxCommandline { get; };
         void SetPersistedLayout(Microsoft.Terminal.Settings.Model.WindowLayout layout);
         Int32 ExecuteCommandline(CommandlineArgs args);
 

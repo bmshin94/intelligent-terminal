@@ -22,6 +22,8 @@ namespace winrt::TerminalApp::implementation
 
         IInspectable Content();
         void Content(IInspectable content);
+        winrt::hstring BackendCommand();
+        void BackendCommand(const winrt::hstring& command);
 
         void SetWindowVisualState(WindowVisualState visualState);
         void Root_SizeChanged(const IInspectable& sender, const Windows::UI::Xaml::SizeChangedEventArgs& e);
@@ -37,6 +39,7 @@ namespace winrt::TerminalApp::implementation
         HWND _window{ nullptr }; // non-owning handle; should not be freed in the dtor.
 
         void _backgroundChanged(winrt::Windows::UI::Xaml::Media::Brush brush);
+        void _updateContentWidth();
     };
 }
 

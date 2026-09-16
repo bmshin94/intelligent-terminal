@@ -73,12 +73,31 @@ namespace winrt::TerminalApp::implementation
         ContentRoot().Content(content);
     }
 
+    winrt::hstring TitlebarControl::BackendCommand()
+    {
+        return BackendCommandText().Text();
+    }
+
+    void TitlebarControl::BackendCommand(const winrt::hstring& command)
+    {
+        BackendCommandText().Text(command);
+        BackendCommandText().Visibility(command.empty() ? Visibility::Collapsed : Visibility::Visible);
+        Controls::ToolTipService::SetToolTip(DragBar(), command.empty() ? nullptr : winrt::box_value(command));
+        _updateContentWidth();
+    }
+
     void TitlebarControl::Root_SizeChanged(const IInspectable& /*sender*/,
                                            const Windows::UI::Xaml::SizeChangedEventArgs& /*e*/)
     {
+        _updateContentWidth();
+    }
+
+    void TitlebarControl::_updateContentWidth()
+    {
         const auto windowWidth = ActualWidth();
         const auto minMaxCloseWidth = MinMaxCloseControl().ActualWidth();
-        const auto dragBarMinWidth = DragBar().MinWidth();
+        const auto dragBarMinWidth = BackendCommand().empty() ? 45.0 : std::clamp(windowWidth * 0.4, 45.0, 400.0);
+        DragBar().MinWidth(dragBarMinWidth);
         const auto maxWidth = windowWidth - minMaxCloseWidth - dragBarMinWidth;
         // Only set our MaxWidth if it's greater than 0. Setting it to a
         // negative value will cause a crash.
@@ -200,8 +219,10 @@ namespace winrt::TerminalApp::implementation
 
         constexpr auto lightnessThreshold = 0.6f;
         const auto isBrightColor = ColorFix::GetLightness(c) >= lightnessThreshold;
-        MinMaxCloseControl().RequestedTheme(isBrightColor ? winrt::Windows::UI::Xaml::ElementTheme::Light :
-                                                            winrt::Windows::UI::Xaml::ElementTheme::Dark);
+        const auto theme = isBrightColor ? winrt::Windows::UI::Xaml::ElementTheme::Light :
+                                          winrt::Windows::UI::Xaml::ElementTheme::Dark;
+        MinMaxCloseControl().RequestedTheme(theme);
+        BackendCommandText().RequestedTheme(theme);
     }
 
 }

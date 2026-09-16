@@ -7,6 +7,7 @@
 #include "../TerminalApp/TerminalWindow.h"
 #include "../TerminalApp/MinMaxCloseControl.h"
 #include "../TerminalApp/TabRowControl.h"
+#include "../TerminalApp/TitlebarControl.h"
 #include "../TerminalApp/ShortcutActionDispatch.h"
 #include "../TerminalApp/AgentPaneContent.h"
 #include "../TerminalApp/AgentPaneDragStash.h"
@@ -355,6 +356,8 @@ namespace TerminalAppLocalTests
         TEST_METHOD(TmuxResizeWaitsForInitializedFontAndRefreshesInventory);
         TEST_METHOD(TmuxInitialAttachSchedulesResizeWithoutConsumingCommandResponses);
         TEST_METHOD(TmuxSnapshotRejectsViewportChangesDuringCapture);
+        TEST_METHOD(TmuxBackendCommandAppearsInWindowTitleWithoutRenamingTabs);
+        TEST_METHOD(TitlebarBackendCommandPreservesTextAndReservesSpace);
         TEST_METHOD(BuildStartupActionsContentPreservesAgentFirstPaneOwnership);
         TEST_METHOD(AgentPaneTransferIdentityRoundTripsWithContent);
         TEST_METHOD(AgentPaneTransferIdentityIsNotPersistedByDefault);
@@ -2783,6 +2786,56 @@ namespace TerminalAppLocalTests
             VERIFY_IS_FALSE(stream->ready);
             VERIFY_IS_FALSE(stream->hydrating);
             VERIFY_IS_TRUE(stream->connection->State() == winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connecting);
+        });
+    }
+
+    void TabTests::TmuxBackendCommandAppearsInWindowTitleWithoutRenamingTabs()
+    {
+        const auto connection = winrt::make_self<TestConnection>(
+            winrt::guid{ L"{6239a42c-1111-49a3-80bd-e8fdd045185c}" },
+            winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+        const auto page = _commonSetup(*connection);
+        TestOnUIThread([&]() {
+            const auto tab = page->_GetFocusedTabImpl();
+            auto cleanup = wil::scope_exit([&]() { tab->Shutdown(); });
+            const winrt::hstring command{ L"wsl.exe -d Ubuntu --exec tmux -L it-test -C attach-session -t demo" };
+            page->_tmuxCommandline = command;
+            page->_settings.GlobalSettings().ShowTitleInTitlebar(true);
+            tab->SetTabText(L"shell");
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"shell" }, tab->Title());
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"shell - " } + command, page->Title());
+            tab->SetTabText(L"worker");
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"worker" }, tab->Title());
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"worker - " } + command, page->Title());
+            page->_settings.GlobalSettings().ShowTitleInTitlebar(false);
+            VERIFY_ARE_EQUAL(command, page->Title());
+            page->_tmuxCommandline = {};
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"Terminal" }, page->Title());
+        });
+    }
+
+    void TabTests::TitlebarBackendCommandPreservesTextAndReservesSpace()
+    {
+        TestOnUIThread([]() {
+            const auto titlebar = winrt::make_self<winrt::TerminalApp::implementation::TitlebarControl>(0);
+            const auto label = titlebar->FindName(L"BackendCommandText").as<TextBlock>();
+            VERIFY_IS_TRUE(label.Visibility() == Visibility::Collapsed);
+            const winrt::hstring command{ L"\"C:\\Program Files\\\u7ec8\u7aef\\backend.exe\" --session \"my session\"" };
+            titlebar->BackendCommand(command);
+            titlebar->Width(1000);
+            titlebar->Height(36);
+            titlebar->Measure({ 1000, 36 });
+            titlebar->Arrange({ 0, 0, 1000, 36 });
+            titlebar->Root_SizeChanged(nullptr, nullptr);
+            VERIFY_ARE_EQUAL(command, titlebar->BackendCommand());
+            VERIFY_ARE_EQUAL(command, label.Text());
+            VERIFY_IS_TRUE(label.Visibility() == Visibility::Visible);
+            VERIFY_IS_TRUE(label.TextTrimming() == TextTrimming::CharacterEllipsis);
+            VERIFY_IS_TRUE(titlebar->DragBar().MinWidth() > 45);
+            VERIFY_IS_TRUE(titlebar->DragBar().MinWidth() <= 400);
+            titlebar->BackendCommand({});
+            VERIFY_IS_TRUE(label.Visibility() == Visibility::Collapsed);
+            VERIFY_ARE_EQUAL(45.0, titlebar->DragBar().MinWidth());
         });
     }
 

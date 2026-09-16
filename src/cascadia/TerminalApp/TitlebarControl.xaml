@@ -37,7 +37,17 @@
     <Border x:Name="DragBar"
             Grid.Column="1"
             MinWidth="45.0"
-            DoubleTapped="DragBar_DoubleTapped" />
+            DoubleTapped="DragBar_DoubleTapped">
+        <TextBlock x:Name="BackendCommandText"
+                   Margin="8,0"
+                   VerticalAlignment="Center"
+                   FontSize="12"
+                   Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                   IsHitTestVisible="False"
+                   TextTrimming="CharacterEllipsis"
+                   TextWrapping="NoWrap"
+                   Visibility="Collapsed" />
+    </Border>
 
     <local:MinMaxCloseControl x:Name="MinMaxCloseControl"
                               Grid.Column="2"
@@ -50,4 +60,3 @@
             VerticalAlignment="Bottom"
             Background="{ThemeResource CardStrokeColorDefaultBrush}" />
 </Grid>
-

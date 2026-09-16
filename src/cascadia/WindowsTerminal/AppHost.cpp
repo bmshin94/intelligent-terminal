@@ -321,6 +321,11 @@ void AppHost::Initialize()
 
     _window->UpdateTitle(_windowLogic.Title());
 
+    if (_useNonClientArea)
+    {
+        static_cast<NonClientIslandWindow*>(_window.get())->SetTitlebarBackendCommand(_windowLogic.TmuxCommandline());
+    }
+
     // Set up the content of the application. If the app has a custom titlebar,
     // set that content as well.
     _window->SetContent(_windowLogic.GetRoot());

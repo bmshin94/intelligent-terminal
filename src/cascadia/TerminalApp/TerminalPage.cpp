@@ -10480,6 +10480,17 @@ namespace winrt::TerminalApp::implementation
     // - the title of the focused control if there is one, else "Terminal"
     hstring TerminalPage::Title()
     {
+        if (!_tmuxCommandline.empty())
+        {
+            if (_settings.GlobalSettings().ShowTitleInTitlebar())
+            {
+                if (const auto tab = _GetFocusedTab())
+                {
+                    return tab.Title() + L" - " + _tmuxCommandline;
+                }
+            }
+            return _tmuxCommandline;
+        }
         if (_settings.GlobalSettings().ShowTitleInTitlebar())
         {
             if (const auto tab{ _GetFocusedTab() })

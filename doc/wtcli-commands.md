@@ -80,6 +80,11 @@ This command uses the optional `ITerminalTmuxWindow` COM extension
 with an explicit unsupported-version message rather than calling a changed
 version of the original COM interface.
 
+The native titlebar shows the backend command separately from the tmux tab names.
+Long commands are ellipsized in the available caption space; the OS window title
+contains the complete command. Avoid embedding credentials in the commandline,
+since it is deliberately visible in window identification UI.
+
 ### Supported frontend behavior
 
 One control client maps its attached session to the native window, backend
@@ -118,6 +123,14 @@ window inventory after resizing. If another client or backend policy keeps a
 window smaller, unused pane space uses the terminal background rather than a
 transparent hole. Backend-generated tmux copy-mode/menu UI is not a
 control-mode output stream.
+
+Some Bash/readline colored prompts retain an incorrect cursor position after tmux
+resizes a previously wrapped line. This can also be reproduced with raw tmux control
+mode and no IT frontend: compare `#{cursor_x}` with the prompt before treating it
+as a local rendering error. At an empty shell prompt, pressing Enter to draw a fresh
+prompt can recover the position; IT does not inject Enter or move the cursor to the
+line end automatically, because the backend may be running an editor or another
+application. See [tmux/tmux#817](https://github.com/tmux/tmux/issues/817).
 
 The process transport uses raw pipes, not a local ConPTY. Both unframed `-C` and
 DCS-framed `-CC` protocol streams are accepted. Real tmux `-CC` additionally needs a

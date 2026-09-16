@@ -430,6 +430,11 @@ void NonClientIslandWindow::SetTitlebarContent(winrt::Windows::UI::Xaml::UIEleme
     }
 }
 
+void NonClientIslandWindow::SetTitlebarBackendCommand(const winrt::hstring& command)
+{
+    _titlebar.BackendCommand(command);
+}
+
 // Method Description:
 // - This method computes the height of the little border above the title bar
 //   and returns it. If the border is disabled, then this method will return 0.
