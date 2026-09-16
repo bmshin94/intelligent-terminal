@@ -83,6 +83,7 @@ namespace winrt::TerminalApp::implementation
         void SetStartupTmux(const winrt::hstring& commandline, const winrt::hstring& workingDirectory);
         bool IsTmuxWindow() const noexcept { return !_startupTmuxCommandline.empty(); }
         winrt::hstring TmuxCommandline() const noexcept { return _startupTmuxCommandline; }
+        winrt::hstring TmuxSessionTitle() const;
         void SetPersistedLayout(const winrt::Microsoft::Terminal::Settings::Model::WindowLayout& layout);
         int32_t ExecuteCommandline(TerminalApp::CommandlineArgs args);
         void SetSettingsStartupArgs(const std::vector<winrt::Microsoft::Terminal::Settings::Model::ActionAndArgs>& actions);

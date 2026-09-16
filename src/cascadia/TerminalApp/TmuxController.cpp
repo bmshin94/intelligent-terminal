@@ -486,9 +486,32 @@ namespace winrt::TerminalApp::implementation
             break;
         }
         case Event::Kind::Notification:
-            if (event.name == "layout-change" || event.name == "window-add" ||
-                event.name == "window-close" || event.name == "session-changed" ||
-                event.name == "session-window-changed")
+            if (event.name == "session-changed" || event.name == "session-renamed")
+            {
+                const auto split = event.text.find(' ');
+                if (split == std::string::npos || split + 1 == event.text.size())
+                {
+                    throw Protocol::ProtocolError{ "Invalid tmux session identity notification" };
+                }
+                const auto id = identifier(std::string_view{ event.text }.substr(0, split), '$');
+                _post([id, name = event.text.substr(split + 1), changed = event.name == "session-changed"](auto& self) {
+                    if (self._failed || self._exiting || (!changed && self._sessionId != id))
+                    {
+                        return;
+                    }
+                    self._sessionId = id;
+                    self._sessionName = name;
+                    self._updateSessionTitle();
+                    self._readSocketPath();
+                    if (changed)
+                    {
+                        self.Refresh();
+                    }
+                });
+            }
+            else if (event.name == "layout-change" || event.name == "window-add" ||
+                     event.name == "window-close" ||
+                     event.name == "session-window-changed")
             {
                 _post([](auto& self) { self.Refresh(); });
             }
@@ -546,6 +569,42 @@ namespace winrt::TerminalApp::implementation
             _exiting = true;
             break;
         }
+    }
+
+    void TmuxController::_updateSessionTitle()
+    {
+        if (const auto page = _page.get())
+        {
+            const auto title = winrt::to_hstring(Protocol::FormatSessionTitle(_socketPath, _sessionName));
+            if (page->_tmuxSessionTitle != title)
+            {
+                page->_tmuxSessionTitle = title;
+                page->TitleChanged.raise(*page, nullptr);
+            }
+        }
+    }
+
+    void TmuxController::_readSocketPath()
+    {
+        if (_socketQuerySent)
+        {
+            return;
+        }
+        _socketQuerySent = true;
+        _send("display-message -p '#{socket_path}'", [weak = weak_from_this()](const Event& response) {
+            if (const auto self = weak.lock())
+            {
+                if (!response.success)
+                {
+                    LOG_HR_MSG(E_FAIL, "Unable to read optional tmux socket metadata: %hs", response.text.c_str());
+                    return;
+                }
+                self->_post([path = response.text](auto& owner) {
+                    owner._socketPath = path;
+                    owner._updateSessionTitle();
+                });
+            }
+        });
     }
 
     void TmuxController::_send(std::string command, ResponseHandler response)

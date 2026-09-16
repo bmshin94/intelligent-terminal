@@ -112,7 +112,33 @@ namespace TerminalAppUnitTests
         TEST_METHOD(BoundsResponseBlocksWithoutDroppingBytes);
         TEST_METHOD(EncodesInputWithoutCommandInterpolation);
         TEST_METHOD(ChunksInputAtBoundedCommandLengths);
+        TEST_METHOD(FormatsNamedSocketSessionTitle);
+        TEST_METHOD(OmitsDefaultOrMissingSocketFromSessionTitle);
+        TEST_METHOD(PreservesSessionIdentityText);
     };
+
+    void TmuxProtocolTests::FormatsNamedSocketSessionTitle()
+    {
+        VERIFY_ARE_EQUAL(std::string{ "it-test/demo" }, FormatSessionTitle("/tmp/tmux-1000/it-test", "demo"));
+        VERIFY_ARE_EQUAL(std::string{ "it-test/worker" }, FormatSessionTitle("it-test", "worker"));
+        VERIFY_ARE_EQUAL(std::string{ "it-test/demo" }, FormatSessionTitle(R"(\\.\pipe\it-test)", "demo"));
+    }
+
+    void TmuxProtocolTests::OmitsDefaultOrMissingSocketFromSessionTitle()
+    {
+        VERIFY_ARE_EQUAL(std::string{ "demo" }, FormatSessionTitle({}, "demo"));
+        VERIFY_ARE_EQUAL(std::string{ "demo" }, FormatSessionTitle("/tmp/tmux-1000/default", "demo"));
+        VERIFY_ARE_EQUAL(std::string{ "demo" }, FormatSessionTitle("default", "demo"));
+        VERIFY_IS_TRUE(FormatSessionTitle("/tmp/tmux-1000/it-test", {}).empty());
+    }
+
+    void TmuxProtocolTests::PreservesSessionIdentityText()
+    {
+        VERIFY_ARE_EQUAL(std::string{ "my socket/my session" }, FormatSessionTitle("/tmp/my socket", "my session"));
+        VERIFY_ARE_EQUAL(std::string{ "\xe7\xbb\x88\xe7\xab\xaf/\xe4\xbc\x9a\xe8\xaf\x9d" },
+                         FormatSessionTitle("/tmp/\xe7\xbb\x88\xe7\xab\xaf", "\xe4\xbc\x9a\xe8\xaf\x9d"));
+        VERIFY_ARE_EQUAL(std::string{ "it-test/renamed" }, FormatSessionTitle("/tmp/tmux-1000/it-test", "renamed"));
+    }
 
     void TmuxProtocolTests::ParsesGoldenLayouts()
     {

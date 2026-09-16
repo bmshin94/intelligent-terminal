@@ -356,8 +356,9 @@ namespace TerminalAppLocalTests
         TEST_METHOD(TmuxResizeWaitsForInitializedFontAndRefreshesInventory);
         TEST_METHOD(TmuxInitialAttachSchedulesResizeWithoutConsumingCommandResponses);
         TEST_METHOD(TmuxSnapshotRejectsViewportChangesDuringCapture);
-        TEST_METHOD(TmuxBackendCommandAppearsInWindowTitleWithoutRenamingTabs);
-        TEST_METHOD(TitlebarBackendCommandPreservesTextAndReservesSpace);
+        TEST_METHOD(TmuxSessionIdentityIsWindowTitleWithoutRenamingTabs);
+        TEST_METHOD(TitlebarSessionIdentityUsesCompactLeftHeader);
+        TEST_METHOD(TmuxSessionNotificationsUpdateOnlyTheirWindowIdentity);
         TEST_METHOD(BuildStartupActionsContentPreservesAgentFirstPaneOwnership);
         TEST_METHOD(AgentPaneTransferIdentityRoundTripsWithContent);
         TEST_METHOD(AgentPaneTransferIdentityIsNotPersistedByDefault);
@@ -2789,7 +2790,7 @@ namespace TerminalAppLocalTests
         });
     }
 
-    void TabTests::TmuxBackendCommandAppearsInWindowTitleWithoutRenamingTabs()
+    void TabTests::TmuxSessionIdentityIsWindowTitleWithoutRenamingTabs()
     {
         const auto connection = winrt::make_self<TestConnection>(
             winrt::guid{ L"{6239a42c-1111-49a3-80bd-e8fdd045185c}" },
@@ -2800,42 +2801,119 @@ namespace TerminalAppLocalTests
             auto cleanup = wil::scope_exit([&]() { tab->Shutdown(); });
             const winrt::hstring command{ L"wsl.exe -d Ubuntu --exec tmux -L it-test -C attach-session -t demo" };
             page->_tmuxCommandline = command;
+            page->_tmuxSessionTitle = L"it-test/demo";
             page->_settings.GlobalSettings().ShowTitleInTitlebar(true);
             tab->SetTabText(L"shell");
             VERIFY_ARE_EQUAL(winrt::hstring{ L"shell" }, tab->Title());
-            VERIFY_ARE_EQUAL(winrt::hstring{ L"shell - " } + command, page->Title());
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"it-test/demo" }, page->Title());
             tab->SetTabText(L"worker");
             VERIFY_ARE_EQUAL(winrt::hstring{ L"worker" }, tab->Title());
-            VERIFY_ARE_EQUAL(winrt::hstring{ L"worker - " } + command, page->Title());
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"it-test/demo" }, page->Title());
             page->_settings.GlobalSettings().ShowTitleInTitlebar(false);
-            VERIFY_ARE_EQUAL(command, page->Title());
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"it-test/demo" }, page->Title());
+            page->_tmuxSessionTitle = L"demo";
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"demo" }, page->Title());
+            page->_tmuxSessionTitle = {};
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"tmux" }, page->Title());
             page->_tmuxCommandline = {};
             VERIFY_ARE_EQUAL(winrt::hstring{ L"Terminal" }, page->Title());
         });
     }
 
-    void TabTests::TitlebarBackendCommandPreservesTextAndReservesSpace()
+    void TabTests::TitlebarSessionIdentityUsesCompactLeftHeader()
     {
         TestOnUIThread([]() {
             const auto titlebar = winrt::make_self<winrt::TerminalApp::implementation::TitlebarControl>(0);
-            const auto label = titlebar->FindName(L"BackendCommandText").as<TextBlock>();
-            VERIFY_IS_TRUE(label.Visibility() == Visibility::Collapsed);
+            const auto label = titlebar->FindName(L"WindowLabelText").as<TextBlock>();
+            const auto panel = titlebar->FindName(L"WindowLabelPanel").as<Border>();
+            const auto content = titlebar->FindName(L"ContentRoot").as<ContentPresenter>();
+            VERIFY_IS_TRUE(panel.Visibility() == Visibility::Collapsed);
             const winrt::hstring command{ L"\"C:\\Program Files\\\u7ec8\u7aef\\backend.exe\" --session \"my session\"" };
             titlebar->BackendCommand(command);
+            VERIFY_IS_TRUE(panel.Visibility() == Visibility::Collapsed);
+            titlebar->WindowLabel(L"it-test/demo");
             titlebar->Width(1000);
             titlebar->Height(36);
             titlebar->Measure({ 1000, 36 });
             titlebar->Arrange({ 0, 0, 1000, 36 });
             titlebar->Root_SizeChanged(nullptr, nullptr);
             VERIFY_ARE_EQUAL(command, titlebar->BackendCommand());
-            VERIFY_ARE_EQUAL(command, label.Text());
-            VERIFY_IS_TRUE(label.Visibility() == Visibility::Visible);
+            VERIFY_ARE_EQUAL(command, winrt::unbox_value<winrt::hstring>(ToolTipService::GetToolTip(panel)));
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"it-test/demo" }, label.Text());
+            VERIFY_IS_TRUE(panel.Visibility() == Visibility::Visible);
             VERIFY_IS_TRUE(label.TextTrimming() == TextTrimming::CharacterEllipsis);
-            VERIFY_IS_TRUE(titlebar->DragBar().MinWidth() > 45);
-            VERIFY_IS_TRUE(titlebar->DragBar().MinWidth() <= 400);
-            titlebar->BackendCommand({});
-            VERIFY_IS_TRUE(label.Visibility() == Visibility::Collapsed);
+            VERIFY_ARE_EQUAL(0, Grid::GetColumn(panel));
+            VERIFY_ARE_EQUAL(1, Grid::GetColumn(content));
+            VERIFY_ARE_EQUAL(2, Grid::GetColumn(titlebar->DragBar()));
             VERIFY_ARE_EQUAL(45.0, titlebar->DragBar().MinWidth());
+            VERIFY_IS_TRUE(panel.ActualWidth() <= 200);
+            VERIFY_IS_TRUE(content.MaxWidth() > 500);
+            titlebar->WindowLabel({});
+            VERIFY_IS_TRUE(panel.Visibility() == Visibility::Collapsed);
+            VERIFY_ARE_EQUAL(45.0, titlebar->DragBar().MinWidth());
+        });
+    }
+
+    void TabTests::TmuxSessionNotificationsUpdateOnlyTheirWindowIdentity()
+    {
+        const auto connection = winrt::make_self<TestConnection>(
+            winrt::guid{ L"{6239a42c-1111-49a3-80bd-e8fdd045185c}" },
+            winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+        const auto page = _commonSetup(*connection);
+        using Controller = winrt::TerminalApp::implementation::TmuxController;
+        using Event = ::Microsoft::Terminal::Tmux::Event;
+        std::shared_ptr<Controller> controller;
+        std::vector<std::string> commands;
+        auto cleanup = wil::scope_exit([&]() {
+            RunOnUIThread([&]() {
+                if (controller)
+                {
+                    controller->Stop();
+                }
+                page->_GetFocusedTabImpl()->Shutdown();
+                page->_tmuxController.reset();
+            });
+        });
+        const auto notify = [&](const std::string& kind, const std::string& value) {
+            Event event;
+            event.kind = Event::Kind::Notification;
+            event.name = kind;
+            event.text = value;
+            controller->_handleEvent(event);
+        };
+        TestOnUIThread([&]() {
+            controller = std::make_shared<Controller>(*page);
+            page->_tmuxCommandline = L"opaque-backend --arguments-are-not-parsed";
+            page->_tmuxController = controller;
+            page->_GetFocusedTabImpl()->SetTabText(L"shell");
+            controller->_initialResponse = true;
+            controller->_writeCommand = [&](std::string command) { commands.emplace_back(std::move(command)); };
+            notify("session-changed", "$7 demo");
+        });
+        _waitForContentTransferReviewUI([&]() { return commands.size() == 1; });
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(std::string{ "display-message -p '#{socket_path}'\n" }, commands.front());
+            Event response;
+            response.kind = Event::Kind::Response;
+            response.flags = 1;
+            response.success = true;
+            response.text = "/tmp/tmux-1000/it-test";
+            controller->_handleEvent(response);
+        });
+        _waitForContentTransferReviewUI([&]() { return page->Title() == L"it-test/demo"; });
+        TestOnUIThread([&]() {
+            notify("session-renamed", "$8 ignored");
+            notify("session-renamed", "$7 renamed session");
+        });
+        _waitForContentTransferReviewUI([&]() { return page->Title() == L"it-test/renamed session"; });
+        TestOnUIThread([&]() {
+            notify("session-changed", "$9 new");
+            notify("session-renamed", "$7 old session");
+        });
+        _waitForContentTransferReviewUI([&]() { return page->Title() == L"it-test/new"; });
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(size_t{ 1 }, commands.size());
+            VERIFY_ARE_EQUAL(winrt::hstring{ L"shell" }, page->_GetFocusedTabImpl()->Title());
         });
     }
 

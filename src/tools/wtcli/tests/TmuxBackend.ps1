@@ -17,7 +17,8 @@ param(
     [switch]$ControlControl,
     [ValidateSet('Static', 'SwapOnInput', 'RestructureOnInput')]
     [string]$Mode = 'Static',
-    [string]$InvocationLogPath
+    [string]$InvocationLogPath,
+    [string]$SocketPath
 )
 
 Set-StrictMode -Version Latest
@@ -34,6 +35,7 @@ $script:commandNumber = 0
 $script:inputBytes = 0
 $script:transitionDone = $false
 $script:detached = $false
+$script:sessionName = 'fixture'
 $log = $null
 
 function Write-Protocol([string]$Text) {
@@ -337,6 +339,7 @@ function Invoke-FixtureCommand([string[]]$Words) {
             $id = Get-PaneId $target
             $pane = $script:panes[$id]
             $lines.Add((Expand-Format $format @{
+                session_id = '$0'; session_name = $script:sessionName; socket_path = $SocketPath
                 window_id = "@$windowId"; window_name = $window.Name; pane_id = "%$id"
                 cursor_x = 2; cursor_y = [Math]::Min(1, $pane.Height - 1); alternate_on = $pane.Alternate
                 alternate_saved_x = $(if ($pane.Alternate) { 1 } else { [uint32]::MaxValue })
@@ -458,6 +461,11 @@ function Invoke-FixtureCommand([string[]]$Words) {
             }
         }
         'detach-client' { $script:detached = $true }
+        'rename-session' {
+            if ($Words.Count -lt 2 -or [string]::IsNullOrEmpty($Words[-1])) { throw 'Missing session name' }
+            $script:sessionName = $Words[-1]
+            $events.Add("%session-renamed `$0 $script:sessionName")
+        }
         'fixture-swap' { foreach ($event in (Invoke-Transition 'Swap')) { $events.Add($event) } }
         'fixture-restructure' { foreach ($event in (Invoke-Transition 'Restructure')) { $events.Add($event) } }
         default { throw "Unsupported fixture command: $($Words[0])" }
@@ -483,7 +491,7 @@ try {
     })
     if ($ControlControl) { Write-Protocol "`eP1000p" }
     Write-Response -Lines @() -Flags 0
-    Write-Protocol "%session-changed `$0 fixture`n"
+    Write-Protocol "%session-changed `$0 $script:sessionName`n"
     while (!$script:detached -and $null -ne ($line = Read-CommandLine)) {
         if ($log) { $log.WriteLine((@{ type = 'command'; command = $line } | ConvertTo-Json -Compress)) }
         try {

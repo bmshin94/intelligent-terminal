@@ -174,6 +174,7 @@ namespace winrt::TerminalApp::implementation
         void HandoffToElevated(const Microsoft::Terminal::Settings::Model::CascadiaSettings& settings);
 
         hstring Title();
+        winrt::hstring TmuxSessionTitle() const;
 
         void TitlebarClicked();
         void WindowVisibilityChanged(const bool showOrHide);
@@ -394,6 +395,7 @@ namespace winrt::TerminalApp::implementation
         std::vector<Microsoft::Terminal::Settings::Model::ActionAndArgs> _startupActions;
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
         winrt::hstring _tmuxCommandline;
+        winrt::hstring _tmuxSessionTitle;
         winrt::hstring _tmuxWorkingDirectory;
         std::shared_ptr<TmuxController> _tmuxController;
 

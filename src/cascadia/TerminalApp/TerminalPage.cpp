@@ -10482,14 +10482,7 @@ namespace winrt::TerminalApp::implementation
     {
         if (!_tmuxCommandline.empty())
         {
-            if (_settings.GlobalSettings().ShowTitleInTitlebar())
-            {
-                if (const auto tab = _GetFocusedTab())
-                {
-                    return tab.Title() + L" - " + _tmuxCommandline;
-                }
-            }
-            return _tmuxCommandline;
+            return TmuxSessionTitle();
         }
         if (_settings.GlobalSettings().ShowTitleInTitlebar())
         {
@@ -10499,6 +10492,15 @@ namespace winrt::TerminalApp::implementation
             }
         }
         return { L"Terminal" };
+    }
+
+    winrt::hstring TerminalPage::TmuxSessionTitle() const
+    {
+        if (_tmuxCommandline.empty())
+        {
+            return {};
+        }
+        return _tmuxSessionTitle.empty() ? winrt::hstring{ L"tmux" } : _tmuxSessionTitle;
     }
 
     // Method Description:

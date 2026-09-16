@@ -110,6 +110,8 @@ namespace winrt::TerminalApp::implementation
         std::optional<Id> _paneId(const std::shared_ptr<Pane>& pane) const;
         void _updateDimensions(PaneView& view, uint32_t columns, uint32_t rows);
         void _scheduleResize();
+        void _updateSessionTitle();
+        void _readSocketPath();
 
         winrt::weak_ref<TerminalPage> _page;
         winrt::Windows::System::DispatcherQueue _dispatcher{ nullptr };
@@ -144,6 +146,10 @@ namespace winrt::TerminalApp::implementation
         uint32_t _clientRows = 0;
         std::optional<Id> _activePane;
         std::optional<Id> _activeWindow;
+        std::optional<Id> _sessionId;
+        std::string _sessionName;
+        std::string _socketPath;
+        bool _socketQuerySent = false;
         winrt::Windows::UI::Xaml::FrameworkElement::SizeChanged_revoker _sizeChanged;
         winrt::Windows::UI::Xaml::FrameworkElement::LayoutUpdated_revoker _layoutUpdated;
         friend class ::TerminalAppLocalTests::TabTests;

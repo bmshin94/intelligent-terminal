@@ -323,7 +323,7 @@ void AppHost::Initialize()
 
     if (_useNonClientArea)
     {
-        static_cast<NonClientIslandWindow*>(_window.get())->SetTitlebarBackendCommand(_windowLogic.TmuxCommandline());
+        static_cast<NonClientIslandWindow*>(_window.get())->SetTitlebarWindowLabel(_windowLogic.TmuxSessionTitle(), _windowLogic.TmuxCommandline());
     }
 
     // Set up the content of the application. If the app has a custom titlebar,
@@ -430,6 +430,10 @@ void AppHost::_revokeWindowCallbacks()
 void AppHost::_AppTitleChanged(const winrt::Windows::Foundation::IInspectable& /*sender*/, const winrt::Windows::Foundation::IInspectable& /*args*/)
 {
     _window->UpdateTitle(_windowLogic.Title());
+    if (_useNonClientArea)
+    {
+        static_cast<NonClientIslandWindow*>(_window.get())->SetTitlebarWindowLabel(_windowLogic.TmuxSessionTitle(), _windowLogic.TmuxCommandline());
+    }
 }
 
 // The terminal page is responsible for persisting its own state, but it does

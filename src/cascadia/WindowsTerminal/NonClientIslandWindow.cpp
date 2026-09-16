@@ -430,8 +430,9 @@ void NonClientIslandWindow::SetTitlebarContent(winrt::Windows::UI::Xaml::UIEleme
     }
 }
 
-void NonClientIslandWindow::SetTitlebarBackendCommand(const winrt::hstring& command)
+void NonClientIslandWindow::SetTitlebarWindowLabel(const winrt::hstring& label, const winrt::hstring& command)
 {
+    _titlebar.WindowLabel(label);
     _titlebar.BackendCommand(command);
 }
 

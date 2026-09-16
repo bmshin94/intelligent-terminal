@@ -80,10 +80,14 @@ This command uses the optional `ITerminalTmuxWindow` COM extension
 with an explicit unsupported-version message rather than calling a changed
 version of the original COM interface.
 
-The native titlebar shows the backend command separately from the tmux tab names.
-Long commands are ellipsized in the available caption space; the OS window title
-contains the complete command. Avoid embedding credentials in the commandline,
-since it is deliberately visible in window identification UI.
+The upper-left corner shows a compact workspace-style `socket/session` label,
+separate from the tmux tab names. A missing socket or tmux's default socket shows
+only the session name. The socket name comes from the final component of the
+backend's `#{socket_path}`, not from parsing the opaque startup command; session
+changes and renames update the label. The OS window title uses the same identity.
+The full backend command is available on hover rather than reserving space to the
+right of the tabs. Avoid embedding credentials in the commandline, since it is
+visible in that tooltip.
 
 ### Supported frontend behavior
 

@@ -25,6 +25,21 @@ namespace Microsoft::Terminal::Tmux
 {
     using Id = uint64_t;
 
+    inline std::string FormatSessionTitle(const std::string_view socketPath, const std::string_view sessionName)
+    {
+        if (sessionName.empty())
+        {
+            return {};
+        }
+        const auto separator = socketPath.find_last_of("/\\");
+        const auto socketName = socketPath.substr(separator == std::string_view::npos ? 0 : separator + 1);
+        if (socketName.empty() || socketName == "default")
+        {
+            return std::string{ sessionName };
+        }
+        return std::string{ socketName } + "/" + std::string{ sessionName };
+    }
+
     class ProtocolError : public std::runtime_error
     {
     public:

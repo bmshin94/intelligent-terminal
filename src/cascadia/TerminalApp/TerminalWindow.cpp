@@ -879,6 +879,11 @@ namespace winrt::TerminalApp::implementation
         return { L"Terminal" };
     }
 
+    winrt::hstring TerminalWindow::TmuxSessionTitle() const
+    {
+        return _root ? _root->TmuxSessionTitle() : winrt::hstring{};
+    }
+
     // Method Description:
     // - Used to tell the app that the titlebar has been clicked. The App won't
     //   actually receive any clicks in the titlebar area, so this is a helper
