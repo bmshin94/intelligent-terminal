@@ -3,6 +3,7 @@
 
 #include "precomp.h"
 #include "../TerminalApp/TmuxPaneConnection.h"
+#include "../TerminalApp/TmuxPaneState.h"
 
 using namespace WEX::TestExecution;
 using namespace winrt::Microsoft::Terminal::TerminalConnection;
@@ -19,6 +20,7 @@ namespace TerminalAppUnitTests
         TEST_METHOD(RejectsInputUntilHydrated);
         TEST_METHOD(ClosedPaneCannotBeReconnectedByLateCapture);
         TEST_METHOD(PreservesSurrogatePairsAcrossInputEvents);
+        TEST_METHOD(RealTmuxUnsetCursorSnapshotEnablesInput);
     };
 
     void TmuxPaneConnectionTests::OwnsDistinctStableIdentity()
@@ -107,5 +109,20 @@ namespace TerminalAppUnitTests
         VERIFY_IS_TRUE(input.empty());
         connection->WriteInput(low);
         VERIFY_ARE_EQUAL(std::string{ "\xf0\x9f\x98\x80" }, input);
+    }
+
+    void TmuxPaneConnectionTests::RealTmuxUnsetCursorSnapshotEnablesInput()
+    {
+        using namespace Microsoft::Terminal::Tmux;
+        std::string input;
+        const auto connection = winrt::make_self<TmuxPaneConnection>(
+            [&](std::string_view text) { input.append(text); }, nullptr);
+        const auto state = ParsePaneState("29 1 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1");
+        connection->WriteOutput(RestorePaneState(state, {}, "shell prompt"));
+        connection->SetState(ConnectionState::Connected);
+        const char16_t command[] = { u'l', u's', u' ', u'-', u'l', u'\r' };
+        connection->WriteInput(command);
+        VERIFY_IS_TRUE(connection->State() == ConnectionState::Connected);
+        VERIFY_ARE_EQUAL(std::string{ "ls -l\r" }, input);
     }
 }

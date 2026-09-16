@@ -12,6 +12,7 @@
 #include "../TerminalApp/AgentPaneDragStash.h"
 #include "../TerminalApp/Tab.h"
 #include "../TerminalApp/TmuxController.h"
+#include "../TerminalApp/TmuxPaneState.h"
 #include "../TerminalApp/CommandPalette.h"
 #include "../TerminalApp/ContentManager.h"
 #include "../TerminalApp/ContentTransfer.h"
@@ -350,6 +351,9 @@ namespace TerminalAppLocalTests
         TEST_METHOD(LayoutReadOnlyDisablesOnlySplitterGestures);
         TEST_METHOD(TmuxProjectionPreservesContentAcrossWindowChanges);
         TEST_METHOD(TmuxProjectionRejectsInvalidInventoryBeforeMutation);
+        TEST_METHOD(TmuxHydrationAcceptsUnsetSavedCursor);
+        TEST_METHOD(TmuxResizeWaitsForInitializedFontAndRefreshesInventory);
+        TEST_METHOD(TmuxInitialAttachSchedulesResizeWithoutConsumingCommandResponses);
         TEST_METHOD(BuildStartupActionsContentPreservesAgentFirstPaneOwnership);
         TEST_METHOD(AgentPaneTransferIdentityRoundTripsWithContent);
         TEST_METHOD(AgentPaneTransferIdentityIsNotPersistedByDefault);
@@ -2661,6 +2665,143 @@ namespace TerminalAppLocalTests
             VERIFY_IS_TRUE(original == page->_GetFocusedTabImpl());
             VERIFY_ARE_EQUAL(0u, connection->CloseCount());
             original->Shutdown();
+        });
+    }
+
+    void TabTests::TmuxHydrationAcceptsUnsetSavedCursor()
+    {
+        const auto connection = winrt::make_self<TestConnection>(
+            winrt::guid{ L"{6239a42c-1111-49a3-80bd-e8fdd045185c}" },
+            winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+        const auto page = _commonSetup(*connection);
+        TestOnUIThread([&]() {
+            using Controller = winrt::TerminalApp::implementation::TmuxController;
+            using Event = ::Microsoft::Terminal::Tmux::Event;
+            const auto controller = std::make_shared<Controller>(*page);
+            page->_tmuxCommandline = L"test-protocol";
+            page->_tmuxController = controller;
+            controller->_initialResponse = true;
+            std::vector<std::string> commands;
+            controller->_writeCommand = [&](std::string command) { commands.emplace_back(std::move(command)); };
+            auto cleanup = wil::scope_exit([&]() {
+                controller->Stop();
+                for (const auto& tab : page->_tabs)
+                {
+                    tab.Shutdown();
+                }
+                page->_tmuxController.reset();
+            });
+            controller->_panes.emplace(0, controller->_createPane(0, 80, 24));
+            const auto stream = controller->_panes.at(0).stream;
+            controller->_hydrate(0, stream);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, commands.size());
+            for (const auto text : {
+                     "29 1 0 4294967295 4294967295 1 0 0 0 0 0 0 0 0 0 23 1",
+                     "",
+                     "shell prompt",
+                     "" })
+            {
+                Event response;
+                response.kind = Event::Kind::Response;
+                response.flags = 1;
+                response.success = true;
+                response.text = text;
+                controller->_handleEvent(response);
+            }
+            VERIFY_IS_TRUE(stream->ready);
+            VERIFY_IS_FALSE(stream->hydrating);
+            VERIFY_IS_FALSE(controller->_failed);
+            VERIFY_IS_NULL(controller->_diagnosticTab);
+            VERIFY_IS_TRUE(stream->connection->State() == winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+            const char16_t input[] = { u'l', u's', u'\r' };
+            stream->connection->WriteInput(input);
+            VERIFY_ARE_EQUAL(size_t{ 2 }, commands.size());
+            VERIFY_IS_TRUE(commands.back().find("send-keys -H -t %0 6c 73 0d") != std::string::npos);
+            const auto& view = controller->_panes.at(0);
+            VERIFY_IS_TRUE(view.pane->GetRootElement().Background() == view.control.BackgroundBrush());
+        });
+    }
+
+    void TabTests::TmuxInitialAttachSchedulesResizeWithoutConsumingCommandResponses()
+    {
+        const auto connection = winrt::make_self<TestConnection>(
+            winrt::guid{ L"{6239a42c-1111-49a3-80bd-e8fdd045185c}" },
+            winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+        const auto page = _commonSetup(*connection);
+        TestOnUIThread([&]() {
+            using Event = ::Microsoft::Terminal::Tmux::Event;
+            const auto controller = std::make_shared<winrt::TerminalApp::implementation::TmuxController>(*page);
+            auto cleanup = wil::scope_exit([&]() {
+                controller->Stop();
+                page->_GetFocusedTabImpl()->Shutdown();
+            });
+            uint32_t responses = 0;
+            controller->_responses.emplace_back([&](const Event&) { ++responses; });
+            Event response;
+            response.kind = Event::Kind::Response;
+            response.success = true;
+            controller->_handleEvent(response);
+            VERIFY_IS_TRUE(controller->_initialResponse);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, controller->_postedWork.load());
+            VERIFY_ARE_EQUAL(0u, responses);
+            controller->_handleEvent(response);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, controller->_postedWork.load());
+            VERIFY_ARE_EQUAL(0u, responses);
+            response.flags = 1;
+            controller->_handleEvent(response);
+            VERIFY_ARE_EQUAL(1u, responses);
+        });
+    }
+
+    void TabTests::TmuxResizeWaitsForInitializedFontAndRefreshesInventory()
+    {
+        const auto connection = winrt::make_self<TestConnection>(
+            winrt::guid{ L"{6239a42c-1111-49a3-80bd-e8fdd045185c}" },
+            winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+        const auto page = _commonSetup(*connection);
+        TestOnUIThread([&]() {
+            const auto controller = std::make_shared<winrt::TerminalApp::implementation::TmuxController>(*page);
+            page->_tmuxCommandline = L"test-protocol";
+            page->_tmuxController = controller;
+            controller->_initialResponse = true;
+            controller->_diagnosticControl = page->_GetActiveControl();
+            std::vector<std::string> commands;
+            controller->_writeCommand = [&](std::string command) { commands.emplace_back(std::move(command)); };
+            auto cleanup = wil::scope_exit([&]() {
+                controller->Stop();
+                page->_GetFocusedTabImpl()->Shutdown();
+                page->_tmuxController.reset();
+            });
+            page->_tabContent.Width(1320);
+            page->_tabContent.Height(840);
+            page->_tabContent.Measure({ 1320, 840 });
+            page->_tabContent.Arrange({ 0, 0, 1320, 840 });
+            controller->ResizeWindow();
+            controller->Refresh();
+            VERIFY_IS_TRUE(commands.empty());
+
+            controller->_diagnosticInitialized = true;
+            controller->ResizeWindow();
+            VERIFY_ARE_EQUAL(size_t{ 2 }, commands.size());
+            VERIFY_IS_TRUE(commands[0].starts_with("refresh-client -C "));
+            VERIFY_IS_TRUE(commands[1].starts_with("list-windows "));
+            const auto cell = controller->_diagnosticControl.CharacterDimensions();
+            const auto expected = ::Microsoft::Terminal::Tmux::MeasureClientSize(
+                page->_tabContent.ActualWidth(), page->_tabContent.ActualHeight(), cell.Width, cell.Height);
+            VERIFY_IS_TRUE(expected.has_value());
+            VERIFY_ARE_EQUAL(expected->columns, controller->_clientColumns);
+            VERIFY_ARE_EQUAL(expected->rows, controller->_clientRows);
+            controller->ResizeWindow();
+            VERIFY_ARE_EQUAL(size_t{ 2 }, commands.size());
+
+            page->_tabContent.Width(900);
+            page->_tabContent.Height(560);
+            page->_tabContent.Measure({ 900, 560 });
+            page->_tabContent.Arrange({ 0, 0, 900, 560 });
+            controller->ResizeWindow();
+            VERIFY_ARE_EQUAL(size_t{ 3 }, commands.size());
+            VERIFY_IS_TRUE(commands.back().starts_with("refresh-client -C "));
+            VERIFY_IS_TRUE(controller->_refreshAgain);
         });
     }
 

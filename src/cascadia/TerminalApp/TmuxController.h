@@ -69,6 +69,7 @@ namespace winrt::TerminalApp::implementation
             std::shared_ptr<Stream> stream;
             uint32_t columns = 0;
             uint32_t rows = 0;
+            bool initialized = false;
         };
 
         struct Window
@@ -104,6 +105,7 @@ namespace winrt::TerminalApp::implementation
         void _focus(Id id);
         std::optional<Id> _paneId(const std::shared_ptr<Pane>& pane) const;
         void _updateDimensions(PaneView& view, uint32_t columns, uint32_t rows);
+        void _scheduleResize();
 
         winrt::weak_ref<TerminalPage> _page;
         winrt::Windows::System::DispatcherQueue _dispatcher{ nullptr };
@@ -132,11 +134,14 @@ namespace winrt::TerminalApp::implementation
         bool _refreshAgain = false;
         bool _projecting = false;
         bool _diagnosticIsError = false;
+        bool _diagnosticInitialized = false;
+        bool _resizeQueued = false;
         uint32_t _clientColumns = 0;
         uint32_t _clientRows = 0;
         std::optional<Id> _activePane;
         std::optional<Id> _activeWindow;
         winrt::Windows::UI::Xaml::FrameworkElement::SizeChanged_revoker _sizeChanged;
+        winrt::Windows::UI::Xaml::FrameworkElement::LayoutUpdated_revoker _layoutUpdated;
         friend class ::TerminalAppLocalTests::TabTests;
     };
 }

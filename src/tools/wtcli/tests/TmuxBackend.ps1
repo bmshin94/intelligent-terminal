@@ -339,7 +339,9 @@ function Invoke-FixtureCommand([string[]]$Words) {
             $lines.Add((Expand-Format $format @{
                 window_id = "@$windowId"; window_name = $window.Name; pane_id = "%$id"
                 cursor_x = 2; cursor_y = [Math]::Min(1, $pane.Height - 1); alternate_on = $pane.Alternate
-                alternate_saved_x = 1; alternate_saved_y = 0; cursor_flag = 1; insert_flag = 0
+                alternate_saved_x = $(if ($pane.Alternate) { 1 } else { [uint32]::MaxValue })
+                alternate_saved_y = $(if ($pane.Alternate) { 0 } else { [uint32]::MaxValue })
+                cursor_flag = 1; insert_flag = 0
                 keypad_cursor_flag = $pane.Alternate; keypad_flag = 0; mouse_standard_flag = 0
                 mouse_button_flag = $pane.Alternate; mouse_any_flag = 0; mouse_utf8_flag = 0
                 mouse_sgr_flag = $pane.Alternate; scroll_region_upper = 0; scroll_region_lower = $pane.Height - 1

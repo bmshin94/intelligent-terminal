@@ -95,7 +95,8 @@ Layout notifications from another client are reconciled while retaining existing
 terminal contents and connection identities, including panes moved between tabs.
 Initial attachment captures up to 2,000 history lines and restores the main/alternate
 screen, cursor position, scroll region, wrap, insert, cursor-key/keypad and exposed
-mouse modes. This is not full iTerm2 state parity: saved terminal modes that tmux
+mouse modes. tmux's unset saved-cursor sentinel is accepted, including alternate
+screens entered without saving a cursor. This is not full iTerm2 state parity: saved terminal modes that tmux
 does not expose (including bracketed-paste state on current supported releases),
 tab stops, and some extended keyboard modes are not reconstructed on attachment.
 Modes changed by subsequent application output work through the normal VT parser.
@@ -105,7 +106,11 @@ local pane creation, pane/tab transfer between native windows, local assistant p
 and generic `wtcli new-tab` / `split-pane` mutations into a managed window are not
 supported. Keyboard resize is available. Managed panes currently hide their scrollbar
 to keep the terminal's cell dimensions equal to the backend; keyboard scrolling and
-selection remain available. Backend-generated tmux copy-mode/menu UI is not a
+selection remain available. The frontend advertises its cell dimensions only after
+font initialization, updates them after layout/DPI changes, and refreshes the
+window inventory after resizing. If another client or backend policy keeps a
+window smaller, unused pane space uses the terminal background rather than a
+transparent hole. Backend-generated tmux copy-mode/menu UI is not a
 control-mode output stream.
 
 The process transport uses raw pipes, not a local ConPTY. Both unframed `-C` and

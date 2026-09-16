@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "TmuxController.h"
+#include "TmuxPaneState.h"
 #include "TerminalPage.h"
 #include "TerminalPaneContent.h"
 #include "../TerminalSettingsAppAdapterLib/TerminalSettings.h"
@@ -81,22 +82,6 @@ namespace
         return result;
     }
 
-    std::string screenText(const std::string_view captured)
-    {
-        const auto decoded = Protocol::DecodeOctal(captured);
-        std::string result;
-        result.reserve(decoded.size());
-        for (const auto ch : decoded)
-        {
-            if (ch == '\n')
-            {
-                result.push_back('\r');
-            }
-            result.push_back(ch);
-        }
-        return result;
-    }
-
     std::string diagnosticText(std::string text)
     {
         for (auto& ch : text)
@@ -134,6 +119,13 @@ namespace winrt::TerminalApp::implementation
         const auto settings = Settings::TerminalSettings::CreateWithProfile(page->_settings, profile);
         _diagnosticConnection = winrt::make_self<TmuxPaneConnection>(nullptr, nullptr);
         _diagnosticControl = page->_CreateNewControlAndContent(settings, *_diagnosticConnection);
+        _diagnosticControl.Initialized([weak = weak_from_this()](auto&&, auto&&) {
+            if (const auto self = weak.lock())
+            {
+                self->_diagnosticInitialized = true;
+                self->_scheduleResize();
+            }
+        });
         const auto content = winrt::make<TerminalPaneContent>(profile, page->_terminalSettingsCache, _diagnosticControl, true);
         const auto pane = std::make_shared<Pane>(content);
         _diagnosticTab = page->_GetTabImpl(page->_CreateNewTabFromPane(pane));
@@ -142,7 +134,13 @@ namespace winrt::TerminalApp::implementation
         _sizeChanged = page->_tabContent.SizeChanged(winrt::auto_revoke, [weak = weak_from_this()](auto&&, auto&&) {
             if (const auto self = weak.lock())
             {
-                self->ResizeWindow();
+                self->_scheduleResize();
+            }
+        });
+        _layoutUpdated = page->_tabContent.LayoutUpdated(winrt::auto_revoke, [weak = weak_from_this()](auto&&, auto&&) {
+            if (const auto self = weak.lock())
+            {
+                self->_scheduleResize();
             }
         });
 
@@ -238,6 +236,7 @@ namespace winrt::TerminalApp::implementation
             _closeProcess(std::move(process));
         }
         _sizeChanged.revoke();
+        _layoutUpdated.revoke();
         _tabs.clear();
         _panes.clear();
         _diagnosticTab = nullptr;
@@ -423,18 +422,17 @@ namespace winrt::TerminalApp::implementation
                     _fail(event.text);
                     return;
                 }
-                if ((event.flags & 1) == 0)
-                {
-                    if (!event.success)
-                    {
-                        _fail(event.text);
-                    }
-                    return;
-                }
                 _post([](auto& self) {
-                    self.ResizeWindow();
-                    self.Refresh();
+                    self._scheduleResize();
                 });
+                return;
+            }
+            if ((event.flags & 1) == 0)
+            {
+                if (!event.success)
+                {
+                    _fail(event.text);
+                }
                 return;
             }
             ResponseHandler handler;
@@ -608,7 +606,7 @@ namespace winrt::TerminalApp::implementation
 
     void TmuxController::Refresh()
     {
-        if (_stopped || _failed || _exiting || !_initialResponse)
+        if (_stopped || _failed || _exiting || !_initialResponse || !_clientColumns || !_clientRows)
         {
             return;
         }
@@ -728,7 +726,9 @@ namespace winrt::TerminalApp::implementation
             {
                 if (const auto it = self->_panes.find(id); it != self->_panes.end())
                 {
+                    it->second.initialized = true;
                     self->_updateDimensions(it->second, it->second.columns, it->second.rows);
+                    self->_scheduleResize();
                 }
             }
         });
@@ -749,8 +749,22 @@ namespace winrt::TerminalApp::implementation
         {
             view.control.HorizontalAlignment(HorizontalAlignment::Left);
             view.control.VerticalAlignment(VerticalAlignment::Top);
-            view.control.Width(static_cast<double>(columns) * cell.Width);
-            view.control.Height(static_cast<double>(rows) * cell.Height);
+            const auto width = static_cast<double>(columns) * cell.Width;
+            const auto height = static_cast<double>(rows) * cell.Height;
+            if (view.control.Width() != width)
+            {
+                view.control.Width(width);
+            }
+            if (view.control.Height() != height)
+            {
+                view.control.Height(height);
+            }
+        }
+        const auto root = view.pane->GetRootElement();
+        const auto background = view.control.BackgroundBrush();
+        if (root.Background() != background)
+        {
+            root.Background(background);
         }
     }
 
@@ -941,6 +955,7 @@ namespace winrt::TerminalApp::implementation
         page->_selectedTabItem(_tabs.at(active)->TabViewItem());
         page->_UpdatedSelectedTab(*_tabs.at(active));
         page->_tabContent.UpdateLayout();
+        _scheduleResize();
 
         for (const auto& [id, view] : _panes)
         {
@@ -1051,44 +1066,8 @@ namespace winrt::TerminalApp::implementation
 
     void TmuxController::_finishHydration(const std::shared_ptr<Stream>& stream, const std::string_view pending)
     {
-        const auto fields = words(stream->state);
-        if (fields.size() != 17)
-        {
-            throw Protocol::ProtocolError{ "Backend does not expose the required tmux pane state fields" };
-        }
-        std::array<uint32_t, 17> state{};
-        for (size_t i = 0; i < state.size(); ++i)
-        {
-            const auto value = number(fields[i]);
-            if (value > 32767)
-            {
-                throw Protocol::ProtocolError{ "tmux pane state exceeds terminal limits" };
-            }
-            state[i] = static_cast<uint32_t>(value);
-        }
-        std::string output = "\x1b"
-                             "c\x1b[3J";
-        if (state[2])
-        {
-            output.append(screenText(stream->saved));
-            output.append(fmt::format("\x1b[{};{}H\x1b[?1049h", state[4] + 1, state[3] + 1));
-        }
-        output.append(screenText(stream->current));
-        output.append(fmt::format("\x1b[{};{}r", state[14] + 1, state[15] + 1));
-        const auto mode = [&](const uint32_t value, const uint32_t code) {
-            output.append(fmt::format("\x1b[?{}{}", code, value ? 'h' : 'l'));
-        };
-        mode(state[5], 25);
-        output.append(state[6] ? "\x1b[4h" : "\x1b[4l");
-        mode(state[7], 1);
-        output.append(state[8] ? "\x1b=" : "\x1b>");
-        mode(state[9], 1000);
-        mode(state[10], 1002);
-        mode(state[11], 1003);
-        mode(state[12], 1005);
-        mode(state[13], 1006);
-        mode(state[16], 7);
-        output.append(fmt::format("\x1b[{};{}H", state[1] + 1, state[0] + 1));
+        const auto state = Protocol::ParsePaneState(stream->state);
+        auto output = Protocol::RestorePaneState(state, stream->saved, stream->current);
         output.append(Protocol::DecodeOctal(pending));
         output.append(stream->backlog);
         stream->connection->WriteOutput(output);
@@ -1376,13 +1355,36 @@ namespace winrt::TerminalApp::implementation
         {
             return;
         }
-        const auto control = _panes.empty() ? _diagnosticControl : _panes.begin()->second.control;
+        TermControl control{ nullptr };
+        if (const auto activeTab = page->_GetFocusedTabImpl())
+        {
+            if (const auto id = _paneId(activeTab->GetActivePane()); id && _panes.at(*id).initialized)
+            {
+                control = _panes.at(*id).control;
+            }
+        }
+        if (!control && _diagnosticInitialized)
+        {
+            control = _diagnosticControl;
+        }
+        if (!control)
+        {
+            for (const auto& [id, view] : _panes)
+            {
+                if (view.initialized)
+                {
+                    control = view.control;
+                    break;
+                }
+            }
+        }
         if (!control)
         {
             return;
         }
         const auto cell = control.CharacterDimensions();
-        if (cell.Width <= 0 || cell.Height <= 0 || page->_tabContent.ActualWidth() <= 4 || page->_tabContent.ActualHeight() <= 4)
+        const auto size = Protocol::MeasureClientSize(page->_tabContent.ActualWidth(), page->_tabContent.ActualHeight(), cell.Width, cell.Height);
+        if (!size)
         {
             return;
         }
@@ -1390,22 +1392,34 @@ namespace winrt::TerminalApp::implementation
         {
             _updateDimensions(view, view.columns, view.rows);
         }
-        const auto columns = static_cast<uint32_t>(std::clamp(std::floor((page->_tabContent.ActualWidth() - 4) / cell.Width), 1.0, 32767.0));
-        const auto rows = static_cast<uint32_t>(std::clamp(std::floor((page->_tabContent.ActualHeight() - 4) / cell.Height), 1.0, 32767.0));
-        if (columns == _clientColumns && rows == _clientRows)
+        if (size->columns == _clientColumns && size->rows == _clientRows)
         {
             return;
         }
         try
         {
-            _clientColumns = columns;
-            _clientRows = rows;
-            _send(fmt::format("refresh-client -C {}x{}", columns, rows));
+            _send(fmt::format("refresh-client -C {}x{}", size->columns, size->rows));
+            _clientColumns = size->columns;
+            _clientRows = size->rows;
+            Refresh();
         }
         catch (...)
         {
             _fail(exceptionMessage());
         }
+    }
+
+    void TmuxController::_scheduleResize()
+    {
+        if (_projecting || _stopped || _failed || _exiting || _resizeQueued)
+        {
+            return;
+        }
+        _resizeQueued = true;
+        _post([](auto& self) {
+            self._resizeQueued = false;
+            self.ResizeWindow();
+        });
     }
 
     void TmuxController::RejectUnsupportedOperation()
