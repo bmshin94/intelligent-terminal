@@ -359,6 +359,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(TmuxSessionIdentityIsWindowTitleWithoutRenamingTabs);
         TEST_METHOD(TitlebarSessionIdentityUsesCompactLeftHeader);
         TEST_METHOD(TmuxSessionNotificationsUpdateOnlyTheirWindowIdentity);
+        TEST_METHOD(TmuxAgentHooksUseOwningPaneAndTab);
         TEST_METHOD(BuildStartupActionsContentPreservesAgentFirstPaneOwnership);
         TEST_METHOD(AgentPaneTransferIdentityRoundTripsWithContent);
         TEST_METHOD(AgentPaneTransferIdentityIsNotPersistedByDefault);
@@ -2851,6 +2852,86 @@ namespace TerminalAppLocalTests
             titlebar->WindowLabel({});
             VERIFY_IS_TRUE(panel.Visibility() == Visibility::Collapsed);
             VERIFY_ARE_EQUAL(45.0, titlebar->DragBar().MinWidth());
+        });
+    }
+
+    void TabTests::TmuxAgentHooksUseOwningPaneAndTab()
+    {
+        const auto connection = winrt::make_self<TestConnection>(
+            winrt::guid{ L"{6239a42c-1111-49a3-80bd-e8fdd045185c}" },
+            winrt::Microsoft::Terminal::TerminalConnection::ConnectionState::Connected);
+        const auto page = _commonSetup(*connection);
+        using Controller = winrt::TerminalApp::implementation::TmuxController;
+        std::shared_ptr<Controller> controller;
+        std::vector<Json::Value> events;
+        std::string nativePane;
+        const std::string message = R"(IT_AGENT_HOOK/1 {"session_id":"$7","pane_id":"%1","cli_source":"copilot","event":"agent.stop","payload":{"session_id":"sid"}})";
+        winrt::event_token token{};
+        auto cleanup = wil::scope_exit([&]() {
+            RunOnUIThread([&]() {
+                page->ProtocolVtSequenceReceived(token);
+                if (controller)
+                {
+                    controller->Stop();
+                }
+                for (const auto& tab : page->_tabs)
+                {
+                    tab.Shutdown();
+                }
+                page->_tmuxController.reset();
+            });
+        });
+        TestOnUIThread([&]() {
+            controller = std::make_shared<Controller>(*page);
+            page->_tmuxCommandline = L"opaque-backend";
+            page->_tmuxController = controller;
+            controller->_diagnosticTab = page->_GetFocusedTabImpl();
+            controller->_initialResponse = true;
+            controller->_sessionId = 7;
+            controller->_sessionName = "work";
+            controller->_socketPath = "/socket";
+            controller->_writeCommand = [](std::string) {};
+            token = page->ProtocolVtSequenceReceived([&](auto&&, const winrt::hstring& json) {
+                Json::Value event;
+                Json::CharReaderBuilder builder;
+                std::string errors;
+                std::istringstream stream{ winrt::to_string(json) };
+                if (Json::parseFromStream(builder, stream, &event, &errors) && event["method"] == "agent_event")
+                {
+                    events.emplace_back(event["params"]);
+                }
+            });
+            controller->_applyWindows(controller->_parseWindows(
+                "@0 1 89f5,80x24,0,0{39x24,0,0,0,40x24,40,0,1} b25d,80x24,0,0,0"));
+            nativePane = page->_FindSessionIdForControl(controller->_panes.at(1).control);
+            VERIFY_IS_FALSE(nativePane.empty());
+            controller->_agentHook(message);
+            VERIFY_ARE_EQUAL(size_t{ 1 }, events.size());
+            VERIFY_ARE_EQUAL(nativePane, events.back()["pane_id"].asString());
+            VERIFY_ARE_EQUAL(winrt::to_string(controller->_tabs.at(0)->StableId()), events.back()["tab_id"].asString());
+            VERIFY_ARE_EQUAL(std::to_string(page->_WindowProperties.WindowId()), events.back()["window_id"].asString());
+
+            controller->_agentHook("ordinary message");
+            controller->_agentHook("IT_AGENT_HOOK/1 {}");
+            controller->_agentHook(R"(IT_AGENT_HOOK/1 {"session_id":"$8","pane_id":"%1","cli_source":"copilot","event":"agent.stop"})");
+            controller->_agentHook(R"(IT_AGENT_HOOK/1 {"session_id":"$7","pane_id":"%99","cli_source":"copilot","event":"agent.stop"})");
+            VERIFY_ARE_EQUAL(size_t{ 1 }, events.size());
+            VERIFY_IS_FALSE(controller->_failed.load());
+
+            controller->_applyWindows(controller->_parseWindows(
+                "@0 1 b25d,80x24,0,0,0 b25d,80x24,0,0,0\n"
+                "@1 0 b25e,80x24,0,0,1 b25e,80x24,0,0,1"));
+            controller->_output("%message " + message + "\n");
+        });
+        _waitForContentTransferReviewUI([&]() { return events.size() == 2; });
+        TestOnUIThread([&]() {
+            VERIFY_ARE_EQUAL(nativePane, events.back()["pane_id"].asString());
+            VERIFY_ARE_EQUAL(winrt::to_string(controller->_tabs.at(1)->StableId()), events.back()["tab_id"].asString());
+            VERIFY_ARE_EQUAL(std::string{ "%1" }, events.back()["tmux"]["pane_id"].asString());
+            VERIFY_ARE_EQUAL(std::string{ "sid" }, events.back()["agent_session_id"].asString());
+            controller->_sessionId = 8;
+            controller->_agentHook(message);
+            VERIFY_ARE_EQUAL(size_t{ 2 }, events.size());
         });
     }
 

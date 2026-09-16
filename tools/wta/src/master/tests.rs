@@ -8,6 +8,9 @@ use super::*;
 use acp::schema::v1::{ContentChunk, SessionId, SessionNotification, SessionUpdate};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+#[path = "tmux_hooks_tests.rs"]
+mod tmux_hooks_tests;
+
 fn empty_agent_cell() -> AgentCell {
     Arc::new(OnceCell::new())
 }

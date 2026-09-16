@@ -8200,8 +8200,15 @@ async fn handle_master_agent_event(state: &Arc<MasterStateInner>, params: &serde
         .or_else(|| params.get("session_id").and_then(|v| v.as_str()))
         .unwrap_or("");
 
+    let tmux = match crate::tmux_hooks::normalize(params, pane_id, &cli_source, asid) {
+        Ok(tmux) => tmux,
+        Err(reason) => {
+            tracing::warn!(target: "master_wt_event", reason, "dropping malformed tmux hook");
+            return;
+        }
+    };
     let Some((key, session_known)) =
-        resolve_master_hook_key(state, asid, pane_id, &cli_source, event).await
+        resolve_master_hook_key(state, asid, pane_id, &cli_source, event, tmux.as_ref()).await
     else {
         // No real ACP session id and no live row to attach to. The helper keeps
         // a `pane:<guid>` placeholder for its own bookkeeping, but master only
@@ -8242,6 +8249,17 @@ async fn handle_master_agent_event(state: &Arc<MasterStateInner>, params: &serde
         if let Some(key) = refresh_key {
             refresh_keys.insert(key);
         }
+    }
+    if let Some(tmux) = tmux {
+        changed |= state
+            .registry
+            .set_location(
+                &acp::schema::v1::SessionId::new(session_key.clone()),
+                tmux.location,
+            )
+            .await;
+        // There is no ACP process or local history store for these identities.
+        refresh_keys.clear();
     }
     let final_status = state
         .registry
@@ -8292,6 +8310,7 @@ async fn resolve_master_hook_key(
     pane_session_id: &str,
     cli_source: &crate::agent_sessions::CliSource,
     event: &str,
+    tmux: Option<&crate::tmux_hooks::TmuxHook>,
 ) -> Option<(String, bool)> {
     use crate::agent_sessions::{AgentStatus, CliSource};
 
@@ -8305,6 +8324,36 @@ async fn resolve_master_hook_key(
                 | Some(AgentStatus::Error)
         )
     };
+
+    if let Some(tmux) = tmux {
+        if let Some(key) = &tmux.key {
+            let row = snapshot.iter().find(|s| s.session_id.0.as_ref() == key);
+            if event == "agent.error"
+                && row.is_some_and(|s| {
+                    !is_live(s)
+                        || !tmux.matches_binding(
+                            s.pane_session_id.as_deref(),
+                            s.cli_source.as_ref(),
+                            &s.location,
+                        )
+                })
+            {
+                return None;
+            }
+            return Some((key.clone(), row.is_some()));
+        }
+        return snapshot
+            .iter()
+            .find(|s| {
+                is_live(s)
+                    && tmux.matches_binding(
+                        s.pane_session_id.as_deref(),
+                        s.cli_source.as_ref(),
+                        &s.location,
+                    )
+            })
+            .map(|s| (s.session_id.0.to_string(), true));
+    }
 
     if !asid.is_empty() {
         let known = snapshot.iter().any(|s| s.session_id.0.as_ref() == asid);
@@ -8322,6 +8371,10 @@ async fn resolve_master_hook_key(
                 .as_deref()
                 == Some(pane_lc.as_str())
                 && is_live(s)
+                && !matches!(
+                    s.location,
+                    crate::agent_sessions::SessionLocation::Tmux { .. }
+                )
         }) {
             return Some((row.session_id.0.to_string(), true));
         }
@@ -8343,7 +8396,14 @@ async fn resolve_master_hook_key(
     if needs_fallback && !matches!(cli_source, CliSource::Unknown(_)) {
         if let Some(row) = snapshot
             .iter()
-            .filter(|s| s.cli_source.as_ref() == Some(cli_source) && is_live(s))
+            .filter(|s| {
+                s.cli_source.as_ref() == Some(cli_source)
+                    && is_live(s)
+                    && !matches!(
+                        s.location,
+                        crate::agent_sessions::SessionLocation::Tmux { .. }
+                    )
+            })
             .max_by_key(|s| s.last_activity_at_ms.unwrap_or(0))
         {
             return Some((row.session_id.0.to_string(), true));

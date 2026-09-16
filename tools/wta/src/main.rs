@@ -45,6 +45,7 @@ mod telemetry;
 mod test_support;
 mod text_selection;
 mod theme;
+mod tmux_hooks;
 mod turn_context;
 mod ui;
 mod ui_trace;

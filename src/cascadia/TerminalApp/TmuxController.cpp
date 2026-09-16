@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "TmuxController.h"
+#include "TmuxAgentHook.h"
 #include "TmuxPaneState.h"
 #include "TerminalPage.h"
 #include "TerminalPaneContent.h"
@@ -486,7 +487,21 @@ namespace winrt::TerminalApp::implementation
             break;
         }
         case Event::Kind::Notification:
-            if (event.name == "session-changed" || event.name == "session-renamed")
+            if (event.name == "message")
+            {
+                if (event.text.starts_with("IT_AGENT_HOOK/"))
+                {
+                    if (event.text.size() > Protocol::MaxAgentHookMessageBytes || _postedWork.load() >= 256)
+                    {
+                        LOG_HR_MSG(E_BOUNDS, "Dropping tmux agent hook exceeding message or pending update limit");
+                    }
+                    else
+                    {
+                        _post([message = event.text](auto& self) { self._agentHook(message); });
+                    }
+                }
+            }
+            else if (event.name == "session-changed" || event.name == "session-renamed")
             {
                 const auto split = event.text.find(' ');
                 if (split == std::string::npos || split + 1 == event.text.size())
@@ -568,6 +583,52 @@ namespace winrt::TerminalApp::implementation
         case Event::Kind::Exit:
             _exiting = true;
             break;
+        }
+    }
+
+    void TmuxController::_agentHook(const std::string_view message)
+    {
+        try
+        {
+            const auto hook = Protocol::ParseAgentHookMessage(message);
+            if (!hook)
+            {
+                return;
+            }
+            const auto page = _page.get();
+            if (!page || _stopped || _failed || _exiting)
+            {
+                return;
+            }
+            const auto view = _panes.find(hook->paneId);
+            if (_sessionId != hook->sessionId || view == _panes.end())
+            {
+                LOG_HR_MSG(E_INVALIDARG, "Ignoring tmux hook outside the attached session or current pane inventory");
+                return;
+            }
+
+            const auto paneId = page->_FindSessionIdForControl(view->second.control);
+            // The full backend layout owns zoom-hidden panes too. Looking only
+            // through the visible native pane tree would misroute their hooks.
+            std::string tabId;
+            for (const auto& [id, window] : _windows)
+            {
+                std::unordered_map<Id, std::pair<uint32_t, uint32_t>> leaves;
+                _collectLeaves(window.layout, leaves);
+                if (leaves.contains(hook->paneId))
+                {
+                    tabId = winrt::to_string(_tabs.at(id)->StableId());
+                    break;
+                }
+            }
+            const auto params = Protocol::BuildAgentHookParams(
+                *hook, paneId, tabId, std::to_string(page->_WindowProperties.WindowId()), _sessionName, _socketPath);
+            page->_RaiseProtocolEvent("agent_event", params);
+        }
+        catch (const Protocol::ProtocolError& error)
+        {
+            // A bad optional hook must not disconnect the terminal transport.
+            LOG_HR_MSG(E_INVALIDARG, "%hs", error.what());
         }
     }
 

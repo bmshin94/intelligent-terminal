@@ -339,7 +339,9 @@ fn origin_label(origin: Option<&crate::agent_sessions::SessionOrigin>) -> &'stat
 
 /// Render a `SessionLocation` for the `wta sessions list` table: `host`
 /// for Windows-profile sessions, `wsl:<distro>` for sessions discovered
-/// inside a WSL distro, and `ssh:<destination>` for remote history.
+/// inside a WSL distro, `ssh:<destination>` for remote history, and
+/// `tmux:<session-name>:<pane-id>` for controller-connected remote hooks.
+/// During initial attach, the tmux session id stands in for an unknown name.
 fn location_label(location: &crate::agent_sessions::SessionLocation) -> String {
     match location {
         crate::agent_sessions::SessionLocation::Host => "host".to_string(),
@@ -347,7 +349,43 @@ fn location_label(location: &crate::agent_sessions::SessionLocation) -> String {
         crate::agent_sessions::SessionLocation::Ssh { target } => {
             format!("ssh:{}", target.display_name())
         }
+        crate::agent_sessions::SessionLocation::Tmux {
+            session_id,
+            session_name,
+            pane_id,
+            ..
+        } => {
+            let name = if session_name.is_empty() {
+                session_id
+            } else {
+                session_name
+            };
+            format!("tmux:{name}:{pane_id}")
+        }
     }
+}
+
+#[test]
+fn tmux_cli_location_uses_protocol_label_without_a_local_source_fallback() {
+    let params = crate::tmux_hooks::tests::hook(
+        "agent.session.start",
+        crate::tmux_hooks::tests::PANE_A,
+        "copilot",
+        "sid",
+    );
+    let mut hook = crate::tmux_hooks::normalize(
+        &params,
+        crate::tmux_hooks::tests::PANE_A,
+        &crate::agent_sessions::CliSource::Copilot,
+        "sid",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(location_label(&hook.location), "tmux:work:%1");
+    if let crate::agent_sessions::SessionLocation::Tmux { session_name, .. } = &mut hook.location {
+        session_name.clear();
+    }
+    assert_eq!(location_label(&hook.location), "tmux:$0:%1");
 }
 
 /// Render the UPDATED column. Prefers the `updated_at` ISO string (set for

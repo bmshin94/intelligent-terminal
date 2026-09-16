@@ -93,6 +93,7 @@ namespace winrt::TerminalApp::implementation
         void _stderr(std::string_view bytes);
         void _exited(uint32_t code);
         void _handleEvent(const Event& event);
+        void _agentHook(std::string_view message);
         void _send(std::string command, ResponseHandler response = {});
         void _sendBatch(std::vector<std::pair<std::string, ResponseHandler>> commands, bool compound = false);
         void _requestRefresh();

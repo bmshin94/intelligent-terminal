@@ -141,6 +141,45 @@ DCS-framed `-CC` protocol streams are accepted. Real tmux `-CC` additionally nee
 TTY, so use `-C` for the simple WSL/SSH pipe examples, or supply a backend command
 that provides its own TTY. IT does not infer or rewrite that command.
 
+### Remote Linux agent hooks
+
+The optional [tmux hook bridge](../tools/wta/wt-agent-hooks/tmux/README.md)
+forwards agent lifecycle/status events without installing `wtcli` or WTA on
+the remote host. Install it separately in the Linux CLI's hook configuration;
+the existing Windows hook installer does not modify remote machines.
+
+It requires Python 3 and **tmux 3.4 or newer**. Inside tmux, the hook checks
+`TMUX` and `TMUX_PANE`, verifies that the pane still belongs to its originating
+session, and enumerates only that session's control clients. For each client it
+uses `display-message -l -c <client>` to deliver a literal `%message` notification:
+
+```text
+%message IT_AGENT_HOOK/1 {"session_id":"$0","pane_id":"%1","cli_source":"copilot","event":"agent.stop","payload":{"session_id":"agent-session-id"}}
+```
+
+`display-message -C` is **not** a broadcast switch. Ordinary status messages,
+`wait-for`, and user options do not automatically carry hook JSON to the
+frontend. The bridge uses the documented control-client message path; it never
+writes an OSC sequence or hook JSON into a pane's terminal output.
+
+IT checks the version, size, source, event, attached session and pane inventory.
+It resolves the native pane/tab/window itself, including zoom-hidden panes, then
+uses the same redaction and bounded `agent_event` envelope as the native hook.
+WTA scopes these live rows separately from local agent sessions and supports
+focusing their visible native panes. Unzoom a zoom-hidden pane before focusing
+its row; its hook status is still tracked while hidden. An ended tmux row does not resume a CLI on Windows:
+the opaque backend command is not enough information to reconstruct a remote
+resume invocation.
+
+Missing tmux, unsupported tmux versions, execution outside tmux, stale pane
+membership, and no attached control client are successful no-ops. Delivery is
+live and best-effort, not a durable queue: disconnected clients receive no replay.
+Linked windows send only to the originating session, not every session sharing
+the pane. Other control clients attached to that same session receive the
+notification too. Access to the tmux socket permits spoofing status events;
+this is a status channel, never proof of identity, permission or shell-input
+authorization.
+
 ### Deterministic local fixture
 
 `src\tools\wtcli\tests\TmuxBackend.ps1` is a PowerShell 7 stdio backend
