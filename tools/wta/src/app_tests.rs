@@ -13607,6 +13607,447 @@ fn double_click_in_input_dialog_preserves_word_selection() {
     );
 }
 
+mod input_mouse_cursor_tests {
+    use super::*;
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    use ratatui::layout::Rect;
+
+    fn draft(input: &str, width: u16, height: u16) -> (App, Rect) {
+        let mut app = test_app();
+        app.state = ConnectionState::Connected;
+        app.current_tab_mut().replace_input(input.into());
+        render_to_text(&mut app, width, height);
+        let area = app.input_dialog_area.expect("rendered input box");
+        (app, area)
+    }
+
+    fn mouse(app: &mut App, kind: MouseEventKind, column: u16, row: u16) {
+        app.handle_event(AppEvent::Mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }));
+    }
+
+    fn click(app: &mut App, area: Rect, column: u16, row: u16) {
+        for kind in [
+            MouseEventKind::Down(MouseButton::Left),
+            MouseEventKind::Up(MouseButton::Left),
+        ] {
+            mouse(app, kind, area.x + 4 + column, area.y + 1 + row);
+        }
+    }
+
+    fn insert_marker(app: &mut App) {
+        app.handle_event(AppEvent::Key(KeyEvent::new(
+            KeyCode::Char('q'),
+            KeyModifiers::NONE,
+        )));
+    }
+
+    #[test]
+    fn clicking_preserves_redo_and_separates_typing_transactions() {
+        let (mut app, area) = draft("base", 80, 20);
+        insert_marker(&mut app);
+        app.handle_event(AppEvent::Key(KeyEvent::new(
+            KeyCode::Char('z'),
+            KeyModifiers::CONTROL,
+        )));
+        click(&mut app, area, 1, 0);
+        assert_eq!(app.current_tab().input, "base");
+        app.handle_event(AppEvent::Key(KeyEvent::new(
+            KeyCode::Char('y'),
+            KeyModifiers::CONTROL,
+        )));
+        assert_eq!(app.current_tab().input, "baseq");
+        app.text_selection.clear();
+        render_to_text(&mut app, 80, 20);
+        click(&mut app, area, 2, 0);
+        insert_marker(&mut app);
+        assert_eq!(app.current_tab().input, "baqseq");
+        app.handle_event(AppEvent::Key(KeyEvent::new(
+            KeyCode::Char('z'),
+            KeyModifiers::CONTROL,
+        )));
+        assert_eq!(app.current_tab().input, "baseq");
+        app.handle_event(AppEvent::Key(KeyEvent::new(
+            KeyCode::Char('z'),
+            KeyModifiers::CONTROL,
+        )));
+        assert_eq!(app.current_tab().input, "base");
+    }
+
+    #[test]
+    fn host_visibility_roundtrip_cancels_the_pressed_click() {
+        let (mut app, area) = draft("keep draft", 80, 20);
+        app.current_tab_mut().pane_open = true;
+        mouse(
+            &mut app,
+            MouseEventKind::Down(MouseButton::Left),
+            area.x + 5,
+            area.y + 1,
+        );
+        for open in [false, true] {
+            app.handle_event(AppEvent::WtEvent {
+                method: "set_agent_state".into(),
+                pane_id: String::new(),
+                tab_id: Some(DEFAULT_TAB_ID.into()),
+                params: json!({ "tab_id": DEFAULT_TAB_ID, "pane_open": open }),
+            });
+        }
+        render_to_text(&mut app, 80, 20);
+        mouse(
+            &mut app,
+            MouseEventKind::Up(MouseButton::Left),
+            area.x + 5,
+            area.y + 1,
+        );
+        assert_eq!(app.current_tab().cursor_pos, "keep draft".len());
+    }
+
+    #[test]
+    fn modal_requests_do_not_reposition_the_draft() {
+        for permission in [false, true] {
+            let (mut app, area) = draft("keep draft", 80, 20);
+            if permission {
+                app.current_tab_mut()
+                    .permission
+                    .push_back(perm_with("Confirm"));
+            } else {
+                begin_user_input_test(&mut app);
+                let (responder, _response) = tokio::sync::oneshot::channel();
+                app.handle_event(AppEvent::UserInputRequest {
+                    request_id: "question".into(),
+                    session_id: DEFAULT_TAB_ID.into(),
+                    request: crate::agent_tools::user_input::UserInputRequest {
+                        question: "Continue?".into(),
+                        choices: vec!["Yes".into()],
+                        allow_freeform: false,
+                    },
+                    responder,
+                });
+            }
+            let before = app.current_tab().cursor_pos;
+            click(&mut app, area, 1, 0);
+            assert_eq!(app.current_tab().cursor_pos, before);
+        }
+    }
+
+    #[test]
+    fn click_repositions_subsequent_typing() {
+        let (mut app, area) = draft("alpha bravo", 80, 20);
+        click(&mut app, area, 3, 0);
+        insert_marker(&mut app);
+        assert_eq!(app.current_tab().input, "alpqha bravo");
+    }
+
+    #[test]
+    fn explicit_rows_target_the_clicked_source_line() {
+        let (mut app, area) = draft("alpha\nbravo\ncharlie", 80, 20);
+        click(&mut app, area, 2, 1);
+        insert_marker(&mut app);
+        assert_eq!(app.current_tab().input, "alpha\nbrqavo\ncharlie");
+    }
+
+    #[test]
+    fn wrapped_rows_use_the_rendered_text_width() {
+        let source = "abcdefghijklmnopqrstuvwxyz";
+        let (mut app, area) = draft(source, 15, 20);
+        assert_eq!(area.width, 15);
+        click(&mut app, area, 2, 1);
+        let mut expected = source.to_string();
+        expected.insert(12, 'q');
+        insert_marker(&mut app);
+        assert_eq!(app.current_tab().input, expected);
+    }
+
+    #[test]
+    fn scrolled_input_uses_the_visible_row_offset() {
+        let source = "zero\none\ntwo\nthree\nfour\nfive\nsix\nseven";
+        let (mut app, area) = draft(source, 80, 24);
+        assert_eq!(area.height, 8);
+        click(&mut app, area, 1, 1);
+        let mut expected = source.to_string();
+        expected.insert(source.find("three").unwrap() + 1, 'q');
+        insert_marker(&mut app);
+        assert_eq!(app.current_tab().input, expected);
+    }
+
+    #[test]
+    fn short_terminal_uses_the_actual_input_viewport_height() {
+        let source = "row0\nrow1\nrow2\nrow3\nrow4\nrow5\nrow6\nrow7";
+        for height in [5, 7, 10] {
+            let (mut app, area) = draft(source, 30, height);
+            assert!(area.height >= 3);
+            let rendered = render_to_text(&mut app, 30, height);
+            let line = rendered.lines().nth(usize::from(area.y + 1)).unwrap();
+            let visible = (0..8)
+                .map(|index| format!("row{index}"))
+                .find(|word| line.contains(word))
+                .expect("first visible input row");
+            click(&mut app, area, 1, 0);
+            let mut expected = source.to_string();
+            expected.insert(source.find(&visible).unwrap() + 1, 'q');
+            insert_marker(&mut app);
+            assert_eq!(
+                app.current_tab().input,
+                expected,
+                "terminal height {height}"
+            );
+        }
+    }
+
+    #[test]
+    fn wide_cells_map_to_valid_character_boundaries() {
+        for (column, position) in [(1, 1), (2, 1), (3, 4), (4, 4), (5, 8)] {
+            let (mut app, area) = draft("a中🙂z", 80, 20);
+            click(&mut app, area, column, 0);
+            assert_eq!(app.current_tab().cursor_pos, position, "column {column}");
+            assert!(app.current_tab().input.is_char_boundary(position));
+            let mut expected = "a中🙂z".to_string();
+            expected.insert(position, 'q');
+            insert_marker(&mut app);
+            assert_eq!(app.current_tab().input, expected);
+        }
+    }
+
+    #[test]
+    fn trailing_blank_cells_clamp_to_the_clicked_line_end() {
+        let (mut app, area) = draft("abc\ndef", 80, 20);
+        click(&mut app, area, 20, 0);
+        insert_marker(&mut app);
+        assert_eq!(app.current_tab().input, "abcq\ndef");
+    }
+
+    #[test]
+    fn empty_input_stays_valid_when_clicking_the_placeholder() {
+        let (mut app, area) = draft("", 80, 20);
+        click(&mut app, area, 20, 0);
+        assert_eq!(app.current_tab().cursor_pos, 0);
+        insert_marker(&mut app);
+        assert_eq!(app.current_tab().input, "q");
+    }
+
+    #[test]
+    fn borders_and_prompt_prefix_do_not_reposition_the_caret() {
+        for (column, row) in [(0, 1), (1, 1), (2, 1), (3, 1), (8, 0), (79, 1)] {
+            let (mut app, area) = draft("keep draft", 80, 20);
+            for kind in [
+                MouseEventKind::Down(MouseButton::Left),
+                MouseEventKind::Up(MouseButton::Left),
+            ] {
+                mouse(&mut app, kind, area.x + column, area.y + row);
+            }
+            assert_eq!(app.current_tab().cursor_pos, "keep draft".len());
+        }
+    }
+
+    #[test]
+    fn clicking_replaces_full_selection_with_a_caret() {
+        let (mut app, area) = draft("alpha bravo", 80, 20);
+        app.current_tab_mut().select_all_input();
+        render_to_text(&mut app, 80, 20);
+        click(&mut app, area, 2, 0);
+        assert!(!app.current_tab().input_all_selected);
+        insert_marker(&mut app);
+        assert_eq!(app.current_tab().input, "alqpha bravo");
+    }
+
+    #[test]
+    fn clicking_resets_vertical_column_intent() {
+        let (mut app, area) = draft("alpha\nbravo", 80, 20);
+        app.current_tab_mut().input_vertical_goal = Some((80, 4));
+        click(&mut app, area, 1, 0);
+        assert_eq!(app.current_tab().cursor_pos, 1);
+        assert_eq!(app.current_tab().input_vertical_goal, None);
+        app.handle_event(AppEvent::Key(KeyEvent::new(
+            KeyCode::Down,
+            KeyModifiers::NONE,
+        )));
+        assert_eq!(app.current_tab().cursor_pos, 7);
+    }
+
+    #[test]
+    fn clicking_an_image_token_keeps_its_payload_and_boundary() {
+        let (mut app, _) = draft("before ", 80, 20);
+        app.current_tab_mut()
+            .insert_image_attachment(crate::clipboard_image::PastedImage {
+                data_base64: "aW1hZ2U=".into(),
+                mime_type: "image/png".into(),
+                label: "photo.png".into(),
+            });
+        let token = app.current_tab().attachments.token_ranges().next().unwrap();
+        app.current_tab_mut().insert_input_str(" after");
+        render_to_text(&mut app, 80, 20);
+        let area = app.input_dialog_area.unwrap();
+        click(&mut app, area, token.start as u16 + 3, 0);
+        assert_eq!(app.current_tab().cursor_pos, token.start);
+        insert_marker(&mut app);
+        assert!(app.current_tab().input.starts_with("before q[image: "));
+        let image = app.current_tab().attachments.images().next().unwrap();
+        assert_eq!(image.data_base64, "aW1hZ2U=");
+        assert_eq!(image.mime_type, "image/png");
+    }
+
+    #[test]
+    fn drag_selects_text_without_repositioning_the_draft_caret() {
+        let (mut app, area) = draft("abcdefghij", 80, 20);
+        mouse(
+            &mut app,
+            MouseEventKind::Down(MouseButton::Left),
+            area.x + 5,
+            area.y + 1,
+        );
+        mouse(
+            &mut app,
+            MouseEventKind::Drag(MouseButton::Left),
+            area.x + 8,
+            area.y + 1,
+        );
+        mouse(
+            &mut app,
+            MouseEventKind::Up(MouseButton::Left),
+            area.x + 8,
+            area.y + 1,
+        );
+        assert!(app.text_selection.selected_text().is_some());
+        assert_eq!(app.current_tab().cursor_pos, 10);
+        assert_eq!(app.current_tab().input, "abcdefghij");
+    }
+
+    #[test]
+    fn release_at_another_cell_is_not_a_caret_click() {
+        let (mut app, area) = draft("abcdefghij", 80, 20);
+        mouse(
+            &mut app,
+            MouseEventKind::Down(MouseButton::Left),
+            area.x + 5,
+            area.y + 1,
+        );
+        mouse(
+            &mut app,
+            MouseEventKind::Up(MouseButton::Left),
+            area.x + 8,
+            area.y + 1,
+        );
+        assert_eq!(app.current_tab().cursor_pos, 10);
+    }
+
+    #[test]
+    fn double_click_keeps_existing_word_selection() {
+        let (mut app, area) = draft("alpha bravo", 80, 20);
+        click(&mut app, area, 2, 0);
+        render_to_text(&mut app, 80, 20);
+        click(&mut app, area, 2, 0);
+        render_to_text(&mut app, 80, 20);
+        assert_eq!(app.text_selection.selected_text().as_deref(), Some("alpha"));
+        assert_eq!(app.current_tab().input, "alpha bravo");
+    }
+
+    #[test]
+    fn noneditable_or_unfocused_contexts_do_not_move_the_caret() {
+        for context in [
+            "help",
+            "model",
+            "agent",
+            "paste",
+            "sessions",
+            "unfocused",
+            "setup",
+            "slash",
+        ] {
+            let (mut app, area) = draft("keep draft", 80, 20);
+            match context {
+                "help" => app.help_overlay_visible = true,
+                "model" => app.current_tab_mut().model_picker_open = true,
+                "agent" => app.current_tab_mut().agent_picker_open = true,
+                "paste" => app.current_tab_mut().paste_pending = true,
+                "sessions" => app.current_tab_mut().current_view = View::Agents,
+                "unfocused" => app.pane_focused = false,
+                "setup" => app.mode = AppMode::Setup,
+                "slash" => app.current_tab_mut().replace_input("/he".into()),
+                _ => unreachable!(),
+            }
+            let before = app.current_tab().cursor_pos;
+            click(&mut app, area, 1, 0);
+            assert_eq!(app.current_tab().cursor_pos, before, "{context}");
+        }
+    }
+
+    #[test]
+    fn tab_switch_invalidates_a_pressed_input_click() {
+        let (mut app, area) = draft("first draft", 80, 20);
+        mouse(
+            &mut app,
+            MouseEventKind::Down(MouseButton::Left),
+            area.x + 5,
+            area.y + 1,
+        );
+        app.switch_tab_session("other-tab".into());
+        app.current_tab_mut().replace_input("second draft".into());
+        render_to_text(&mut app, 80, 20);
+        mouse(
+            &mut app,
+            MouseEventKind::Up(MouseButton::Left),
+            area.x + 5,
+            area.y + 1,
+        );
+        assert_eq!(app.current_tab().cursor_pos, "second draft".len());
+        app.switch_tab_session(DEFAULT_TAB_ID.into());
+        assert_eq!(app.current_tab().cursor_pos, "first draft".len());
+    }
+
+    #[test]
+    fn resize_and_focus_loss_cancel_the_pending_click() {
+        for resize in [true, false] {
+            let (mut app, area) = draft("keep draft", 80, 20);
+            mouse(
+                &mut app,
+                MouseEventKind::Down(MouseButton::Left),
+                area.x + 5,
+                area.y + 1,
+            );
+            if resize {
+                app.handle_event(AppEvent::Resize(80, 20));
+            } else {
+                app.handle_event(AppEvent::FocusChanged(false));
+                app.handle_event(AppEvent::FocusChanged(true));
+            }
+            mouse(
+                &mut app,
+                MouseEventKind::Up(MouseButton::Left),
+                area.x + 5,
+                area.y + 1,
+            );
+            assert_eq!(app.current_tab().cursor_pos, "keep draft".len());
+        }
+    }
+
+    #[test]
+    fn modified_clicks_keep_their_existing_behavior() {
+        for modifiers in [
+            KeyModifiers::CONTROL,
+            KeyModifiers::ALT,
+            KeyModifiers::SHIFT,
+        ] {
+            let (mut app, area) = draft("keep draft", 80, 20);
+            for kind in [
+                MouseEventKind::Down(MouseButton::Left),
+                MouseEventKind::Up(MouseButton::Left),
+            ] {
+                app.handle_event(AppEvent::Mouse(MouseEvent {
+                    kind,
+                    column: area.x + 5,
+                    row: area.y + 1,
+                    modifiers,
+                }));
+            }
+            assert_eq!(app.current_tab().cursor_pos, "keep draft".len());
+        }
+    }
+}
+
 #[test]
 fn input_vertical_explicit_rows_preserve_the_edit_position() {
     for (key, start) in [(KeyCode::Up, 27), (KeyCode::Down, 5)] {

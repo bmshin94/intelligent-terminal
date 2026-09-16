@@ -170,6 +170,7 @@ the view clamps to surviving content.
 | Ctrl+Y | Redo an undone edit in the focused chat draft |
 | Up / Down | Browse prompt input history |
 | Mouse wheel | Scroll chat (hold Alt to scroll one line) |
+| Click draft text | Move the draft caret to the clicked text cell |
 | Click a tool header | Expand or collapse that tool's details, live or completed |
 | Click a thinking header | Expand or collapse that block, live or completed |
 | Ctrl+O | Expand or collapse thinking in the selected/latest turn (or the active turn), and all live and completed tool details |
@@ -193,6 +194,11 @@ old edit history: undo does not reverse submitted agent or tool actions.
 Undo/redo handles these keys only while the chat draft owns input. Permission
 dialogs retain their existing Y/N and Enter shortcuts, including Ctrl+Y for
 quick allow; a permission choice does not consume the draft's redo history.
+
+Single clicks in draft text follow the visible wrapped or scrolled input row.
+Wide characters and image attachment tokens keep valid editing boundaries.
+Clicking dismisses full-draft selection without editing text or discarding redo;
+dragging and double/triple clicks retain their text-selection behavior.
 
 WTA automatically selects **Allow once** only when the tool matches the exact MCP
 server currently bound to that ACP session by master. Master overwrites provider

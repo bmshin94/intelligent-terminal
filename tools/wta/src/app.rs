@@ -1221,7 +1221,7 @@ pub struct App {
     pub(crate) last_completed_turn_click: Option<CompletedTurnClickRecord>,
     last_permission_snapshot: Option<(String, Option<String>)>,
     pub(crate) input_dialog_area: Option<Rect>,
-    pub(crate) pressed_input_dialog_tab: Option<String>,
+    pub(crate) pressed_input_dialog: Option<PressedInputDialog>,
     pub(crate) completed_turn_action_links: Vec<crate::action_links::CompletedTurnActionLink>,
     pub(crate) painted_completed_turn_action_links:
         Vec<crate::action_links::CompletedTurnActionLink>,
@@ -1562,7 +1562,7 @@ impl App {
             last_completed_turn_click: None,
             last_permission_snapshot: None,
             input_dialog_area: None,
-            pressed_input_dialog_tab: None,
+            pressed_input_dialog: None,
             completed_turn_action_links: Vec::new(),
             painted_completed_turn_action_links: Vec::new(),
             pane_id: None,
@@ -5180,6 +5180,14 @@ impl CompletedTurnHitRegion {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PressedInputDialog {
+    pub(crate) tab_id: String,
+    pub(crate) column: u16,
+    pub(crate) row: u16,
+    pub(crate) modifiers: KeyModifiers,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PressedCompletedTurn {
     pub(crate) tab_id: String,
     pub(crate) hit: CompletedTurnHitRegion,
@@ -6371,7 +6379,7 @@ impl App {
     fn switch_tab_session(&mut self, new_tab_id: String) {
         self.pressed_completed_turn = None;
         self.last_completed_turn_click = None;
-        self.pressed_input_dialog_tab = None;
+        self.pressed_input_dialog = None;
         if let Some(owner) = self.owner_tab_id.as_deref() {
             if owner != new_tab_id {
                 tracing::debug!(

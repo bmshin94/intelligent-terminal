@@ -294,7 +294,7 @@ impl App {
     fn cancel_completed_turn_click(&mut self) {
         self.pressed_completed_turn = None;
         self.last_completed_turn_click = None;
-        self.pressed_input_dialog_tab = None;
+        self.pressed_input_dialog = None;
     }
 
     fn restore_completed_turn_click(&mut self, column: u16, row: u16) {
@@ -579,6 +579,7 @@ impl App {
                     }
                 }
                 crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
+                    self.pressed_input_dialog = None;
                     self.current_tab_mut().input_all_selected = false;
                     self.current_tab_mut().input_vertical_goal = None;
                     self.text_selection.handle_mouse(mouse);
@@ -592,7 +593,12 @@ impl App {
                     }
                     self.last_completed_turn_click = None;
                     if self.input_dialog_at(mouse.column, mouse.row) {
-                        self.pressed_input_dialog_tab = Some(self.active_mouse_tab_id());
+                        self.pressed_input_dialog = Some(PressedInputDialog {
+                            tab_id: self.active_mouse_tab_id(),
+                            column: mouse.column,
+                            row: mouse.row,
+                            modifiers: mouse.modifiers,
+                        });
                         self.pressed_completed_turn = None;
                         return;
                     }
@@ -610,14 +616,37 @@ impl App {
                 }
                 crossterm::event::MouseEventKind::Up(crossterm::event::MouseButton::Left) => {
                     let active_tab_id = self.active_mouse_tab_id();
-                    let input_pressed = self.pressed_input_dialog_tab.take();
-                    if input_pressed.as_deref() == Some(active_tab_id.as_str())
+                    let input_pressed = self.pressed_input_dialog.take();
+                    if input_pressed
+                        .as_ref()
+                        .is_some_and(|pressed| pressed.tab_id == active_tab_id)
                         && self.input_dialog_at(mouse.column, mouse.row)
                     {
                         self.text_selection.handle_mouse(mouse);
                         self.pressed_completed_turn = None;
                         self.last_completed_turn_click = None;
                         self.current_tab_mut().clear_completed_turn_selection();
+                        if self.pane_focused
+                            && mouse.modifiers.is_empty()
+                            && input_pressed.as_ref().is_some_and(|pressed| {
+                                pressed.modifiers.is_empty()
+                                    && pressed.column == mouse.column
+                                    && pressed.row == mouse.row
+                            })
+                        {
+                            let tab = self.current_tab();
+                            if let Some(position) = self.input_dialog_area.and_then(|area| {
+                                crate::ui::input_cursor_at(
+                                    &tab.input,
+                                    tab.cursor_pos,
+                                    area,
+                                    mouse.column,
+                                    mouse.row,
+                                )
+                            }) {
+                                self.current_tab_mut().move_cursor_to(position);
+                            }
+                        }
                         return;
                     }
                     let pressed = self.pressed_completed_turn.take();
@@ -3501,6 +3530,12 @@ impl App {
 
                     // Apply `pane_open` if present.
                     if let Some(open) = params.get("pane_open").and_then(|v| v.as_bool()) {
+                        if target_tab == self.active_tab_key()
+                            && self.current_tab().pane_open != open
+                        {
+                            self.cancel_completed_turn_click();
+                            self.input_dialog_area = None;
+                        }
                         tracing::info!(
                             target: "set_agent_state",
                             tab = %target_tab,

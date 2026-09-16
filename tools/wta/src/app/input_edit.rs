@@ -386,6 +386,15 @@ impl TabSession {
         self.replace_input_range(range, "", InputEditKind::Other);
     }
 
+    pub fn move_cursor_to(&mut self, position: usize) {
+        self.break_input_undo_group();
+        self.input_vertical_goal = None;
+        self.input_all_selected = false;
+        self.cursor_pos = self
+            .attachments
+            .snap_cursor_left(clamp_cursor_to_boundary(&self.input, position));
+    }
+
     pub fn move_cursor_left(&mut self) {
         self.break_input_undo_group();
         self.input_vertical_goal = None;
