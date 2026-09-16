@@ -1,6 +1,71 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+function Get-LicenseFromDir {
+    param([string]$Dir)
+    $out = @()
+    if (-not (Test-Path $Dir)) { return $out }
+    foreach ($f in Get-ChildItem $Dir -File -ErrorAction SilentlyContinue) {
+        if ($licenseNamesLower -contains $f.Name.ToLower()) {
+            $out += [PSCustomObject]@{
+                Name = $f.Name
+                Text = [System.IO.File]::ReadAllText($f.FullName)
+            }
+        }
+    }
+    return $out
+}
+
+function Get-LicenseText {
+    param(
+        [string]$Name,
+        [string]$Version,
+        [string]$RepoUrl,
+        [string]$ManifestPath,
+        [bool]$GitSource
+    )
+    if ($ManifestPath) {
+        $found = Get-LicenseFromDir (Split-Path -Parent $ManifestPath)
+        if ($found.Count -gt 0) { return $found }
+    }
+    if ($GitSource) {
+        if ($ManifestPath) {
+            $directory = [System.IO.Path]::GetFullPath((Split-Path -Parent $ManifestPath))
+            $checkout = @(& git -C $directory rev-parse --show-toplevel)
+            if ($LASTEXITCODE -ne 0 -or $checkout.Count -ne 1) {
+                throw "Cannot locate the resolved Git checkout for dependency '$Name'."
+            }
+            $root = [System.IO.Path]::GetFullPath($checkout[0])
+            $ancestors = [System.Collections.Generic.List[string]]::new()
+            while ($directory -ne $root) {
+                $parent = Split-Path -Parent $directory
+                if (-not $parent -or $parent -eq $directory) {
+                    throw "Dependency '$Name' is not beneath its resolved Git checkout root."
+                }
+                $ancestors.Add($parent)
+                $directory = $parent
+            }
+            # Never search outside the resolved checkout or combine a member's license with its parent's.
+            foreach ($ancestor in $ancestors) {
+                $found = Get-LicenseFromDir $ancestor
+                if ($found.Count -gt 0) { return $found }
+            }
+        }
+        throw "Git dependency '$Name' must include license text in its resolved checkout; refusing registry or moving-HEAD substitution."
+    }
+    if (Test-Path $srcRoot) {
+        foreach ($reg in Get-ChildItem $srcRoot -Directory -ErrorAction SilentlyContinue) {
+            $found = Get-LicenseFromDir (Join-Path $reg.FullName "$Name-$Version")
+            if ($found.Count -gt 0) { return $found }
+        }
+    }
+    $found = Get-LicenseFromCrate -Name $Name -Version $Version
+    if ($found.Count -gt 0) { return $found }
+    $upstream = Get-LicenseFromGithub -RepoUrl $RepoUrl
+    if ($upstream) { return @($upstream) }
+    return @()
+}
+
 function Get-WtaDependencyProvenance {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Package)

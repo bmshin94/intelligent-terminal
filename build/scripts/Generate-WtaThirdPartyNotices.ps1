@@ -27,9 +27,11 @@
     Target-cfg filtering is delegated to cargo itself via --filter-platform,
     so the script does not maintain its own list of non-Windows tokens.
     License text is sourced first from the resolved package's directory.
-    Registry dependencies can fall back to the Cargo cache and upstream
-    GitHub LICENSE file. Git dependencies require bundled license text and
-    are attributed by their actual repository and immutable commit.
+    Git workspace members can use the nearest ancestor's license files up
+    to the resolved checkout root. Registry dependencies can fall back to
+    the Cargo cache and upstream GitHub LICENSE file. Git dependencies require
+    license text in that checkout and are attributed by their actual repository
+    and immutable commit.
 
     The /NOTICE.md edit is performed atomically and preserves the file's
     original CRLF line endings; every section outside the marker block is
@@ -188,7 +190,7 @@ function Get-SpdxCanonicalText {
 }
 
 # ---------------------------------------------------------------------------
-# 5. License-text lookup chain: extracted src/ -> .crate tarball -> GitHub raw.
+# 5. License lookup: Git checkout ancestors, or registry src/ -> .crate -> GitHub raw.
 # ---------------------------------------------------------------------------
 $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME '.cargo' }
 $srcRoot   = Join-Path $cargoHome 'registry\src'
@@ -207,21 +209,6 @@ $licenseNames = @(
     'COPYING','COPYING.txt','UNLICENSE','UNLICENSE.txt'
 )
 $licenseNamesLower = $licenseNames | ForEach-Object { $_.ToLower() }
-
-function Get-LicenseFromDir {
-    param([string]$Dir)
-    $out = @()
-    if (-not (Test-Path $Dir)) { return $out }
-    foreach ($f in Get-ChildItem $Dir -File -ErrorAction SilentlyContinue) {
-        if ($licenseNamesLower -contains $f.Name.ToLower()) {
-            $out += [PSCustomObject]@{
-                Name = $f.Name
-                Text = [System.IO.File]::ReadAllText($f.FullName)
-            }
-        }
-    }
-    return $out
-}
 
 function Get-LicenseFromCrate {
     param([string]$Name, [string]$Version)
@@ -267,34 +254,6 @@ function Get-LicenseFromGithub {
         }
     }
     return $null
-}
-
-function Get-LicenseText {
-    param(
-        [string]$Name,
-        [string]$Version,
-        [string]$RepoUrl,
-        [string]$ManifestPath,
-        [bool]$GitSource
-    )
-    if ($ManifestPath) {
-        $found = Get-LicenseFromDir (Split-Path -Parent $ManifestPath)
-        if ($found.Count -gt 0) { return $found }
-    }
-    if ($GitSource) {
-        throw "Git dependency '$Name' must bundle its license text; refusing registry or moving-HEAD substitution."
-    }
-    if (Test-Path $srcRoot) {
-        foreach ($reg in Get-ChildItem $srcRoot -Directory -ErrorAction SilentlyContinue) {
-            $found = Get-LicenseFromDir (Join-Path $reg.FullName "$Name-$Version")
-            if ($found.Count -gt 0) { return $found }
-        }
-    }
-    $found = Get-LicenseFromCrate -Name $Name -Version $Version
-    if ($found.Count -gt 0) { return $found }
-    $upstream = Get-LicenseFromGithub -RepoUrl $RepoUrl
-    if ($upstream) { return @($upstream) }
-    return @()
 }
 
 # ---------------------------------------------------------------------------
