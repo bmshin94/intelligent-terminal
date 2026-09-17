@@ -352,7 +352,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     }
                 }
             }
-            elseif ($promptText -match '(?m)^MARKDOWN_(SAMPLE|TABLE|STREAM|PING|CRLF)\b') {
+            elseif ($promptText -match '(?m)^MARKDOWN_(SAMPLE|TABLE|GRID|STREAM|PING|CRLF)\b') {
                 $scenario = $Matches[1]
                 switch ($scenario) {
                     'SAMPLE' {
@@ -388,6 +388,20 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                             "| MDWIDE | `u{754c}`u{754c} caf`u{e9} e`u{301} |"
                             ''
                             'MDTABLEEND'
+                        ) -join "`n"
+                        Send-TextUpdate -SessionId $sessionId -Text $body
+                    }
+                    'GRID' {
+                        $body = @(
+                            '# MDGRID'
+                            ''
+                            '| Key | Description |'
+                            '| --- | --- |'
+                            '| MDCOPY | alpha beta gamma delta epsilon zeta eta theta |'
+                            '| MDLONG | ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz |'
+                            "| MDWIDE | `u{754c}`u{754c} caf`u{e9} e`u{301} `u{1f469}`u{200d}`u{1f4bb} |"
+                            ''
+                            'MDGRIDEND'
                         ) -join "`n"
                         Send-TextUpdate -SessionId $sessionId -Text $body
                     }

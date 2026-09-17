@@ -2643,7 +2643,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/DinahK-2SO/tui-markdown",
-          "commitHash": "114de9f3f7de077263b85492b61495007a847136"
+          "commitHash": "4c53b3a9f8ce9150d18db2a67c3d09936a9a0013"
         }
       }
     }

@@ -461,4 +461,98 @@ Describe 'Feature: agent Markdown rendering' -Tag 'Feature', 'AgentMarkdown' -Sk
         $final = Wait-MarkdownComplete -Scenario STREAM -Marker MDFINAL
         Assert-MarkdownStreamFrame -Frame $final -Stage completed
     }
+
+    It 'Narrow Markdown tables keep bordered columns and wrap cell text' {
+        function Assert-WrappedGrid {
+            param([Parameter(Mandatory)][string]$Frame, [Parameter(Mandatory)][string]$Stage,
+                [bool]$CheckRowSeparators = $true)
+            $lines = @($Frame -split "`r?`n")
+            $top = @($lines | Where-Object { $_ -match '┌─+┬─+┐' })
+            $bottom = @($lines | Where-Object { $_ -match '└─+┴─+┘' })
+            $top | Should -HaveCount 1 -Because "the $Stage table must remain a grid rather than a vertical cell list"
+            $bottom | Should -HaveCount 1
+            $lines = $lines[[array]::IndexOf($lines, $top[0])..[array]::IndexOf($lines, $bottom[0])]
+            $rules = @($lines | Where-Object { $_ -match '├[─┼]+┤' })
+            if ($CheckRowSeparators) {
+                $rules | Should -HaveCount 3 -Because 'the header and each logical data row need a horizontal boundary'
+            }
+            $gridWidth = [regex]::Match($top[0], '┌[─┬]+┐').Length
+            foreach ($rule in $rules) {
+                [regex]::Match($rule, '├[─┼]+┤').Length | Should -Be $gridWidth
+            }
+            [regex]::Match($bottom[0], '└[─┴]+┘').Length | Should -Be $gridWidth
+            $cells = @($lines | Where-Object { $_ -match '│' })
+            foreach ($line in $cells) { [regex]::Matches($line, '│').Count | Should -Be 3 }
+            $values = ($cells | ForEach-Object { ($_ -split '│')[2] }) -join ''
+            $values = $values -replace '\s', ''
+            $values | Should -Be ("Descriptionalphabetagammadeltaepsilonzetaetatheta" +
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz" +
+                "`u{754c}`u{754c}caf`u{e9}e`u{301}`u{1f469}`u{200d}`u{1f4bb}")
+            $keys = (($cells | ForEach-Object { ($_ -split '│')[1] }) -join '') -replace '\s', ''
+            $keys | Should -Be 'KeyMDCOPYMDLONGMDWIDE'
+            $Frame | Should -Not -Match '(?m)^\s*\[1\]\s'
+            [pscustomobject]@{ Width = $gridWidth; ContentRows = $cells.Count }
+        }
+
+        function Save-GridEvidence {
+            param([string]$Frame, [string]$Stage)
+            if ($env:ITE2E_ARTIFACT_ROOT) {
+                New-Item -ItemType Directory -Path $env:ITE2E_ARTIFACT_ROOT -Force | Out-Null
+                $Frame | Set-Content -LiteralPath (Join-Path $env:ITE2E_ARTIFACT_ROOT "$Stage.txt") -Encoding utf8
+                Save-UiScreenshot -App $script:app -Path (Join-Path $env:ITE2E_ARTIFACT_ROOT "$Stage.png") | Out-Null
+            }
+        }
+
+        Start-MarkdownTerminal
+        Send-AgentPrompt -App $script:app -PaneSessionId $script:paneId -Text 'MARKDOWN_GRID' | Out-Null
+        $wide = Wait-MarkdownComplete -Scenario GRID -Marker MDGRIDEND
+        $before = Get-MarkdownIdentity
+        Save-GridEvidence -Frame $wide -Stage wide
+        $wideGrid = Assert-WrappedGrid -Frame $wide -Stage wide -CheckRowSeparators $false
+        $wideWidth = Get-MarkdownWidth -Frame $wide
+
+        Add-Type -AssemblyName UIAutomationClient
+        Add-Type -AssemblyName UIAutomationTypes
+        $window = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$script:app.Hwnd)
+        $windowPattern = [System.Windows.Automation.WindowPattern]$window.GetCurrentPattern(
+            [System.Windows.Automation.WindowPattern]::Pattern)
+        $windowPattern.SetWindowVisualState([System.Windows.Automation.WindowVisualState]::Normal)
+        $bounds = $window.Current.BoundingRectangle
+        $transform = [System.Windows.Automation.TransformPattern]$window.GetCurrentPattern(
+            [System.Windows.Automation.TransformPattern]::Pattern)
+        $targetWidth = [Math]::Min(38, $wideWidth - 12)
+        $transform.Resize([Math]::Max(1, [Math]::Floor($bounds.Width * $targetWidth / $wideWidth)), $bounds.Height)
+        $narrow = Wait-Until -TimeoutSec 20 -IntervalSec 0.2 -Because 'the real pane to narrow while retaining the full response' -Condition {
+            $frame = Get-MarkdownFrame
+            if ((Get-MarkdownWidth -Frame $frame) -le $targetWidth -and $frame -match 'MDGRIDEND') { $frame }
+        }
+        Save-GridEvidence -Frame $narrow -Stage narrow
+        $narrowGrid = Assert-WrappedGrid -Frame $narrow -Stage narrow
+        $narrowGrid.ContentRows | Should -BeGreaterThan $wideGrid.ContentRows
+        $narrowGrid.Width | Should -BeLessThan $wideGrid.Width
+
+        $clipboard = Get-ClipboardSnapshot
+        try {
+            $cell = Get-MarkdownCell -Frame $narrow -Text MDCOPY
+            Set-Clipboard -Value 'grid-copy-sentinel'
+            Send-AgentMouseClick -App $script:app -PaneSessionId $script:paneId `
+                -Row $cell.Row -Column $cell.Column -Count 2 | Out-Null
+            Send-AgentWin32Key -App $script:app -PaneSessionId $script:paneId -Vk 0x43 -Sc 0x2e -Uc 3 -Modifiers 0x08 | Out-Null
+            Wait-Until -TimeoutSec 5 -Because 'selection to use the wrapped grid coordinates' -Condition {
+                (Get-Clipboard -Raw) -eq 'MDCOPY'
+            } | Should -BeTrue
+        }
+        finally { Restore-ClipboardSnapshot -Snapshot $clipboard }
+
+        $windowPattern.SetWindowVisualState([System.Windows.Automation.WindowVisualState]::Maximized)
+        $restored = Wait-Until -TimeoutSec 20 -IntervalSec 0.2 -Because 'widening to restore the original table geometry' -Condition {
+            $frame = Get-MarkdownFrame
+            if ((Get-MarkdownWidth -Frame $frame) -eq $wideWidth -and $frame -match 'MDGRIDEND') { $frame }
+        }
+        Save-GridEvidence -Frame $restored -Stage restored
+        $restoredGrid = Assert-WrappedGrid -Frame $restored -Stage restored
+        $restoredGrid.Width | Should -Be $wideGrid.Width
+        $restoredGrid.ContentRows | Should -Be $wideGrid.ContentRows
+        Assert-MarkdownIdentity -Before $before -Prompts 1
+    }
 }

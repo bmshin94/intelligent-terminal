@@ -4440,6 +4440,48 @@ mod tests {
     }
 
     #[test]
+    fn markdown_narrow_grid_wraps_cells_and_restores_wide_geometry() {
+        let tab = crate::app::TabSession::default();
+        let key = AgentMarkdownKey::Active(0);
+        let source = "| Key | Description |\n| --- | --- |\n| MDCOPY | alpha beta gamma delta epsilon zeta eta theta |\n| MDLONG | ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz |\n| MDWIDE | \u{754c}\u{754c} caf\u{e9} e\u{301} |";
+        let wide = build_markdown_agent_lines(&tab, key, source, 100, true);
+        let identity = tab.agent_markdown.borrow().identity(key);
+        let narrow = build_markdown_agent_lines(&tab, key, source, 38, true);
+        let text = narrow.iter().map(line_text).collect::<Vec<_>>();
+        assert!(text.iter().any(|line| line.contains('┌')));
+        assert!(text.iter().any(|line| line.contains('└')));
+        assert_eq!(text.iter().filter(|line| line.contains('├')).count(), 3);
+        assert!(narrow.iter().all(|line| line.width() <= 38));
+        assert!(narrow.len() > wide.len());
+        assert_eq!(tab.agent_markdown.borrow().identity(key), identity);
+        assert_eq!(tab.agent_markdown.borrow().source(key), Some(source));
+        for line in text.iter().filter(|line| line.contains('│')) {
+            assert_eq!(line.matches('│').count(), 3);
+        }
+        let joined: String = text
+            .iter()
+            .filter(|line| line.contains('│'))
+            .flat_map(|line| line.split('│').nth(2).unwrap().chars())
+            .filter(|ch| !ch.is_whitespace())
+            .collect();
+        assert!(joined.contains("alphabetagammadeltaepsilonzetaetatheta"));
+        assert!(joined.contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz"));
+        assert!(joined.contains("\u{754c}\u{754c}caf\u{e9}e\u{301}"));
+
+        let before = tab.agent_markdown.borrow().diagnostics();
+        assert_eq!(
+            build_markdown_agent_lines(&tab, key, source, 38, true),
+            narrow
+        );
+        assert_eq!(tab.agent_markdown.borrow().diagnostics(), before);
+        assert_eq!(
+            build_markdown_agent_lines(&tab, key, source, 100, true),
+            wide
+        );
+        assert_eq!(tab.agent_markdown.borrow().identity(key), identity);
+    }
+
+    #[test]
     fn markdown_clear_discards_projection_without_changing_raw_message() {
         let mut tab = crate::app::TabSession::default();
         tab.messages
