@@ -352,7 +352,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                     }
                 }
             }
-            elseif ($promptText -match '(?m)^MARKDOWN_(SAMPLE|TABLE|GRID|STREAM|PING|CRLF)\b') {
+            elseif ($promptText -match '(?m)^MARKDOWN_(SAMPLE|TABLE|GRID|STREAM|TASK|PING|CRLF)\b') {
                 $scenario = $Matches[1]
                 switch ($scenario) {
                     'SAMPLE' {
@@ -412,6 +412,27 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
                         Wait-MarkdownStage -SessionId $sessionId -Stage 'balanced'
                         Send-MarkdownTool -SessionId $sessionId
                         Send-TextUpdate -SessionId $sessionId -Text "# MDAFTER`n`nMDFINAL"
+                        Wait-MarkdownStage -SessionId $sessionId -Stage 'finish'
+                    }
+                    'TASK' {
+                        Send-TextUpdate -SessionId $sessionId -Text (@(
+                            '# MDTASKTITLE'
+                            ''
+                            '- [ ] MDORDINARY'
+                            '- [x] MDORDINARYDONE'
+                            ''
+                            '```text'
+                            '- [ ] MDCODETASK'
+                            '  ---'
+                            '```'
+                            ''
+                            '- [ ] MDTASKOPEN'
+                            '  '
+                        ) -join "`n")
+                        Wait-MarkdownStage -SessionId $sessionId -Stage 'partial'
+                        Send-TextUpdate -SessionId $sessionId -Text '-'
+                        Wait-MarkdownStage -SessionId $sessionId -Stage 'balanced'
+                        Send-TextUpdate -SessionId $sessionId -Text "--`n`n1. [x] MDTASKDONE`n   ===`n`nMDTASKEND"
                         Wait-MarkdownStage -SessionId $sessionId -Stage 'finish'
                     }
                     'PING' {

@@ -462,6 +462,61 @@ Describe 'Feature: agent Markdown rendering' -Tag 'Feature', 'AgentMarkdown' -Sk
         Assert-MarkdownStreamFrame -Frame $final -Stage completed
     }
 
+    It 'Task-list headings preserve the helper while Markdown streams' {
+        Start-MarkdownTerminal
+        try {
+            Send-AgentPrompt -App $script:app -PaneSessionId $script:paneId -Text 'MARKDOWN_TASK' | Out-Null
+            $partial = Wait-MarkdownFrame -Pattern '- \[ \] MDTASKOPEN'
+            $before = Get-MarkdownIdentity
+            $partial | Should -Match '- \[ \] MDORDINARY'
+            $partial | Should -Match '- \[x\] MDORDINARYDONE'
+            $partial | Should -Match '- \[ \] MDCODETASK'
+            $partial | Should -Not -Match 'MDTASKDONE|MDTASKEND'
+            Release-MarkdownStage -Stage partial
+
+            $heading = Wait-Until -TimeoutSec 20 -IntervalSec 0.2 `
+                -Because 'a single underline character to turn the task into a heading without crashing' -Condition {
+                    if (-not (Get-Process -Id $before.Helper -ErrorAction SilentlyContinue)) {
+                        throw "The WTA helper exited while rendering a task-list heading (helper PID $($before.Helper))."
+                    }
+                    $frame = Get-MarkdownFrame
+                    if ($frame -match '(?m)^\s*\[ \] MDTASKOPEN\s*$') { $frame }
+                }
+            $heading | Should -Not -Match 'MDTASKDONE|MDTASKEND'
+            Release-MarkdownStage -Stage balanced
+            Wait-MarkdownFrame -Pattern '\[x\] MDTASKDONE' | Should -Not -Match '# MDTASKTITLE'
+            Release-MarkdownStage -Stage finish
+            $complete = Wait-MarkdownComplete -Scenario TASK -Marker MDTASKEND
+            foreach ($marker in @('MDTASKTITLE', 'MDORDINARY', 'MDORDINARYDONE', 'MDCODETASK',
+                    'MDTASKOPEN', 'MDTASKDONE', 'MDTASKEND')) {
+                [regex]::Matches($complete, "\b$marker\b").Count | Should -Be 1
+            }
+            $complete | Should -Match '\[ \] MDTASKOPEN'
+            $complete | Should -Match '\[x\] MDTASKDONE'
+            $complete | Should -Match '- \[ \] MDCODETASK'
+            $complete | Should -Not -Match '# MDTASKTITLE|```text'
+            Assert-MarkdownIdentity -Before $before -Prompts 1
+
+            Set-WtSetting -App $script:app -Key renderAgentMarkdown -Value $false | Out-Null
+            $raw = Wait-MarkdownFrame -Pattern '# MDTASKTITLE'
+            $raw | Should -Match '- \[ \] MDTASKOPEN'
+            $raw | Should -Match '1\. \[x\] MDTASKDONE'
+            Set-WtSetting -App $script:app -Key renderAgentMarkdown -Value $true | Out-Null
+            Wait-MarkdownFrame -Pattern '\[x\] MDTASKDONE' -NotPattern '# MDTASKTITLE' | Out-Null
+            Assert-MarkdownIdentity -Before $before -Prompts 1
+
+            Send-AgentPrompt -App $script:app -PaneSessionId $script:paneId -Text 'MARKDOWN_PING' | Out-Null
+            Wait-MarkdownComplete -Scenario PING -Marker MDSECOND | Out-Null
+            Assert-MarkdownIdentity -Before $before -Prompts 2
+        }
+        finally {
+            # Release a held fixture before the existing AfterEach stops the selected test app.
+            foreach ($path in $script:gatePaths) {
+                if (-not (Test-Path -LiteralPath $path)) { New-Item -ItemType File -Path $path | Out-Null }
+            }
+        }
+    }
+
     It 'Narrow Markdown tables keep bordered columns and wrap cell text' {
         function Assert-WrappedGrid {
             param([Parameter(Mandatory)][string]$Frame, [Parameter(Mandatory)][string]$Stage,
