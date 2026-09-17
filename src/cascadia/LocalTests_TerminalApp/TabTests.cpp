@@ -2865,7 +2865,7 @@ namespace TerminalAppLocalTests
         std::shared_ptr<Controller> controller;
         std::vector<Json::Value> events;
         std::string nativePane;
-        const std::string message = R"(IT_AGENT_HOOK/1 {"session_id":"$7","pane_id":"%1","cli_source":"copilot","event":"agent.stop","payload":{"session_id":"sid"}})";
+        const std::string message = "IT_AGENT_HOOK/2 $7 %1 copilot agent.stop routed 0 1 eyJzZXNzaW9uX2lkIjoic2lkIn0=";
         winrt::event_token token{};
         auto cleanup = wil::scope_exit([&]() {
             RunOnUIThread([&]() {
@@ -2912,9 +2912,12 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(std::to_string(page->_WindowProperties.WindowId()), events.back()["window_id"].asString());
 
             controller->_agentHook("ordinary message");
-            controller->_agentHook("IT_AGENT_HOOK/1 {}");
-            controller->_agentHook(R"(IT_AGENT_HOOK/1 {"session_id":"$8","pane_id":"%1","cli_source":"copilot","event":"agent.stop"})");
-            controller->_agentHook(R"(IT_AGENT_HOOK/1 {"session_id":"$7","pane_id":"%99","cli_source":"copilot","event":"agent.stop"})");
+            controller->_agentHook("IT_AGENT_HOOK/2 invalid");
+            controller->_agentHook("IT_AGENT_HOOK/2 $8 %1 copilot agent.stop wrong-session 0 1 e30=");
+            controller->_agentHook("IT_AGENT_HOOK/2 $7 %99 copilot agent.stop wrong-pane 0 1 e30=");
+            VERIFY_ARE_EQUAL(size_t{ 1 }, events.size());
+            VERIFY_IS_FALSE(controller->_failed.load());
+            controller->_agentHook("IT_AGENT_HOOK/2 $7 %1 copilot agent.stop invalid-json 0 1 ew==");
             VERIFY_ARE_EQUAL(size_t{ 1 }, events.size());
             VERIFY_IS_FALSE(controller->_failed.load());
 

@@ -148,26 +148,36 @@ forwards agent lifecycle/status events without installing `wtcli` or WTA on
 the remote host. Install it separately in the Linux CLI's hook configuration;
 the existing Windows hook installer does not modify remote machines.
 
-It requires Python 3 and **tmux 3.4 or newer**. Inside tmux, the hook checks
+It uses a shell script, standard Linux utilities, and **tmux 3.4 or newer**;
+Python, Node.js, and `jq` are not required for the sender. Inside tmux, it checks
 `TMUX` and `TMUX_PANE`, verifies that the pane still belongs to its originating
 session, and enumerates only that session's control clients. For each client it
 uses `display-message -l -c <client>` to deliver a literal `%message` notification:
 
 ```text
-%message IT_AGENT_HOOK/1 {"session_id":"$0","pane_id":"%1","cli_source":"copilot","event":"agent.stop","payload":{"session_id":"agent-session-id"}}
+%message IT_AGENT_HOOK/2 $0 %1 copilot agent.stop transfer-id 0 1 eyJzZXNzaW9uX2lkIjoic2lkIn0=
 ```
+
+The fields after the version are session, pane, CLI source, event, transfer ID,
+zero-based chunk index, chunk count, and Base64 data. The shell does not parse,
+redact, or truncate JSON. It forwards up to 1 MiB of raw stdin using chunks of at
+most 6,000 Base64 characters, so each tmux message stays below 8 KiB.
 
 `display-message -C` is **not** a broadcast switch. Ordinary status messages,
 `wait-for`, and user options do not automatically carry hook JSON to the
 frontend. The bridge uses the documented control-client message path; it never
 writes an OSC sequence or hook JSON into a pane's terminal output.
 
-IT checks the version, size, source, event, attached session and pane inventory.
-It resolves the native pane/tab/window itself, including zoom-hidden panes, then
-uses the same redaction and bounded `agent_event` envelope as the native hook.
+IT checks the version, size, source, event, attached session and pane inventory,
+then reassembles complete transfers with bounded memory and a 10-second expiry.
+Missing, duplicate, inconsistent, or oversized chunks never become partial
+agent events. IT parses the complete UTF-8 JSON, projects only consumed metadata,
+resolves the native pane/tab/window itself (including zoom-hidden panes), and
+applies the native hook's redaction and final event budget.
 WTA scopes these live rows separately from local agent sessions and supports
 focusing their visible native panes. Unzoom a zoom-hidden pane before focusing
-its row; its hook status is still tracked while hidden. An ended tmux row does not resume a CLI on Windows:
+its row; its hook status is still tracked while hidden. An ended tmux row does
+not resume a CLI on Windows:
 the opaque backend command is not enough information to reconstruct a remote
 resume invocation.
 
@@ -175,10 +185,11 @@ Missing tmux, unsupported tmux versions, execution outside tmux, stale pane
 membership, and no attached control client are successful no-ops. Delivery is
 live and best-effort, not a durable queue: disconnected clients receive no replay.
 Linked windows send only to the originating session, not every session sharing
-the pane. Other control clients attached to that same session receive the
-notification too. Access to the tmux socket permits spoofing status events;
-this is a status channel, never proof of identity, permission or shell-input
-authorization.
+the pane. Other control clients attached to that same session can read the
+original hook payload, including prompts and tool data, before IT redacts it.
+Base64 is framing, not encryption. Access to the tmux socket also permits
+spoofing status events; this is a status channel, never proof of identity,
+permission or shell-input authorization.
 
 ### Deterministic local fixture
 

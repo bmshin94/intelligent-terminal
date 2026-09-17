@@ -1,413 +1,443 @@
 # Opt-in remote Linux tmux hooks
 
-`it_agent_hook.py` is a **standalone Python 3** sender for agent CLIs running
-inside a remote Linux tmux pane. It needs **tmux 3.4 or newer**, but no `wtcli`,
-WTA executable, Windows environment variables, `jq`, or Python packages on the
-remote machine.
+`it-agent-hook.sh` is a thin **POSIX-shell transport**, not an agent-event
+processor. It frames and forwards stdin **unchanged**, including malformed
+JSON, conflicting IDs, prompts, tool arguments/output, Unicode, and CR/LF.
+Intelligent Terminal (IT) reassembles the body and owns JSON parsing, identity
+checks, child-session filtering, redaction/projection, and activity/status
+processing. The sender never parses, truncates, or rewrites JSON.
 
-This is a separate, manual installation. It does **not** replace or update the
-managed local `wt-agent-hooks` plugins. Installing it does not enable remote
-session tracking by itself: the local terminal must have the matching
-`IT_AGENT_HOOK/1` receiver and a tmux **control-mode** connection to this session.
-An ordinary tmux attachment alone cannot receive these notifications.
+Requirements: Linux, **tmux 3.4+**, `sh`, and GNU/coreutils-compatible `timeout`,
+`mktemp`, `rm`, `rmdir`, `head`, `wc`, and `base64` (`--wrap=6000`). No remote
+`wtcli`, WTA executable, Python, Node, or `jq` is required by the transport.
+OpenCode's own plugin API naturally uses its existing JavaScript runtime.
 
-## Copy and install on the remote machine
+This is a **separate manual opt-in installation**. It does not replace or
+modify managed local `wt-agent-hooks` plugins. IT must have the matching v2
+receiver and a tmux control-mode connection to the selected session; an
+ordinary terminal attachment alone cannot receive the notifications.
 
-Copy just `it_agent_hook.py` to the Linux host, then run there:
+## Install just the shell file on Linux
+
+Copy `it-agent-hook.sh` to the remote host. This example normalizes Windows
+checkout line endings and refuses to overwrite an existing installed file:
 
 ```sh
-python3 --version
-tmux -V                         # requires 3.4+
-install -D -m 644 it_agent_hook.py \
-  "$HOME/.local/lib/intelligent-terminal/it_agent_hook.py"
+tmux -V
+destination="$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh"
+mkdir -p -- "${destination%/*}"
+if ! (umask 077; set -C; sed 's/\r$//' ./it-agent-hook.sh >"$destination"); then
+    printf '%s\n' 'Sender already exists or could not be installed; inspect it before updating.' >&2
+    exit 1
+fi
+chmod 700 -- "$destination"
 ```
 
-The file is invoked through `python3`, so executable permission is unnecessary.
-Configure the desired CLI below, **restart that CLI**, and start it inside the
-tmux session attached through your terminal's control-mode integration. Do not
-forge `TMUX` or `TMUX_PANE` in shell startup files.
-
-For ACP or other already-tracked launches, explicitly disable this separate
-remote integration:
+Manual invocation uses the same explicit arguments as the native hook bridge:
 
 ```sh
-WTA_TMUX_HOOKS_DISABLED=1 your-agent-command
+sh "$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh" \
+  --cli-source copilot --event agent.stop < agent-hook-input.json
 ```
 
-Any nonempty value disables the sender. Unset it to re-enable; `0` is also
-nonempty. `WT_SESSION` and `WT_COM_CLSID` are deliberately irrelevant. OpenCode
-also honors its existing `OPENCODE_CLIENT=acp` signal. Copilot raw session IDs
-starting with `sidekick-` are silently ignored. For other providers, configure
-the opt-out on the ACP launcher; the sender does not guess how the CLI started.
+Run the CLI **inside the tmux pane** attached through IT's integration. Never
+forge `TMUX` or `TMUX_PANE` in shell startup files. **Restart the CLI after
+installing or changing its hooks.** There is no automatic remote install,
+upgrade, reconciliation, or removal.
 
-## CLI hook configuration
+## Disable, including ACP launches
 
-Use a distinct plugin name, **`it-tmux-hooks`**, so remote opt-in hooks never
-collide with the managed local plugin. The following one-time **Linux setup
-example** creates a local marketplace/plugin (or Gemini extension) for one CLI.
-Change the argument `copilot` to `claude`, `codex`, or `gemini` as appropriate.
-It refuses to overwrite an existing setup directory. It uses only Python's
-standard library and the event catalog already used by the adjacent bundles.
+Any nonempty `WTA_TMUX_HOOKS_DISABLED` value disables this transport (`0` also
+disables it). For example:
 
 ```sh
-python3 - copilot <<'PY'
-import json
-from pathlib import Path
-import shlex
-import sys
-
-source = sys.argv[1]
-shared = {
-    "SessionStart": "agent.session.start",
-    "SessionEnd": "agent.session.end",
-    "Notification": "agent.notification",
-    "UserPromptSubmit": "agent.prompt.submit",
-    "StopFailure": "agent.error",
-    "Stop": "agent.stop",
-}
-catalog = {
-    "claude": shared,
-    "copilot": shared,
-    "codex": {
-        "SessionStart": "agent.session.start",
-        "PermissionRequest": "agent.notification",
-        "UserPromptSubmit": "agent.prompt.submit",
-        "Stop": "agent.stop",
-    },
-    "gemini": {
-        "SessionStart": "agent.session.start",
-        "SessionEnd": "agent.session.end",
-        "BeforeAgent": "agent.prompt.submit",
-        "BeforeTool": "agent.tool.starting",
-        "Notification": "agent.notification",
-        "AfterAgent": "agent.stop",
-    },
-}
-events = catalog[source]
-sender = Path.home() / ".local/lib/intelligent-terminal/it_agent_hook.py"
-assert sender.is_file(), "Copy the sender first"
-root = Path.home() / ".local/share/it-tmux-hooks" / source
-root.mkdir(parents=True, exist_ok=False)
-plugin = root / "it-tmux-hooks"
-plugin.mkdir()
-
-def write(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
-
-hooks = {}
-for native, event in events.items():
-    command = f"python3 {shlex.quote(str(sender))} --cli-source {source} --event {event}; exit 0"
-    action = {"type": "command", "bash" if source == "copilot" else "command": command}
-    if source == "copilot":
-        action["timeoutSec"] = 5
-    if source == "claude":
-        action["shell"] = "bash"
-    entry = {"hooks": [action]}
-    if source != "codex":
-        entry["matcher"] = ".*"
-    elif native == "SessionStart":
-        entry["matcher"] = "startup|resume"
-    hooks[native] = [entry]
-write(plugin / "hooks/hooks.json", {"hooks": hooks})
-manifest = {
-    "name": "it-tmux-hooks", "version": "1.0.0",
-    "description": "Opt-in remote tmux session notifications",
-}
-manifest_path = {
-    "claude": ".claude-plugin/plugin.json",
-    "copilot": "plugin.json",
-    "codex": ".codex-plugin/plugin.json",
-    "gemini": "gemini-extension.json",
-}[source]
-if source == "copilot":
-    manifest["hooks"] = "hooks/hooks.json"
-write(plugin / manifest_path, manifest)
-if source in ("claude", "copilot"):
-    marketplace_path = ".claude-plugin/marketplace.json" if source == "claude" else ".github/plugin/marketplace.json"
-    write(root / marketplace_path, {
-        "name": "it-tmux-local", "owner": {"name": "Local user"},
-        "plugins": [{"name": "it-tmux-hooks", "source": "./it-tmux-hooks", "version": "1.0.0"}],
-    })
-elif source == "codex":
-    write(root / ".agents/plugins/marketplace.json", {
-        "name": "it-tmux-local", "interface": {"displayName": "Remote tmux hooks"},
-        "plugins": [{
-            "name": "it-tmux-hooks",
-            "source": {"source": "local", "path": "./it-tmux-hooks"},
-            "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
-            "category": "Productivity",
-        }],
-    })
-print(root)
-PY
+WTA_TMUX_HOOKS_DISABLED=1 claude
+WTA_TMUX_HOOKS_DISABLED=1 copilot
+WTA_TMUX_HOOKS_DISABLED=1 codex
+WTA_TMUX_HOOKS_DISABLED=1 gemini
+WTA_TMUX_HOOKS_DISABLED=1 opencode
 ```
 
-Register **only the CLI you configured**, on the remote host:
+Set the same variable on ACP/already-tracked launchers to avoid duplicate hook
+tracking; unset it for ordinary interactive launches. OpenCode additionally
+honors `OPENCODE_CLIENT=acp`. `WT_SESSION` and `WT_COM_CLSID` are irrelevant.
+In particular, the shell sender **does not inspect `sidekick-*` IDs** or any
+other stdin fields. That filtering now belongs to IT/WTA.
+
+## CLI-specific configuration
+
+The following examples use a distinct **`it-tmux-hooks`** plugin name and
+**`it-tmux-local`** marketplace. Each setup creates a fresh private directory
+and stops if that directory already exists. Do not redirect these snippets
+over existing user or managed hook files.
+
+The static catalogs match the existing adjacent agent bundles. No
+`ErrorOccurred`, tool-completion, or new subagent subscription is invented.
+`agent.subagent.stop` is accepted as a compatibility topic, not subscribed
+by these examples. CLI plugin APIs are version-dependent; these are Linux
+configuration examples, not verification of every installed CLI version.
+
+### Claude Code
 
 ```sh
-# Claude Code
-claude plugin marketplace add "$HOME/.local/share/it-tmux-hooks/claude"
+umask 077
+root="$HOME/.local/share/it-tmux-hooks/claude"
+mkdir -p -- "${root%/*}"
+mkdir -- "$root" || exit 1
+mkdir -p -- "$root/.claude-plugin" "$root/it-tmux-hooks/.claude-plugin" "$root/it-tmux-hooks/hooks"
+cat >"$root/.claude-plugin/marketplace.json" <<'JSON'
+{"name":"it-tmux-local","owner":{"name":"Local user"},"plugins":[{"name":"it-tmux-hooks","source":"./it-tmux-hooks","version":"2.0.0"}]}
+JSON
+cat >"$root/it-tmux-hooks/.claude-plugin/plugin.json" <<'JSON'
+{"name":"it-tmux-hooks","version":"2.0.0","description":"Opt-in remote tmux hook transport"}
+JSON
+cat >"$root/it-tmux-hooks/hooks/hooks.json" <<'JSON'
+{"hooks":{
+  "SessionStart":[{"matcher":".*","hooks":[{"type":"command","shell":"bash","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source claude --event agent.session.start; exit 0"}]}],
+  "SessionEnd":[{"matcher":".*","hooks":[{"type":"command","shell":"bash","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source claude --event agent.session.end; exit 0"}]}],
+  "Notification":[{"matcher":".*","hooks":[{"type":"command","shell":"bash","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source claude --event agent.notification; exit 0"}]}],
+  "UserPromptSubmit":[{"matcher":".*","hooks":[{"type":"command","shell":"bash","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source claude --event agent.prompt.submit; exit 0"}]}],
+  "StopFailure":[{"matcher":".*","hooks":[{"type":"command","shell":"bash","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source claude --event agent.error; exit 0"}]}],
+  "Stop":[{"matcher":".*","hooks":[{"type":"command","shell":"bash","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source claude --event agent.stop; exit 0"}]}]
+}}
+JSON
+claude plugin marketplace add "$root"
 claude plugin install it-tmux-hooks@it-tmux-local
-
-# Copilot CLI
-copilot plugin marketplace add "$HOME/.local/share/it-tmux-hooks/copilot"
-copilot plugin install it-tmux-hooks@it-tmux-local
-
-# Codex CLI
-codex plugin marketplace add "$HOME/.local/share/it-tmux-hooks/codex"
-codex plugin install it-tmux-hooks@it-tmux-local
-
-# Gemini CLI
-gemini extensions install "$HOME/.local/share/it-tmux-hooks/gemini/it-tmux-hooks"
 ```
 
-CLI hook/plugin APIs are version-dependent. These examples mirror the existing
-bundles' catalogs; they do not claim new events or verify every CLI release.
-In particular, do not add `ErrorOccurred`, tool-completion events, or
-`PreToolUse` to Claude/Copilot. Codex has no end/error hook in this catalog.
-`agent.subagent.stop` remains an accepted compatibility topic, not a new
-subscription.
+### Copilot CLI
+
+```sh
+umask 077
+root="$HOME/.local/share/it-tmux-hooks/copilot"
+mkdir -p -- "${root%/*}"
+mkdir -- "$root" || exit 1
+mkdir -p -- "$root/.github/plugin" "$root/it-tmux-hooks/hooks"
+cat >"$root/.github/plugin/marketplace.json" <<'JSON'
+{"name":"it-tmux-local","owner":{"name":"Local user"},"plugins":[{"name":"it-tmux-hooks","source":"./it-tmux-hooks","version":"2.0.0"}]}
+JSON
+cat >"$root/it-tmux-hooks/plugin.json" <<'JSON'
+{"name":"it-tmux-hooks","version":"2.0.0","hooks":"hooks/hooks.json"}
+JSON
+cat >"$root/it-tmux-hooks/hooks/hooks.json" <<'JSON'
+{"hooks":{
+  "SessionStart":[{"matcher":".*","hooks":[{"type":"command","bash":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source copilot --event agent.session.start; exit 0","timeoutSec":5}]}],
+  "SessionEnd":[{"matcher":".*","hooks":[{"type":"command","bash":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source copilot --event agent.session.end; exit 0","timeoutSec":5}]}],
+  "Notification":[{"matcher":".*","hooks":[{"type":"command","bash":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source copilot --event agent.notification; exit 0","timeoutSec":5}]}],
+  "UserPromptSubmit":[{"matcher":".*","hooks":[{"type":"command","bash":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source copilot --event agent.prompt.submit; exit 0","timeoutSec":5}]}],
+  "StopFailure":[{"matcher":".*","hooks":[{"type":"command","bash":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source copilot --event agent.error; exit 0","timeoutSec":5}]}],
+  "Stop":[{"matcher":".*","hooks":[{"type":"command","bash":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source copilot --event agent.stop; exit 0","timeoutSec":5}]}]
+}}
+JSON
+copilot plugin marketplace add "$root"
+copilot plugin install it-tmux-hooks@it-tmux-local
+```
+
+### Codex CLI
+
+This catalog has no native end/error subscription.
+
+```sh
+umask 077
+root="$HOME/.local/share/it-tmux-hooks/codex"
+mkdir -p -- "${root%/*}"
+mkdir -- "$root" || exit 1
+mkdir -p -- "$root/.agents/plugins" "$root/it-tmux-hooks/.codex-plugin" "$root/it-tmux-hooks/hooks"
+cat >"$root/.agents/plugins/marketplace.json" <<'JSON'
+{"name":"it-tmux-local","interface":{"displayName":"Remote tmux hooks"},"plugins":[{"name":"it-tmux-hooks","source":{"source":"local","path":"./it-tmux-hooks"},"policy":{"installation":"AVAILABLE","authentication":"ON_INSTALL"},"category":"Productivity"}]}
+JSON
+cat >"$root/it-tmux-hooks/.codex-plugin/plugin.json" <<'JSON'
+{"name":"it-tmux-hooks","version":"2.0.0","description":"Opt-in remote tmux hook transport"}
+JSON
+cat >"$root/it-tmux-hooks/hooks/hooks.json" <<'JSON'
+{"hooks":{
+  "SessionStart":[{"matcher":"startup|resume","hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source codex --event agent.session.start; exit 0"}]}],
+  "PermissionRequest":[{"hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source codex --event agent.notification; exit 0"}]}],
+  "UserPromptSubmit":[{"hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source codex --event agent.prompt.submit; exit 0"}]}],
+  "Stop":[{"hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source codex --event agent.stop; exit 0"}]}]
+}}
+JSON
+codex plugin marketplace add "$root"
+codex plugin install it-tmux-hooks@it-tmux-local
+```
+
+### Gemini CLI
+
+```sh
+umask 077
+root="$HOME/.local/share/it-tmux-hooks/gemini"
+mkdir -p -- "${root%/*}"
+mkdir -- "$root" || exit 1
+mkdir -- "$root/hooks"
+cat >"$root/gemini-extension.json" <<'JSON'
+{"name":"it-tmux-hooks","version":"2.0.0","description":"Opt-in remote tmux hook transport"}
+JSON
+cat >"$root/hooks/hooks.json" <<'JSON'
+{"hooks":{
+  "SessionStart":[{"matcher":".*","hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source gemini --event agent.session.start; exit 0"}]}],
+  "SessionEnd":[{"matcher":".*","hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source gemini --event agent.session.end; exit 0"}]}],
+  "BeforeAgent":[{"matcher":".*","hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source gemini --event agent.prompt.submit; exit 0"}]}],
+  "BeforeTool":[{"matcher":".*","hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source gemini --event agent.tool.starting; exit 0"}]}],
+  "Notification":[{"matcher":".*","hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source gemini --event agent.notification; exit 0"}]}],
+  "AfterAgent":[{"matcher":".*","hooks":[{"type":"command","command":"sh \"$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh\" --cli-source gemini --event agent.stop; exit 0"}]}]
+}}
+JSON
+gemini extensions install "$root"
+```
 
 ### OpenCode
 
-OpenCode uses its V1 JavaScript plugin API, not `hooks.json`. Save this
-**user-owned example** as
-`${XDG_CONFIG_HOME:-$HOME/.config}/opencode/plugins/it-tmux-hooks.js`. Do not
-overwrite the managed `wt-agent-hooks.js`. This adapter only invokes the same
-Python sender; it does not implement a second transport or use `wtcli`.
+Create the user-owned file
+`${XDG_CONFIG_HOME:-$HOME/.config}/opencode/plugins/it-tmux-hooks.js` only if it
+does not already exist. Use your editor's create-new/no-overwrite operation;
+do not replace the managed `wt-agent-hooks.js`.
+
+The adapter below subscribes to native events and supplies their canonical
+topic/identity. It serializes the API objects without filtering prompt/tool
+content or child sessions. The shell still receives and forwards raw stdin;
+IT owns validation and status decisions. This example does not interpret
+`session.status`; it uses native chat/tool/idle notifications instead.
 
 ```js
 import { homedir } from "node:os"
 import { join } from "node:path"
 
 export const ItTmuxHooks = async ({ directory }) => {
-  const roots = new Map()
+  const sessions = new Set()
   const enabled = Boolean(process.env.TMUX && process.env.TMUX_PANE) &&
     !process.env.WTA_TMUX_HOOKS_DISABLED && process.env.OPENCODE_CLIENT !== "acp"
-  async function emit(event, id, extra = {}) {
-    if (!enabled || !id) return
+  async function emit(topic, id, payload) {
+    if (!enabled) return
+    const bytes = new TextEncoder().encode(JSON.stringify({
+      cwd: directory, ...payload, session_id: id,
+    }))
+    let child
     try {
-      const child = Bun.spawn({
-        cmd: ["python3", join(homedir(), ".local/lib/intelligent-terminal/it_agent_hook.py"),
-          "--cli-source", "opencode", "--event", event],
-        stdin: new TextEncoder().encode(JSON.stringify({
-          session_id: id, cwd: roots.get(id) || directory, ...extra,
-        })),
-        stdout: "ignore", stderr: "inherit",
+      child = Bun.spawn({
+        cmd: ["sh", join(homedir(), ".local/lib/intelligent-terminal/it-agent-hook.sh"),
+          "--cli-source", "opencode", "--event", topic],
+        stdin: bytes, stdout: "ignore", stderr: "inherit",
       })
-      if (await child.exited) console.error("it-tmux-hooks: sender unavailable")
-    } catch {
-      console.error("it-tmux-hooks: sender unavailable")
+    } catch (error) {
+      console.error("it-tmux-hooks: sender could not start")
+      return
     }
+    await child.exited.then(
+      code => { if (code !== 0) console.error("it-tmux-hooks: sender failed") },
+      () => console.error("it-tmux-hooks: sender process failed"),
+    )
+  }
+  const topics = {
+    "session.created": "agent.session.start",
+    "session.updated": "agent.session.start",
+    "session.deleted": "agent.session.end",
+    "session.idle": "agent.stop",
+    "session.error": "agent.error",
+    "permission.asked": "agent.notification",
+    "question.asked": "agent.notification",
+    "permission.replied": "agent.prompt.submit",
+    "question.replied": "agent.prompt.submit",
   }
   return {
-    "chat.message": async (input) => {
-      if (!roots.has(input.sessionID)) return
-      await emit("agent.session.start", input.sessionID)
-      await emit("agent.prompt.submit", input.sessionID)
+    "chat.message": async (input, output) => {
+      sessions.add(input.sessionID)
+      await emit("agent.prompt.submit", input.sessionID, { ...input, ...output })
     },
-    "tool.execute.before": async (input) => {
-      if (roots.has(input.sessionID))
-        await emit("agent.tool.starting", input.sessionID, { tool_name: input.tool })
+    "tool.execute.before": async (input, output) => {
+      await emit("agent.tool.starting", input.sessionID,
+        { ...input, ...output, tool_name: input.tool, tool_input: output.args })
     },
     event: async ({ event }) => {
-      const p = event.properties || {}
-      if (event.type === "session.created" || event.type === "session.updated") {
-        const info = p.info
-        if (!info?.id) return
-        if (info.parentID) { roots.delete(info.id); return }
-        const first = !roots.has(info.id)
-        roots.set(info.id, info.directory || directory)
-        if (first) await emit("agent.session.start", info.id)
-        return
-      }
-      const id = event.type === "session.deleted" ? p.info?.id : p.sessionID
-      if (!roots.has(id)) return
-      if (event.type === "session.deleted") {
-        await emit("agent.session.end", id, { reason: "deleted" })
-        roots.delete(id)
-      } else if (event.type === "session.error") {
-        await emit("agent.error", id, { error: "OpenCode session error" })
-      } else if (event.type === "session.idle" ||
-                 (event.type === "session.status" && p.status?.type === "idle")) {
-        await emit("agent.stop", id)
-      } else if ((event.type === "session.status" &&
-                  ["busy", "retry"].includes(p.status?.type)) ||
-                 ["permission.replied", "question.replied"].includes(event.type)) {
-        await emit("agent.prompt.submit", id)
-      } else if (["permission.asked", "question.asked"].includes(event.type)) {
-        await emit("agent.notification", id, { message: "OpenCode is waiting for input" })
-      }
+      const topic = topics[event.type]
+      if (!topic) return
+      const properties = event.properties || {}
+      const id = properties.info?.id || properties.sessionID
+      if (event.type === "session.deleted") sessions.delete(id)
+      else if (id) sessions.add(id)
+      await emit(topic, id, { ...properties, opencode_event: event })
     },
     dispose: async () => {
-      await Promise.all([...roots.keys()].map(id =>
+      await Promise.all([...sessions].map(id =>
         emit("agent.session.end", id, { reason: "OpenCode exited" })))
-      roots.clear()
+      sessions.clear()
     },
   }
 }
 ```
 
-This conservative example ignores unknown sessions until a
-`session.created/updated` event proves they are roots; resumed sessions need
-that event before tracking starts. Child sessions are never promoted by a
-tool/chat callback. It deliberately forwards neither tool arguments nor full
-OpenCode error objects. Restart OpenCode after creating or changing the plugin.
+Restart OpenCode after saving the plugin.
 
-## Routing and privacy contract
+## Wire, routing, limits, and privacy
 
-The sender issues these operations using subprocess **argument arrays**, never
-a shell, `eval`, or an interpolated command string:
+Each tmux literal has this exact v2 shape, with single ASCII spaces:
 
-1. Parse `TMUX` from the right as `socket,pid,session-number`; commas in the
-   socket path are supported. Validate `TMUX_PANE` as `%` plus ASCII digits.
-2. Bind every tmux invocation to `-N -S <socket>`; never start a server.
-3. Verify the original session contains the pane with
-   `list-panes -s -t '$N' -F '#{pane_id}'`. A stale/moved pane is a no-op;
-   do not infer a different session. Linked windows still use only the
-   session originally inherited through `TMUX`.
-4. Enumerate that session's clients with `list-clients -t '$N'` and the formats
-   `#{client_control_mode}`, `#{client_name}`, and `#{session_id}`.
-   Send once to each control client whose session ID matches, using
-   `display-message -l -c <client-name> <literal>`.
-
-tmux 3.4+ delivers the literal as **`%message <literal>`** to the selected
-control client, without terminal output or a normal client's status message.
-`-l` prevents tmux format/strftime expansion. **`display-message -C` is not
-broadcast**; it is unrelated to this protocol.
-
-The `%message` body is raw text: parse the prefixed JSON directly, exactly
-once. Do not apply `%output` escape decoding or unescape JSON backslashes
-before parsing it. The real transport test compares complete notification
-bytes, including literal `\n`, `\u0041`, backslashes, quotes, and JSON's escaped
-Unicode/control characters; the wire contains only printable ASCII.
-
-The literal is the prefix `IT_AGENT_HOOK/1 ` followed immediately by compact,
-ASCII-escaped JSON, for example:
-
-```json
-{"session_id":"$0","pane_id":"%1","cli_source":"copilot","event":"agent.stop","payload":{"session_id":"raw-agent-id"}}
+```text
+IT_AGENT_HOOK/2 <session> <pane> <source> <event> <transfer> <index> <count> <data>
 ```
 
-The outer IDs are **tmux identities**, not Windows pane GUIDs. The raw agent ID
-appears **only inside `payload`**, as `session_id` or `sessionId`; conflicting
-aliases are rejected. No remote tab/window/local-pane identity is forwarded.
-Missing raw IDs are allowed. Receivers must independently validate and bind
-tmux identity to their local connection; this best-effort sender is not an
-authentication boundary, and clients/panes can disconnect or move concurrently.
+For example, raw `{}` becomes:
 
-- Allowed sources: `claude`, `copilot`, `codex`, `gemini`, `opencode`.
-- Allowed events: `agent.session.start`, `agent.session.end`,
-  `agent.prompt.submit`, `agent.notification`, `agent.tool.starting`,
-  `agent.stop`, `agent.error`, `agent.subagent.stop`.
-- Retain only string metadata: `cwd`, `message`, `reason`, `error`,
-  `notification_type`, `tool_name`, `toolName`, `session_id`, `sessionId`.
-  Non-string metadata is omitted; present invalid session IDs reject the event.
-- Retain string `tool_input.question`, `.prompt`, and `.message` **only**
-  for the ASCII case-insensitive user-input tool names in WTA's
-  `USER_INPUT_TOOL_NAMES`: `ask_user`, `askuser`, `ask-user`, `ask_question`,
-  `askquestion`, `askuserquestion`, `ask_user_question`,
-  `ask_for_clarification`, `request_input`, `request_user_input`, `user_input`,
-  `prompt_user`, `clarification_request`. These include compatibility aliases.
-  An ordinary tool's entire input is discarded.
-- No arbitrary nested objects, prompts, transcripts, tool results, choices,
-  tool arguments, or unrelated fields are forwarded. The specifically
-  allowlisted question/notification text can still be sensitive. tmux's own
-  command history/debugging may record forwarded metadata; treat the remote
-  tmux server and all control clients of the selected session as trusted.
-- stdin accepts absent/empty/whitespace, JSON `null`, or one UTF-8 object.
-  Reject malformed/non-object JSON, duplicate keys, non-JSON numeric constants,
-  and invalid retained Unicode. Read at most **1 MiB**, with a one-second input
-  timeout; reject larger input. Routing IDs are limited to **1024 UTF-8 bytes**
-  and reject whitespace/control characters.
-- The **sender budget is 8 KiB (8192 ASCII bytes), including the prefix**,
-  measured after JSON escaping. This conservative budget fits tmux's command
-  IPC and matches the native bridge's event budget; the receiver's defensive
-  acceptance limit remains 64 KiB.
-- Oversized input is projected first, then oversized retained strings are
-  shortened to fit. Raw agent IDs and outer routing fields are **never**
-  shortened. Cwd and activity metadata (`tool_name`, `toolName`,
-  `notification_type`) have priority over display text; normal paths and
-  activity values stay intact even when messages/questions are huge.
-  Within each group, short values stay intact and large values share the
-  remaining space. Shortened values end with `...` when space allows. Even
-  unusually large context values can be shortened; never interpret a
-  shortened cwd as a complete path.
-- JSON framing and field overhead count toward the budget. If routing nearly
-  fills it, optional fields can be empty or omitted. An oversized valid event
-  is logged/dropped **only if its routing alone cannot fit**; ordinary large
-  messages and Unicode questions reduce and deliver without diagnostics.
-  Newlines, NUL, escape characters, Unicode, and percent/format text cannot
-  break the control-protocol line. Truncation respects Unicode code-point
-  boundaries and escaped byte costs; events are never split.
+```text
+IT_AGENT_HOOK/2 $0 %1 copilot agent.stop it-agent-hook.A1b2C3d4E5f6 0 1 e30=
+```
 
-Every invocation exits successfully and writes **nothing to stdout**, including
-invalid arguments (`--help` is not a special output mode). Missing tmux,
+`session`/`pane` are the original tmux IDs, never Windows GUIDs. `source` is
+one of `claude`, `copilot`, `codex`, `gemini`, `opencode`. Events are
+`agent.session.start`, `agent.session.end`, `agent.prompt.submit`,
+`agent.notification`, `agent.tool.starting`, `agent.stop`, `agent.error`, or
+`agent.subagent.stop`.
+
+The transfer token is a per-invocation, securely created `mktemp` nonce using
+only ASCII letters, digits, `.`, `_`, and `-` (at most 64 characters). It
+separates simultaneous hooks; it is **not authentication**. Indexes are
+zero-based. Count is 1..234. Standard Base64 data is wrapped at **6000
+characters**, always a multiple of four; non-final chunks have exactly 6000
+characters and no padding. Empty stdin sends index 0/count 1/empty data,
+including the final space before that empty field.
+
+The raw limit is **exactly 1 MiB**. The sender reads one extra byte solely to
+detect overflow; 1 MiB+1 is rejected before any notification. Partial reads
+that time out are also rejected, never mistaken for complete input.
+Large bodies are chunked, not truncated. Every literal remains under 8 KiB.
+IT's assembler limits storage to 16 in-flight transfers and 4 MiB of aggregate
+encoded data, with a 1 MiB raw-body limit and 10-second expiry. It requires
+strictly sequential chunks and consistent metadata throughout a transfer.
+Only then does IT parse/project/redact the body. Base64 decoding preserves
+even invalid UTF-8 bytes; JSON validation subsequently rejects invalid UTF-8.
+Unreleased v1 is explicitly rejected, with no fallback.
+
+Routing is explicit and fail-closed:
+
+1. Split `TMUX` at its last two commas, preserving commas in socket paths.
+   Validate the numeric session and `%integer` pane, and bind all tmux calls
+   to `-N -S <socket>` so no server is started accidentally.
+2. Use `list-panes -s -t '$N'` to verify that the pane still belongs to the
+   original session. A stale or moved pane is a no-op; never guess a different
+   session. Linked windows still use only the original session.
+3. Enumerate only that session with `list-clients -t '$N'` and
+   `client_control_mode`, `client_name`, and `session_id`. Retain only control
+   clients whose session ID matches.
+4. Deliver each literal with `display-message -l -c <client>`. A fixed batch
+   of these commands is submitted with tmux `source-file` to avoid hundreds of
+   process startups for a large body. All command fields are validated tokens
+   or Base64 and are single-quoted in tmux syntax; raw stdin is never shell
+   code, `eval` input, or a command argument.
+
+`-l` prevents tmux format/strftime expansion. `%message` bodies arrive as raw
+literal text; they are not `%output` escape sequences. **`display-message -C`
+is not broadcast** and is not used. No pane text or normal-client status
+message is emitted.
+
+Every invocation returns **exit 0 with empty stdout**. Missing tmux,
 unsupported tmux, missing environment/socket/session/pane/control clients,
-ACP opt-out, and Copilot child sessions are silent no-ops. Actual failures
-write a short fixed diagnostic to stderr, never payloads or tmux error text.
-Each subprocess has a one-second timeout, with a four-second overall budget.
-Delivery is best effort, without retries or replay to a newly attached client.
+and explicit opt-outs are silent no-ops. Missing required utilities and
+actual failures produce a concise stderr diagnostic without raw data or
+subprocess arguments.
 
-## Manual updates and removal
+GNU `timeout` bounds stdin and each tmux call to one second each. The entire
+worker process group has a **3.2-second deadline** plus a 0.1-second kill
+grace. Scratch creation and each cleanup command have a 0.1-second timeout
+plus a 0.05-second kill grace. These budgets total at most 3.75 seconds,
+leaving process-startup headroom under the CLI's five-second hook timeout.
+No retries or cross-session replay are attempted. IT discards incomplete
+transfers if a client disconnects or a batch cannot finish. **An incomplete
+transfer never produces partial agent status.**
 
-Updates are manual: replace the installed Python file, update your own hook
-configuration if necessary, and restart the CLI. If changing a generated
-plugin, refresh/reinstall **`it-tmux-hooks`**, not the managed `wt-agent-hooks`.
-Do not rerun the setup example over an existing directory.
+Temporary data lives in one private `mktemp -d` directory beneath
+`${TMPDIR:-/tmp}`, with `umask 077`. Exit/signal traps remove only that
+invocation's named files and exact directory; the outer shell also cleans
+after worker timeouts. Raw/Base64 data is not retained after normal or timeout
+completion. Filesystem failures are reported, not silently ignored.
 
-To disable immediately, set `WTA_TMUX_HOOKS_DISABLED=1` before launching the CLI.
-To remove permanently, use the remote CLI's plugin/extension uninstall command
-for `it-tmux-hooks`, remove the `it-tmux-local` marketplace registration and
-your own generated directory, or remove the OpenCode `it-tmux-hooks.js` file.
-Restart affected CLIs. Once nothing references it, delete the installed
-`it_agent_hook.py`. Local WTA install/status/uninstall commands do not manage
-this remote installation.
+**Every control client in the same tmux session can see the original raw
+payload, including prompts and tool data, before IT redacts it.** This is an
+intentional tradeoff of the thin remote transport: trust all those clients
+and the remote tmux server. **Base64 is not encryption.** tmux command
+history/debugging may also retain the encoded body. Redaction occurs in IT
+only after arrival and full reassembly. This opt-in transport is not an
+authentication boundary.
+
+## Manual update and uninstall
+
+For an update, disable the remote plugin first, inspect/back up your existing
+user-owned sender/configuration, replace only those files intentionally, and
+restart the CLI. Setup examples never overwrite a previous installation.
+
+Remove the remote plugin/extension with the matching CLI's supported command:
+
+```sh
+claude plugin uninstall it-tmux-hooks@it-tmux-local
+copilot plugin uninstall it-tmux-hooks@it-tmux-local
+codex plugin uninstall it-tmux-hooks@it-tmux-local
+gemini extensions uninstall it-tmux-hooks
+# OpenCode: remove only the user-owned example created above.
+rm -- "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/plugins/it-tmux-hooks.js"
+```
+
+For Claude/Copilot/Codex, also remove the `it-tmux-local` marketplace
+registration using that CLI's marketplace removal command and delete only
+your generated `~/.local/share/it-tmux-hooks/<cli>` directory after inspection.
+For OpenCode, remove only your `it-tmux-hooks.js` file. Restart all affected
+CLIs, then delete the installed `it-agent-hook.sh` when nothing references it.
+Do **not** remove managed `wt-agent-hooks` plugins. Local WTA install/status/
+uninstall commands do not manage this remote installation.
 
 ## Tests
 
-Run on a **Linux-native filesystem** from the repository root:
+From a fresh Windows checkout with PowerShell 7 and WSL Ubuntu:
 
-```sh
-python3 -B -m unittest discover -s tools/wta/wt-agent-hooks/tmux -v
+```powershell
+.\tools\wta\wt-agent-hooks\tmux\Test-TmuxAgentHook.ps1 -Distribution Ubuntu
 ```
 
-For WSL Ubuntu, run that command in a short Linux-native checkout (for example,
-under `~/Git/it`), not a Windows-mounted `/mnt/c` checkout: that mount may not
-support Unix sockets. No dependency installation is needed. Python-only fake
-tests can also be selected with `-p test_sender.py`.
+`Test-TmuxAgentHook.ps1` copies only `it-agent-hook.sh` and
+`test-tmux-hooks.sh` into a private, short Linux-native directory, normalizing
+CRLF. This avoids `/mnt/c` Unix-socket/interop issues without requiring an
+extra Linux language runtime. The Bash test driver additionally uses standard
+GNU text/file tools and util-linux `script` to attach an ordinary PTY client.
+Missing test prerequisites fail explicitly; nothing is installed automatically.
 
-To run the sender, setup example, and existing hook-contract parity checks from
-the original checkout (including a Windows-mounted WSL checkout):
+The real tmux suite owns one unique socket containing a comma, two sessions,
+two origin control clients, another-session control client, and an ordinary
+client. A FIFO-driven worker invokes the sender inside an actual pane's
+inherited environment. Control-protocol barriers and `tmux wait-for` provide
+synchronization without sleeps.
 
-```sh
-python3 -B -m unittest discover -s tools/wta/wt-agent-hooks/tmux -p 'test_s*.py' -v
+Assertions validate exact v2 framing, ordering, Base64, raw byte equality,
+empty stdin, large Unicode/tool output, exactly 1 MiB acceptance, 1 MiB+1
+rejection, distinct concurrent transfer IDs, no cross-session/status/pane
+injection, opt-outs, utility failures, deadlines, and scratch cleanup.
+Only owned client PIDs and the test socket's server are terminated; the
+PowerShell wrapper removes its private Linux-native files even on failure.
+
+### Capture a real stream for native receiver tests
+
+After building the x64 Debug TerminalApp unit tests, use a TAEF-enabled
+developer shell to export and consume a real two-chunk transfer:
+
+```powershell
+$capture = Join-Path $PWD ("obj\tmux-hook-capture-" + [guid]::NewGuid().ToString("N"))
+.\tools\wta\wt-agent-hooks\tmux\Test-TmuxAgentHook.ps1 -Distribution Ubuntu `
+  -CaptureDirectory $capture
+te.exe .\bin\x64\Debug\UnitTests_TerminalApp\Terminal.App.Unit.Tests.dll `
+  '/name:*ConsumesCapturedShellMessages*' "/p:TmuxHookCaptureDirectory=$capture"
 ```
 
-The suite creates only `.test-*` directories beside these files, never a system
-temporary directory. A real test owns one unique socket, two sessions, two
-control clients in the origin session, one in the other session, and an
-ordinary attached client. A socket-connected worker invokes the actual sender
-**inside a real pane's inherited environment**. Control-protocol barriers and
-`tmux wait-for` synchronize tests without sleeps. Assertions cover exact JSON,
-linked/moved panes, Unicode/newlines/percent/formats, delivery of 8191-byte and
-8192-byte envelopes, and delivery after reducing large ASCII messages and
-Unicode questions while preserving IDs/cwd/activity metadata. They also check
-no terminal or normal-client status injection, silent prerequisites, and
-private failures.
-Cleanup kills only the server at that test's socket and its own child PIDs.
-Real tests skip if Linux/tmux is unavailable or the checkout's socket path is
-too long; those skips are not evidence of successful transport validation.
+The destination must not already exist. It contains:
 
-No CI workflow or runner hook is required for this opt-in sender, and this suite
-is not currently wired into CI. An optional future job needs only a Linux
-runner with Python 3 and tmux 3.4+, a short native-filesystem checkout (for
-example, checkout `path: it`), and the full-suite command above. Keep the full
-checkout for Rust-array/catalog parity, and verify that no transport tests
-were skipped. No Windows package deployment or live agent credentials are
-needed.
+- `real-shell-v2.messages`: exact `%message IT_AGENT_HOOK/2 ...` lines with
+  their original tmux IDs, transfer nonce, and LF delimiters.
+- `real-shell-v2.payload`: the exact unredacted stdin bytes, including UTF-8
+  tool output and trailing CR/LF, for a byte-for-byte native comparison.
 
-Verified with Ubuntu **Python 3.14.4 and tmux 3.6**. This suite validates the
-sender/transport, not the separately implemented Windows receiver, Rust
-consumer, or live provider authentication/ACP flows.
+The body uses `session_id: native-fixture-session`, `cwd: /repo`, and a
+`TEST_PROMPT_REDACT_ME` prompt plus tool output to exercise native projection.
+The native test feeds the captured messages through the production parser
+and assembler, compares the original bytes, and checks native redaction.
+These requested artifacts persist in the ignored build directory; Linux
+scratch resources are still cleaned. They contain only generated test data.
+
+No CI workflow is added. A future Windows job needs WSL Ubuntu and the command
+above; a Linux job can run the Bash driver in the same private-directory
+layout. This transport coverage does not exercise packaged XAML pane routing
+or live provider authentication.

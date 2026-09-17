@@ -8,8 +8,9 @@ use, prompts, and session events from any agent CLI session running in another
 pane.
 
 For a remote Linux host without `wtcli`, use the separate, opt-in
-[tmux hook bridge](tmux/README.md). It sends session-scoped control-mode
-notifications and does not change these locally managed plugins.
+[tmux hook bridge](tmux/README.md). Its shell script forwards raw payloads in
+session-scoped control-mode notifications; IT owns JSON parsing and redaction.
+It does not require Python or change these locally managed plugins.
 
 ## Layout
 

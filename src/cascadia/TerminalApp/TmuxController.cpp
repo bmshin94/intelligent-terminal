@@ -238,6 +238,7 @@ namespace winrt::TerminalApp::implementation
         }
         _sizeChanged.revoke();
         _layoutUpdated.revoke();
+        _agentHooks.Clear();
         _tabs.clear();
         _panes.clear();
         _diagnosticTab = nullptr;
@@ -514,6 +515,10 @@ namespace winrt::TerminalApp::implementation
                     {
                         return;
                     }
+                    if (self._sessionId != id)
+                    {
+                        self._agentHooks.Clear();
+                    }
                     self._sessionId = id;
                     self._sessionName = name;
                     self._updateSessionTitle();
@@ -590,8 +595,8 @@ namespace winrt::TerminalApp::implementation
     {
         try
         {
-            const auto hook = Protocol::ParseAgentHookMessage(message);
-            if (!hook)
+            auto chunk = Protocol::ParseAgentHookChunk(message);
+            if (!chunk)
             {
                 return;
             }
@@ -600,10 +605,19 @@ namespace winrt::TerminalApp::implementation
             {
                 return;
             }
-            const auto view = _panes.find(hook->paneId);
-            if (_sessionId != hook->sessionId || view == _panes.end())
+            if (const auto expired = _agentHooks.Expire())
+            {
+                LOG_HR_MSG(HRESULT_FROM_WIN32(ERROR_TIMEOUT), "Expired %zu incomplete tmux agent hook transfers", expired);
+            }
+            const auto view = _panes.find(chunk->message.paneId);
+            if (_sessionId != chunk->message.sessionId || view == _panes.end())
             {
                 LOG_HR_MSG(E_INVALIDARG, "Ignoring tmux hook outside the attached session or current pane inventory");
+                return;
+            }
+            const auto hook = _agentHooks.Append(std::move(*chunk));
+            if (!hook)
+            {
                 return;
             }
 
