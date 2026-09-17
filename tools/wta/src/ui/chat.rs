@@ -4499,6 +4499,61 @@ mod tests {
     }
 
     #[test]
+    fn markdown_task_setext_heading_streams_with_hidden_markers_without_panicking() {
+        for source in [
+            "- [ ] task\n  ---",
+            "1. [x] task\n   ===",
+            "- outer\n  - [ ] task\n    ---",
+            "> - [x] task\n>   ---",
+        ] {
+            let tab = crate::app::TabSession::default();
+            let key = AgentMarkdownKey::Active(0);
+            build_markdown_agent_lines(&tab, key, "", 40, false);
+            let identity = tab.agent_markdown.borrow().identity(key);
+            for (start, ch) in source.char_indices() {
+                let end = start + ch.len_utf8();
+                let streamed = build_markdown_agent_lines(&tab, key, &source[..end], 40, false);
+                let fresh = crate::app::TabSession::default();
+                assert_eq!(
+                    streamed,
+                    build_markdown_agent_lines(&fresh, key, &source[..end], 40, true)
+                );
+                assert_eq!(tab.agent_markdown.borrow().identity(key), identity);
+                assert_eq!(
+                    tab.agent_markdown.borrow().source(key),
+                    Some(&source[..end])
+                );
+            }
+            let rendered = build_markdown_agent_lines(&tab, key, source, 40, true);
+            let text = rendered
+                .iter()
+                .map(line_text)
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert_eq!(text.matches("task").count(), 1);
+            assert_eq!(
+                text.matches(if source.contains("[x]") { "[x]" } else { "[ ]" })
+                    .count(),
+                1
+            );
+            assert!(!text.contains('#'));
+            assert!(rendered
+                .iter()
+                .any(|line| line.style.add_modifier.contains(Modifier::BOLD)
+                    || line
+                        .spans
+                        .iter()
+                        .any(|span| span.style.add_modifier.contains(Modifier::BOLD))));
+            let before = tab.agent_markdown.borrow().diagnostics();
+            assert_eq!(
+                build_markdown_agent_lines(&tab, key, source, 40, true),
+                rendered
+            );
+            assert_eq!(tab.agent_markdown.borrow().diagnostics(), before);
+        }
+    }
+
+    #[test]
     fn rendered_height_accounts_for_word_wrap_gaps() {
         let lines = vec![Line::from("aaa aaa aaa aaa")];
 
