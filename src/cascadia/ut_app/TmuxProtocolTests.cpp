@@ -361,8 +361,10 @@ namespace TerminalAppUnitTests
             Parser parser;
             VERIFY_THROWS(parser.Feed(wire), ProtocolError);
         }
+        const auto unfinishedResponse = "%begin 1 2 0\n"
+                                        "body\n";
         for (const auto wire : {
-                 "\x1b", "\x1bP1000", "\x1bP1000p", "\x1bP1000p%exit\n", "\x1bP1000p%exit\n\x1b", "%begin 1 2 0\n", "%begin 1 2 0\nbody\n", "%output %1 partial", "%exit\r" })
+                 "\x1b", "\x1bP1000", "\x1bP1000p", "\x1bP1000p%exit\n", "\x1bP1000p%exit\n\x1b", "%begin 1 2 0\n", unfinishedResponse, "%output %1 partial", "%exit\r" })
         {
             Parser parser;
             parser.Feed(wire);

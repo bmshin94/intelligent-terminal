@@ -573,7 +573,7 @@ try
     *resultJson = nullptr;
     RETURN_HR_IF(E_NOT_VALID_STATE, !s_emperor);
 
-    // BSTRs carry their own length: never truncate an embedded NUL before
+    // BSTR values carry their own length: never truncate an embedded NUL before
     // validation, even when the caller is not wtcli.
     const std::wstring_view command{ commandline ? commandline : L"", SysStringLen(commandline) };
     const std::wstring_view directory{ workingDirectory ? workingDirectory : L"", SysStringLen(workingDirectory) };
