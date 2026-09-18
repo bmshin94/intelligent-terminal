@@ -68,6 +68,7 @@ use crate::protocol::acp::spawn::{
 
 pub(crate) mod config;
 mod session_mcp;
+mod ssh_hooks;
 mod ssh_sessions;
 
 use config::MasterConfig;
@@ -322,6 +323,7 @@ struct MasterStateInner {
     /// Remote IDs remain raw within an independent common registry per SSH
     /// source. These pane bindings outlive the helper that requested resume.
     ssh_sessions: ssh_sessions::Service,
+    ssh_hooks: ssh_hooks::Service,
     /// Per-helper subscribers for `intellterm.wta/*` ExtNotifications
     /// fanned out from master. Populated by `serve_helper` on connect
     /// and removed on disconnect (or whenever a send fails). Keyed by
@@ -3915,6 +3917,7 @@ impl HelperHandler {
                 handle_sessions_list(&self.state, agent.as_deref(), &p).await
             }
             Req::SshSessions(request) => ssh_sessions::handle(&self.state, request).await,
+            Req::SshHooks(request) => ssh_hooks::handle(&self.state, request).await,
             Req::SessionHook(ev) => handle_session_hook(&self.state, ev, false).await,
             Req::SessionBornBound(ev, wsl_distro) => {
                 handle_session_born_bound(&self.state, ev, wsl_distro).await
@@ -4341,6 +4344,7 @@ async fn run_master_loop(config: MasterConfig, pipe_name: String) -> Result<()> 
         usage_generation: watch::channel(0u64).0,
         registry: crate::session_registry::InMemoryRegistry::shared(),
         ssh_sessions: ssh_sessions::Service::default(),
+        ssh_hooks: ssh_hooks::Service::new(config.session_management_enabled),
         helper_ext_subscribers: Mutex::new(HashMap::new()),
         wt,
         agents: Mutex::new(HashMap::new()),
@@ -8433,6 +8437,15 @@ async fn handle_master_wt_event(state: &Arc<MasterStateInner>, event_json: serde
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
 
+    if method == "ssh_hooks_configuration" {
+        if let Some(enabled) = params.get("enabled").and_then(|value| value.as_bool()) {
+            ssh_hooks::configure(state, enabled).await;
+        } else {
+            tracing::warn!(target: "ssh_hooks", "Ignoring malformed SSH hooks configuration event");
+        }
+        return;
+    }
+
     if method == "retire_agent_sessions" {
         handle_retire_agent_sessions_event(state, params).await;
         return;
@@ -8651,6 +8664,7 @@ async fn handle_master_wt_event(state: &Arc<MasterStateInner>, event_json: serde
     // SSH's only local liveness authority is its native resume pane. Both
     // terminal closure and failed startup end that binding via the same reducer.
     ssh_sessions::pane_closed(state, &pane_id).await;
+    ssh_hooks::pane_closed(state, &pane_id).await;
     tracing::info!(
         target: "master_wt_event",
         pane_id = %pane_id,

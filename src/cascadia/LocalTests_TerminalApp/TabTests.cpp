@@ -360,6 +360,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(TitlebarSessionIdentityUsesCompactLeftHeader);
         TEST_METHOD(TmuxSessionNotificationsUpdateOnlyTheirWindowIdentity);
         TEST_METHOD(TmuxAgentHooksUseOwningPaneAndTab);
+        TEST_METHOD(ManagedSshConnectionPreservesLogicalCommandline);
         TEST_METHOD(BuildStartupActionsContentPreservesAgentFirstPaneOwnership);
         TEST_METHOD(AgentPaneTransferIdentityRoundTripsWithContent);
         TEST_METHOD(AgentPaneTransferIdentityIsNotPersistedByDefault);
@@ -2852,6 +2853,25 @@ namespace TerminalAppLocalTests
             titlebar->WindowLabel({});
             VERIFY_IS_TRUE(panel.Visibility() == Visibility::Collapsed);
             VERIFY_ARE_EQUAL(45.0, titlebar->DragBar().MinWidth());
+        });
+    }
+
+    void TabTests::ManagedSshConnectionPreservesLogicalCommandline()
+    {
+        TestOnUIThread([]() {
+            using winrt::Microsoft::Terminal::TerminalConnection::ConptyConnection;
+            const auto original = winrt::hstring{ L"ssh.exe -p 2222 user@host" };
+            const auto wrapper = winrt::hstring{ L"\"C:\\Program Files\\IT\\wta.exe\" ssh --destination user@host --port 2222" };
+            auto settings = ConptyConnection::CreateSettings(
+                wrapper, L"C:\\", L"SSH", false, {}, nullptr, 24, 80, {}, {});
+            settings.Insert(L"originalCommandline", winrt::Windows::Foundation::PropertyValue::CreateString(original));
+            ConptyConnection connection;
+            connection.Initialize(settings);
+            VERIFY_ARE_EQUAL(original, connection.Commandline());
+            settings.Remove(L"originalCommandline");
+            ConptyConnection ordinary;
+            ordinary.Initialize(settings);
+            VERIFY_ARE_EQUAL(wrapper, ordinary.Commandline());
         });
     }
 

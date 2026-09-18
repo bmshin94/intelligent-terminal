@@ -1,4 +1,4 @@
-# Opt-in remote Linux tmux hooks
+# Remote Linux hooks and managed SSH setup
 
 `it-agent-hook.sh` is a thin **POSIX-shell transport**, not an agent-event
 processor. It frames and forwards stdin **unchanged**, including malformed
@@ -11,13 +11,221 @@ Requirements: Linux, **tmux 3.4+**, `sh`, and GNU/coreutils-compatible `timeout`
 `mktemp`, `rm`, `rmdir`, `head`, `wc`, and `base64` (`--wrap=6000`). No remote
 `wtcli`, WTA executable, Python, Node, or `jq` is required by the transport.
 OpenCode's own plugin API naturally uses its existing JavaScript runtime.
+Managed SSH routing also requires `stat` and `id`. The installer uses standard
+Linux tools including `getent`, `flock`, `sha256sum`, `awk`, and `sed`; it never
+installs a language runtime, an agent CLI, or a system package.
 
-This is a **separate manual opt-in installation**. It does not replace or
-modify managed local `wt-agent-hooks` plugins. IT must have the matching v2
-receiver and a tmux control-mode connection to the selected session; an
-ordinary terminal attachment alone cannot receive the notifications.
+These prerequisites must be available **inside the CLI's hook execution
+environment**, not merely on the host. A confined package can load the plugin
+and read its script while lacking `tmux` or access to the host tmux socket.
+For example, the tested Copilot Snap environment has no tmux executable and
+cannot see the host's `/tmp/tmux-1000/default`; the sender then intentionally
+no-ops. Successful plugin installation alone does not establish transport
+readiness. Use a CLI environment with supported tmux access; do not bypass
+package confinement to expose the host socket.
 
-## Install just the shell file on Linux
+There are two independent routing modes. Managed `wta ssh` sessions use v3
+outside tmux panes, through a dedicated control-mode side channel. Existing
+manual tmux-pane integrations continue to use v2 when no managed SSH route is
+present. Neither installation replaces managed local `wt-agent-hooks`
+plugins. The matching Windows receiver is required.
+
+## Automatically managed ordinary SSH sessions
+
+The Windows wrapper supplies these variables to the foreground login shell or
+remote command:
+
+```text
+IT_SSH_HOOK_ROUTE=<UUID registered by Windows for this SSH route>
+IT_SSH_HOOK_SOCKET=<original-login-home>/.intelligent-terminal/run/tmux-hooks.sock
+IT_SSH_HOOK_SESSION=it-hooks
+```
+
+The agent need not run inside a tmux pane. If `IT_SSH_HOOK_ROUTE` is present,
+the sender selects v3 exclusively: an empty/malformed UUID or missing managed
+channel never falls back to unrelated `TMUX`/`TMUX_PANE` context.
+
+`install-remote-hooks.sh` owns automatic remote setup. Its interface is:
+
+```sh
+sh /private-upload/install-remote-hooks.sh \
+  --hook-source /private-upload/it-agent-hook.sh \
+  --login-home "$HOME" \
+  --socket "$HOME/.intelligent-terminal/run/tmux-hooks.sock" \
+  --session it-hooks \
+  --allowed-clis claude,copilot,codex,gemini,opencode \
+  --attach-control
+```
+
+`--hook-source` is required. The login home defaults to the effective login
+user's passwd/NSS home; an explicit `--login-home` must match it. The socket
+defaults to the path shown and cannot be redirected into another namespace.
+The only session name is `it-hooks`. Omitting `--attach-control` performs
+setup only. **Route UUIDs are not installer arguments and are never written
+to installer diagnostics or configuration.**
+`--allowed-clis` is a comma-separated list of canonical provider IDs; Windows
+must pass its GPO-permitted subset. A missing or empty selection is a no-op,
+not an implicit selection of all providers. Unknown or duplicate IDs are
+rejected. `--agents` remains an equivalent
+compatibility spelling. Unselected providers are not queried or changed. Each provider has its
+own generation receipt, so selecting it after a previously skipped upgrade
+still refreshes that provider without modifying another provider's settings.
+
+The background SSH uploader streams the two bundled files with known byte
+lengths into private staging, verifies both lengths, then invokes the
+installer **by filename**, not by consuming its continued stdin as a script.
+Leave SSH stdin open after the assets: installation subprocesses receive
+`/dev/null`, and the final `exec tmux -N -S ... -C attach-session -t '=it-hooks'`
+inherits the remaining stream. Setup writes diagnostics only to stderr.
+Stdout becomes native tmux control protocol without a custom readiness banner.
+Foreground-login failure handling and upload framing belong to the Windows
+SSH wrapper/background channel, not this installer.
+
+The dedicated server is created with explicit `-S` and `-f /dev/null`; it
+does not load the user's tmux configuration or touch ordinary tmux servers,
+sessions, or panes. A private idle session keeps it alive after individual
+control clients disconnect. No disconnect handler kills the shared server.
+Ownership, canonical login-home identity, private directory permissions, and
+the Linux UNIX-socket path limit are checked; there is no fallback to `/tmp`
+or another user's socket when these checks fail.
+
+After native control attachment, `@it-ssh-hooks-protocol` must be `3`.
+`@it-ssh-hooks-setup` reports `transport-ready` or `transport-partial`.
+These are **transport/installation metadata, not proof that an agent has
+executed a working hook**. Per-provider outcomes are emitted separately on
+stderr, including `installed`, `not-found`, `user-disabled`, `user-removed`,
+`foreign-plugin`, and explicit unsupported/error results.
+
+For a nonce-correlated readiness query, write this command to the control
+client's still-open stdin, with a caller-generated ASCII hexadecimal nonce:
+
+```text
+display-message -p 'IT_HOOK_READY/3 <nonce> #{@it-ssh-hooks-protocol} #{@it-ssh-hooks-installed-clis} #{@it-ssh-hooks-unavailable-clis}'
+```
+
+Unlike hook emission, this query deliberately expands managed options (no
+`-l`). Its native `%begin`/`%end` response contains
+`IT_HOOK_READY/3 <nonce> 3 <installed-cli-csv> <unavailable-cli-csv>`.
+Each CSV contains only canonical provider IDs, or `-` when empty. Unavailable
+means detected but not safely installed: it includes unsupported runtimes/
+APIs, foreign or disabled/removed registrations, and installation failures.
+Absent or policy-unselected CLIs are not reported as unavailable. Warn
+neutrally; do not infer permission to re-enable plugins or bypass confinement.
+
+Asynchronous `%message` hook lines can arrive while waiting; keep
+demultiplexing them. The options are the latest shared-server setup snapshot,
+not route authorization or proof of runtime readiness. Intersect capabilities
+with local allowed agents and enforce live consent and active route identity.
+The older `@it-hook-channel` summary remains available as
+`3 ready <installed-csv>` or `3 partial <installed-csv>`, but the finite
+installed/unavailable lists avoid needing to retain arbitrary remote stderr.
+
+### Ownership, update, and provider policy
+
+All installer-owned assets are under the real login user's
+`~/.intelligent-terminal/ssh-hooks`, independently of a CLI's runtime `HOME`.
+Generated commands use safely shell-quoted and JSON-escaped **absolute**
+paths to `ssh-hooks/current/it-agent-hook.sh`; no generated command expands
+`$HOME`. Immutable content-addressed releases include checksums and versioned
+plugin manifests. A process-safe `flock` serializes setup; its descriptor is
+not inherited by CLIs or the persistent control client.
+
+Staging is atomic, a pending transaction records incomplete work, and the
+installation manifest is committed last after registration/version checks.
+An API failure after a side effect can be repaired on retry. Existing
+operator-modified assets, foreign same-name plugins/marketplaces, and
+user-disabled or user-removed registrations are not overwritten or
+automatically re-enabled. No `--force`, blanket update/uninstall, credential
+change, shell-RC edit, or sandbox-permission change is performed.
+
+### Narrow migration of the earlier owned v2 Copilot bundle
+
+The earlier direct Copilot registration named `it-tmux-hooks` is checked
+before creating `it-ssh-hooks`, so setup does not silently install duplicate
+bridges. Automatic migration is limited to this exact legacy source:
+
+```text
+<original-login-home>/.intelligent-terminal/plugins/it-tmux-hooks
+```
+
+The CLI must report an enabled, unqualified direct registration of version
+`2.0.0` from that exact path. When an older Copilot version reports only
+`source: "installed"`, the installer verifies the origin using its bounded,
+user-owned configuration metadata (`COPILOT_HOME/config.json`, or the runtime
+HOME's `.copilot/config.json`). JSONC comments and trailing commas are accepted
+only for that configuration fallback; it is never printed or rewritten.
+The CLI's status remains authoritative for enablement. Missing, malformed, or
+ambiguous origin metadata does not authorize migration.
+
+The source directories and files must be owned by the
+login user, non-symlinked, and not group/world-writable. The `.it-managed` file
+must equal `Intelligent Terminal managed remote hook bundle v2`, `plugin.json`
+must declare the expected name/version, and `scripts/it-agent-hook.sh` must be
+a readable valid v2-only shell script. A matching name alone is never proof
+of ownership.
+
+After these checks, the installer journals the transition, uses Copilot's
+native uninstall API for the old registration, and verifies it disappeared
+**before** installing the new managed registration. It then verifies the
+new source/version/enablement and checks again that the old registration is
+absent before reporting Copilot installed. It does not rewrite the old source
+bundle in place. Interrupted unregister/install operations retain ownership
+journals and are repairable without a duplicate-registration window.
+
+Disabled legacy registrations, foreign/missing markers or sources, symlinks,
+unexpected versions, already-modified v3 scripts, and ambiguous registrations
+are not migrated. They produce an explicit conflict/unavailable outcome and
+do not advertise Copilot as v3-installed. A legacy registration deliberately
+re-added after a completed migration also requires operator resolution.
+The regression suite exercises these cases using isolated CLI fakes; it does
+not operate on a real user's authenticated Copilot configuration.
+
+| Provider | Managed registration |
+| --- | --- |
+| Copilot | Local `plugin install`, `plugin list --json`, and named `plugin update` |
+| Claude | Owned local marketplace plus plugin install/update and JSON state queries |
+| Codex | The same explicit plugin/marketplace APIs when supplied by the installed CLI; otherwise an unsupported-API result |
+| Gemini | `extensions install --consent --skip-settings`, named update, and `extensions list --output-format json` |
+| OpenCode | Explicit `unsupported-registration-api`: its documented local-autoload mechanism has no CLI registration API, so setup does not edit its user configuration or plugin directory |
+
+Managed plugins are named `it-ssh-hooks`; their private marketplace is
+`it-ssh-local`. Gemini's manifest declares the route/socket/session/opt-out
+environment names without persisting their per-session values. Unknown or
+ambiguous management response schemas fail closed. CLIs must be available in
+the bootstrap's PATH; no package installation or shell-profile mutation is
+used to make a missing CLI appear.
+
+For Snap launchers, the installer uses `snap run --shell` to probe the actual
+confinement. It checks script readability, required utility behavior, socket
+ownership/server identity, and a real `source-file -` round trip. It does not
+infer capability from the package type alone or expose host sockets by
+bypassing confinement. Native launch environments are also probed, but a
+wrapper may further alter its hook environment; an actual received hook
+remains the final readiness evidence. First install or update still requires
+an agent restart before new hook registrations become active.
+
+The installer parses CLI management responses and, when necessary, read-only
+registration metadata to verify ownership, effective enablement, and the
+installed version. It does not parse agent stdin or make agent activity/status
+decisions.
+
+`WTA_TMUX_HOOKS_DISABLED` disables both setup and sending and is a durable,
+explicit per-process opt-out (the wrapper's `--no-hooks` case). Do not set it
+merely because Session Management was disabled at startup: Windows keeps the
+registered foreground route context so a later live-consent off-to-on change
+can start setup without reopening the SSH shell. Bootstrap must re-check the
+effective `agentSessionManagementEnabled` boolean and an opt-in registered
+live target on register/reconnect/enable transitions. Setup failure must not
+prevent an ordinary SSH login.
+Unsupported providers do not prevent the side channel from serving supported
+or manually configured providers, but they are never reported as installed.
+
+For operator removal, disable management first and use the CLI's own disable/
+uninstall commands for **`it-ssh-hooks`** (qualified with `@it-ssh-local` where
+required). Do not remove unrelated `wt-agent-hooks` or manual `it-tmux-hooks`
+plugins. The installer respects disabled/removed registrations on later runs.
+
+## Manual v2 installation: copy just the shell file
 
 Copy `it-agent-hook.sh` to the remote host. This example normalizes Windows
 checkout line endings and refuses to overwrite an existing installed file:
@@ -42,8 +250,8 @@ sh "$HOME/.local/lib/intelligent-terminal/it-agent-hook.sh" \
 
 Run the CLI **inside the tmux pane** attached through IT's integration. Never
 forge `TMUX` or `TMUX_PANE` in shell startup files. **Restart the CLI after
-installing or changing its hooks.** There is no automatic remote install,
-upgrade, reconciliation, or removal.
+installing or changing its hooks.** These manual examples are separate from
+the automatically managed installation above.
 
 ## Disable, including ACP launches
 
@@ -64,7 +272,7 @@ honors `OPENCODE_CLIENT=acp`. `WT_SESSION` and `WT_COM_CLSID` are irrelevant.
 In particular, the shell sender **does not inspect `sidekick-*` IDs** or any
 other stdin fields. That filtering now belongs to IT/WTA.
 
-## CLI-specific configuration
+## Manual CLI-specific configuration
 
 The following examples use a distinct **`it-tmux-hooks`** plugin name and
 **`it-tmux-local`** marketplace. Each setup creates a fresh private directory
@@ -204,7 +412,8 @@ import { join } from "node:path"
 
 export const ItTmuxHooks = async ({ directory }) => {
   const sessions = new Set()
-  const enabled = Boolean(process.env.TMUX && process.env.TMUX_PANE) &&
+  const enabled = Boolean(Object.hasOwn(process.env, "IT_SSH_HOOK_ROUTE") ||
+    (process.env.TMUX && process.env.TMUX_PANE)) &&
     !process.env.WTA_TMUX_HOOKS_DISABLED && process.env.OPENCODE_CLIENT !== "acp"
   async function emit(topic, id, payload) {
     if (!enabled) return
@@ -269,11 +478,21 @@ Restart OpenCode after saving the plugin.
 
 ## Wire, routing, limits, and privacy
 
-Each tmux literal has this exact v2 shape, with single ASCII spaces:
+Manual pane routing retains this exact v2 shape, with single ASCII spaces:
 
 ```text
 IT_AGENT_HOOK/2 <session> <pane> <source> <event> <transfer> <index> <count> <data>
 ```
+
+Managed ordinary-SSH routing uses this v3 shape instead:
+
+```text
+IT_AGENT_HOOK/3 <route_uuid> <source> <event> <transfer> <index> <count> <data>
+```
+
+V3 carries no remote pane, tab, or window identity. Windows binds the route
+UUID to its own foreground SSH context. A present managed route takes
+precedence even when the CLI also inherited a `TMUX` environment.
 
 For example, raw `{}` becomes:
 
@@ -306,7 +525,7 @@ Only then does IT parse/project/redact the body. Base64 decoding preserves
 even invalid UTF-8 bytes; JSON validation subsequently rejects invalid UTF-8.
 Unreleased v1 is explicitly rejected, with no fallback.
 
-Routing is explicit and fail-closed:
+V2 routing is explicit and fail-closed:
 
 1. Split `TMUX` at its last two commas, preserving commas in socket paths.
    Validate the numeric session and `%integer` pane, and bind all tmux calls
@@ -318,10 +537,18 @@ Routing is explicit and fail-closed:
    `client_control_mode`, `client_name`, and `session_id`. Retain only control
    clients whose session ID matches.
 4. Deliver each literal with `display-message -l -c <client>`. A fixed batch
-   of these commands is submitted with tmux `source-file` to avoid hundreds of
+   of these commands is submitted with tmux `source-file -` to avoid hundreds of
    process startups for a large body. All command fields are validated tokens
    or Base64 and are single-quoted in tmux syntax; raw stdin is never shell
    code, `eval` input, or a command argument.
+
+V3 validates the UUID and the owned, explicitly supplied managed socket,
+requires `@it-ssh-hooks-protocol=3`, resolves the exact `it-hooks` session,
+and enumerates only its control clients. It does not inspect ordinary pane
+membership. Both versions stream the fixed command batch on tmux stdin, so
+the server does not need filesystem access to a CLI's private temporary
+directory. Client discovery uses printable separators, which remain intact
+for non-UTF-8 tmux clients launched outside panes.
 
 `-l` prevents tmux format/strftime expansion. `%message` bodies arrive as raw
 literal text; they are not `%output` escape sequences. **`display-message -C`
@@ -356,6 +583,8 @@ and the remote tmux server. **Base64 is not encryption.** tmux command
 history/debugging may also retain the encoded body. Redaction occurs in IT
 only after arrival and full reassembly. This opt-in transport is not an
 authentication boundary.
+For the managed `it-hooks` session, this includes raw events from other SSH
+routes sharing that user's side channel, before Windows filters route UUIDs.
 
 ## Manual update and uninstall
 
@@ -390,10 +619,13 @@ From a fresh Windows checkout with PowerShell 7 and WSL Ubuntu:
 .\tools\wta\wt-agent-hooks\tmux\Test-TmuxAgentHook.ps1 -Distribution Ubuntu
 ```
 
-`Test-TmuxAgentHook.ps1` copies only `it-agent-hook.sh` and
-`test-tmux-hooks.sh` into a private, short Linux-native directory, normalizing
-CRLF. This avoids `/mnt/c` Unix-socket/interop issues without requiring an
-extra Linux language runtime. The Bash test driver additionally uses standard
+For focused installer iteration, add `-InstallerOnly`. Capture export requires
+the transport tests and cannot be combined with that switch.
+
+`Test-TmuxAgentHook.ps1` copies the two shipped shell assets and the two Bash
+test drivers into a private, short Linux-native directory, normalizing CRLF.
+This avoids `/mnt/c` Unix-socket/interop issues without requiring an extra
+Linux language runtime. The Bash test drivers additionally use standard
 GNU text/file tools and util-linux `script` to attach an ordinary PTY client.
 Missing test prerequisites fail explicitly; nothing is installed automatically.
 
@@ -409,6 +641,15 @@ rejection, distinct concurrent transfer IDs, no cross-session/status/pane
 injection, opt-outs, utility failures, deadlines, and scratch cleanup.
 Only owned client PIDs and the test socket's server are terminated; the
 PowerShell wrapper removes its private Linux-native files even on failure.
+V3 tests execute outside tmux panes, share the dedicated session across
+multiple route UUIDs, and verify missing/malformed routes never fall back to
+v2. `test-install-remote-hooks.sh` uses isolated fake CLI homes and management
+APIs for fresh install, upgrade, retry, ownership, disabled/removed/no-CLI
+cases, and accessible/inaccessible Snap namespace probes. It also verifies
+control-stdin handoff and server lifetime. PowerShell parses every generated
+configuration and executes its absolute command under a different `HOME`,
+including login-home paths containing quotes, backslashes, and dollar signs.
+No real user CLI configuration or agent credentials are changed by the suite.
 
 ### Capture a real stream for native receiver tests
 

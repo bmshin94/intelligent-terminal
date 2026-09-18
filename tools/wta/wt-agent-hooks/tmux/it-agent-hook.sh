@@ -8,7 +8,9 @@ export LC_ALL
 umask 077
 
 note() { printf '%s\n' "it-agent-hook: $1" >&2; }
-[ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ] || exit 0
+if [ "${IT_SSH_HOOK_ROUTE+x}" != x ]; then
+    [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ] || exit 0
+fi
 [ -z "${WTA_TMUX_HOOKS_DISABLED:-}" ] || exit 0
 command -v tmux >/dev/null 2>&1 || exit 0
 for utility in sh timeout mktemp rm rmdir head wc base64; do
@@ -17,6 +19,14 @@ for utility in sh timeout mktemp rm rmdir head wc base64; do
         exit 0
     }
 done
+if [ "${IT_SSH_HOOK_ROUTE+x}" = x ]; then
+    for utility in stat id; do
+        command -v "$utility" >/dev/null 2>&1 || {
+            note 'required utility unavailable'
+            exit 0
+        }
+    done
+fi
 
 scratch=$(timeout --kill-after=0.05 0.1 mktemp -d "${TMPDIR:-/tmp}/it-agent-hook.XXXXXXXXXXXX" 2>/dev/null) || {
     note 'private scratch directory unavailable'
@@ -56,24 +66,48 @@ case $event in
 esac
 [ "$source" != opencode ] || [ "${OPENCODE_CLIENT:-}" != acp ] || exit 0
 
-number=${TMUX##*,}
-rest=${TMUX%,*}
-[ "$rest" != "$TMUX" ] || fail 'invalid tmux environment'
-pid=${rest##*,}
-socket=${rest%,*}
-[ "$socket" != "$rest" ] || fail 'invalid tmux environment'
-case $socket in /*) ;; *) fail 'invalid tmux environment' ;; esac
-case $number in ''|*[!0-9]*) fail 'invalid tmux environment' ;; esac
-case $pid in ''|*[!0-9]*) fail 'invalid tmux environment' ;; esac
-case $pid in *[1-9]*) ;; *) fail 'invalid tmux environment' ;; esac
-case $TMUX_PANE in %*) pane_number=${TMUX_PANE#%} ;; *) fail 'invalid tmux environment' ;; esac
-case $pane_number in ''|*[!0-9]*) fail 'invalid tmux environment' ;; esac
-[ "${#socket}" -le 1024 ] && [ "${#pid}" -le 1024 ] &&
-    [ "${#number}" -lt 1024 ] && [ "${#TMUX_PANE}" -le 1024 ] ||
-    fail 'invalid tmux environment'
-[ -S "$socket" ] || exit 0
-session=\$$number
-pane=$TMUX_PANE
+managed=
+if [ "${IT_SSH_HOOK_ROUTE+x}" = x ]; then
+    managed=1
+    route=$IT_SSH_HOOK_ROUTE
+    [ "${#route}" -eq 36 ] || fail 'invalid managed SSH route'
+    case $route in ''|*[!0-9A-Fa-f-]*) fail 'invalid managed SSH route' ;; esac
+    previous_ifs=$IFS
+    IFS=-
+    set -- $route
+    IFS=$previous_ifs
+    [ "$#" -eq 5 ] && [ "${#1}" -eq 8 ] && [ "${#2}" -eq 4 ] &&
+        [ "${#3}" -eq 4 ] && [ "${#4}" -eq 4 ] && [ "${#5}" -eq 12 ] ||
+        fail 'invalid managed SSH route'
+    socket=${IT_SSH_HOOK_SOCKET:-}
+    [ -n "$socket" ] && [ -n "${IT_SSH_HOOK_SESSION:-}" ] || exit 0
+    [ "$IT_SSH_HOOK_SESSION" = it-hooks ] || fail 'invalid managed SSH session'
+    case $socket in /*) ;; *) fail 'invalid managed SSH socket' ;; esac
+    [ "${#socket}" -le 107 ] && [ ! -L "$socket" ] || fail 'invalid managed SSH socket'
+    [ -S "$socket" ] || exit 0
+    socket_owner=$(stat -c %u -- "$socket" 2>/dev/null) || fail 'managed socket lookup failed'
+    current_user=$(id -u 2>/dev/null) || fail 'user lookup failed'
+    [ "$socket_owner" = "$current_user" ] || fail 'managed socket ownership mismatch'
+else
+    number=${TMUX##*,}
+    rest=${TMUX%,*}
+    [ "$rest" != "$TMUX" ] || fail 'invalid tmux environment'
+    pid=${rest##*,}
+    socket=${rest%,*}
+    [ "$socket" != "$rest" ] || fail 'invalid tmux environment'
+    case $socket in /*) ;; *) fail 'invalid tmux environment' ;; esac
+    case $number in ''|*[!0-9]*) fail 'invalid tmux environment' ;; esac
+    case $pid in ''|*[!0-9]*) fail 'invalid tmux environment' ;; esac
+    case $pid in *[1-9]*) ;; *) fail 'invalid tmux environment' ;; esac
+    case $TMUX_PANE in %*) pane_number=${TMUX_PANE#%} ;; *) fail 'invalid tmux environment' ;; esac
+    case $pane_number in ''|*[!0-9]*) fail 'invalid tmux environment' ;; esac
+    [ "${#socket}" -le 1024 ] && [ "${#pid}" -le 1024 ] &&
+        [ "${#number}" -lt 1024 ] && [ "${#TMUX_PANE}" -le 1024 ] ||
+        fail 'invalid tmux environment'
+    [ -S "$socket" ] || exit 0
+    session=\$$number
+    pane=$TMUX_PANE
+fi
 transfer=${dir##*/}
 
 tmux_run() {
@@ -98,16 +132,30 @@ minor=${minor%%[!0-9]*}
 case $major:$minor in *[!0-9:]*|:*|*:) exit 0 ;; esac
 [ "${#major}" -le 6 ] && [ "${#minor}" -le 6 ] || exit 0
 [ "$major" -gt 3 ] || { [ "$major" -eq 3 ] && [ "$minor" -ge 4 ]; } || exit 0
-tmux_run list-panes -s -t "$session" -F '#{pane_id}' >"$dir/panes" || lookup_failed
-found=
-while IFS= read -r candidate; do
-    [ "$candidate" != "$pane" ] || found=1
-done <"$dir/panes"
-[ -n "$found" ] || exit 0
+if [ -n "$managed" ]; then
+    marker=$(tmux_run show-options -gqv @it-ssh-hooks-protocol) || lookup_failed
+    [ "$marker" = 3 ] || exit 0
+    tmux_run list-sessions -F '#{session_id} #{==:#{session_name},it-hooks}' >"$dir/panes" || lookup_failed
+    session=
+    while IFS=' ' read -r candidate matching; do
+        [ "$matching" != 1 ] || session=$candidate
+    done <"$dir/panes"
+    [ -n "$session" ] || exit 0
+    frame="IT_AGENT_HOOK/3 $route $source $event $transfer"
+else
+    tmux_run list-panes -s -t "$session" -F '#{pane_id}' >"$dir/panes" || lookup_failed
+    found=
+    while IFS= read -r candidate; do
+        [ "$candidate" != "$pane" ] || found=1
+    done <"$dir/panes"
+    [ -n "$found" ] || exit 0
+    frame="IT_AGENT_HOOK/2 $session $pane $source $event $transfer"
+fi
+# Printable separators also work for non-UTF-8 tmux clients outside a pane.
 tmux_run list-clients -t "$session" \
-    -F '#{client_control_mode}	#{client_name}	#{session_id}' >"$dir/clients" || lookup_failed
+    -F '#{client_control_mode} #{client_name} #{session_id}' >"$dir/clients" || lookup_failed
 : >"$dir/targets"
-while IFS='	' read -r control client client_session extra; do
+while IFS=' ' read -r control client client_session extra; do
     [ "$control" = 1 ] && [ "$client_session" = "$session" ] || continue
     [ -z "$extra" ] && [ "${#client}" -le 1024 ] || fail 'invalid tmux client'
     case $client in ''|*[!A-Za-z0-9_./:-]*) fail 'invalid tmux client' ;; esac
@@ -139,13 +187,13 @@ while IFS= read -r data; do
         # All fields are restricted tokens or Base64, so single-quoted tmux
         # literals cannot contain quoting, expansion or command separators.
         printf "display-message -l -c '%s' '%s'\n" "$client" \
-            "IT_AGENT_HOOK/2 $session $pane $source $event $transfer $index $count $data" \
+            "$frame $index $count $data" \
             >>"$dir/commands" || fail 'command framing failed'
     done <"$dir/targets"
     index=$((index + 1))
 done <"$dir/encoded"
 [ "$index" -eq "$count" ] || fail 'encoded input read failed'
-[ ! -s "$dir/commands" ] || tmux_run source-file "$dir/commands" ||
+[ ! -s "$dir/commands" ] || tmux_run source-file - <"$dir/commands" ||
     fail 'tmux notification failed'
 exit 0
 WORKER

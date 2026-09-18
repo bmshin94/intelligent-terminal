@@ -59,10 +59,13 @@ impl SshRegistryClient for SharedRegistry {
             anyhow::bail!("{error}");
         }
         let source = match &request {
-            Request::List { source, .. } | Request::Activate { source, .. } => source.clone(),
+            Request::Snapshot { source }
+            | Request::List { source, .. }
+            | Request::Activate { source, .. } => source.clone(),
         };
         let registry = self.registry(&source);
         match request {
+            Request::Snapshot { .. } => {}
             Request::List {
                 refresh_history, ..
             } => {

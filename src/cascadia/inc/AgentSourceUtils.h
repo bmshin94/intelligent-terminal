@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "AgentPaneRestore.h"
 #include <wil/win32_helpers.h>
 #include <shellapi.h>
 #include <json/json.h>
@@ -32,6 +33,9 @@ namespace Microsoft::Terminal::AgentSource
         std::wstring destination;
         std::optional<uint16_t> port;
         std::wstring error;
+        std::wstring executable;
+        bool requestPty{ true };
+        bool managedLaunch{ false };
     };
 
     namespace details
@@ -103,6 +107,83 @@ namespace Microsoft::Terminal::AgentSource
         }
         const bool directSsh = til::equals_insensitive_ascii(executable, L"ssh") ||
                                til::equals_insensitive_ascii(executable, L"ssh.exe");
+        const bool managedSsh = argc > 1 && std::wstring_view{ argv[1] } == L"ssh" &&
+                                (til::equals_insensitive_ascii(executable, L"wta") ||
+                                 til::equals_insensitive_ascii(executable, L"wta.exe"));
+        if (managedSsh)
+        {
+            if (commandline.find(L'\0') != std::wstring_view::npos || !details::HasBalancedCommandlineQuotes(commandline))
+            {
+                return details::UnsupportedSessionsSsh(L"The managed SSH command line is malformed.");
+            }
+            std::optional<std::wstring_view> destination;
+            std::optional<std::wstring_view> managedPort;
+            bool requestPty = true;
+            bool remoteCommand = false;
+            for (int index = 2; index < argc; ++index)
+            {
+                std::wstring_view option{ argv[index] };
+                if (option == L"--no-pty")
+                {
+                    requestPty = false;
+                    continue;
+                }
+                if (option == L"--no-hooks")
+                {
+                    continue;
+                }
+                const auto separator = option.find(L'=');
+                const auto name = option.substr(0, separator);
+                std::wstring_view value;
+                if (separator == std::wstring_view::npos)
+                {
+                    if (++index == argc)
+                    {
+                        return details::UnsupportedSessionsSsh(L"The managed SSH command line is missing an option value.");
+                    }
+                    value = argv[index];
+                }
+                else
+                {
+                    value = option.substr(separator + 1);
+                }
+                if (name == L"--destination" && !destination)
+                {
+                    destination = value;
+                }
+                else if (name == L"--port" && !managedPort)
+                {
+                    managedPort = value;
+                }
+                else if (name == L"--remote-command" && !remoteCommand)
+                {
+                    remoteCommand = true;
+                }
+                else
+                {
+                    return details::UnsupportedSessionsSsh(L"The managed SSH command line contains unsupported or repeated options.");
+                }
+            }
+            if (!destination || destination->empty())
+            {
+                return details::UnsupportedSessionsSsh(L"The managed SSH command line has no destination.");
+            }
+            std::wstring equivalent{ requestPty ? L"ssh.exe" : L"ssh.exe -T" };
+            if (managedPort)
+            {
+                if (managedPort->empty())
+                {
+                    return details::UnsupportedSessionsSsh(L"The managed SSH port is empty.");
+                }
+                AgentPaneRestore::AppendFlag(equivalent, L"-p", *managedPort);
+            }
+            equivalent.append(L" -- ");
+            AgentPaneRestore::AppendQuoted(equivalent, *destination);
+            auto source = ResolveSessionsSshSource({}, equivalent);
+            source.executable = argv[0];
+            source.managedLaunch = true;
+            return source;
+        }
         if (!directSsh)
         {
             return generatedSsh ? details::UnsupportedSessionsSsh(L"The SSH profile must launch ssh.exe directly.") : SessionsSshSource{};
@@ -114,6 +195,7 @@ namespace Microsoft::Terminal::AgentSource
 
         std::optional<uint16_t> port;
         std::optional<std::wstring_view> user;
+        bool requestPty = true;
         int index = 1;
         for (; index < argc; ++index)
         {
@@ -129,6 +211,7 @@ namespace Microsoft::Terminal::AgentSource
             }
             if (arg.size() > 1 && std::all_of(arg.begin() + 1, arg.end(), [](const wchar_t ch) { return ch == L't' || ch == L'T'; }))
             {
+                requestPty = arg.back() == L't';
                 continue;
             }
             if (arg.size() < 2 || (arg[1] != L'p' && arg[1] != L'l'))
@@ -205,7 +288,42 @@ namespace Microsoft::Terminal::AgentSource
         }
 
         auto destination = user ? std::wstring{ *user } + L"@" + std::wstring{ host } : std::wstring{ host };
-        return { SessionsSshKind::ValidTarget, std::move(destination), port, {} };
+        return { SessionsSshKind::ValidTarget, std::move(destination), port, {}, std::wstring{ argv[0] }, requestPty };
+    }
+
+    inline std::optional<std::wstring> BuildManagedSshCommandline(
+        const SessionsSshSource& source,
+        const std::wstring_view wtaExecutable,
+        const std::wstring_view systemSshExecutable)
+    {
+        if (source.kind != SessionsSshKind::ValidTarget || source.managedLaunch || wtaExecutable.empty())
+        {
+            return std::nullopt;
+        }
+        auto executable = source.executable;
+        std::replace(executable.begin(), executable.end(), L'/', L'\\');
+        if (!til::equals_insensitive_ascii(executable, L"ssh") &&
+            !til::equals_insensitive_ascii(executable, L"ssh.exe") &&
+            !til::equals_insensitive_ascii(executable, L"%SystemRoot%\\System32\\OpenSSH\\ssh.exe") &&
+            !til::equals_insensitive_ascii(executable, L"%windir%\\System32\\OpenSSH\\ssh.exe") &&
+            !til::equals_insensitive_ascii(executable, systemSshExecutable))
+        {
+            return std::nullopt;
+        }
+
+        std::wstring commandline;
+        AgentPaneRestore::AppendQuoted(commandline, wtaExecutable);
+        commandline.append(L" ssh");
+        AgentPaneRestore::AppendFlag(commandline, L"--destination", source.destination);
+        if (source.port)
+        {
+            AgentPaneRestore::AppendFlag(commandline, L"--port", std::to_wstring(*source.port));
+        }
+        if (!source.requestPty)
+        {
+            commandline.append(L" --no-pty");
+        }
+        return commandline;
     }
 
     inline std::vector<std::pair<std::wstring, std::wstring>> BuildSessionsSshHelperArguments(const SessionsSshSource& source)

@@ -31,6 +31,37 @@ pub(crate) async fn run_ssh_list(
     print_sessions(sessions, origin_filter, json_mode)
 }
 
+/// Inspection of master's existing source registry, never an SSH/ACP history
+/// probe. Plain `sessions list --ssh` deliberately keeps its original behavior.
+pub(crate) async fn run_ssh_master_snapshot(
+    master: String,
+    target: &crate::ssh_sessions::SshTarget,
+    agent_id: &str,
+    origin_filter: crate::agent_sessions::OriginFilter,
+    json_mode: bool,
+) -> Result<()> {
+    let source = crate::ssh_session_registry::Source {
+        target: target.clone(),
+        agent_id: agent_id.to_owned(),
+    };
+    let params =
+        serde_json::value::to_raw_value(&crate::ssh_session_registry::Request::Snapshot {
+            source: source.clone(),
+        })?;
+    let request =
+        acp::schema::v1::ExtRequest::new(crate::ssh_session_registry::METHOD, params.into());
+    let response = tokio::task::LocalSet::new()
+        .run_until(request_from_master(Some(master), request))
+        .await?;
+    let snapshot: crate::ssh_session_registry::Snapshot =
+        serde_json::from_str(response.0.get()).context("Parse master SSH source snapshot")?;
+    anyhow::ensure!(
+        snapshot.source == source,
+        "Master returned a different SSH source"
+    );
+    print_sessions(snapshot.sessions, origin_filter, json_mode)
+}
+
 fn print_sessions(
     sessions: Vec<crate::session_registry::SessionInfo>,
     origin_filter: crate::agent_sessions::OriginFilter,

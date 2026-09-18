@@ -132,6 +132,58 @@ async fn cached(handler: &HelperHandler, source: &Source) -> Snapshot {
     .unwrap()
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn ssh_source_snapshot_is_read_only_even_before_first_history_list() {
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let (state, mut native) = harness();
+            let handler = caller(&state, 1);
+            let source = source("must-not-be-probed.invalid", None, "copilot");
+            let first = call(
+                &handler,
+                Request::Snapshot {
+                    source: source.clone(),
+                },
+            )
+            .await
+            .unwrap();
+            assert!(first.sessions.is_empty());
+            assert_eq!(first.revision, 0);
+            let scoped = state.ssh_sessions.source(&source).await;
+            assert!(!scoped.operations.lock().await.history_loaded);
+            assert!(native.try_recv().is_err());
+
+            let pane = uuid::Uuid::new_v4();
+            hook_event(
+                &state,
+                &source.target,
+                crate::ssh_hook_protocol::RouteId::new(),
+                &pane.to_string(),
+                hook("copilot", "agent.prompt.submit", "live"),
+            )
+            .await
+            .unwrap();
+            let second = call(
+                &handler,
+                Request::Snapshot {
+                    source: source.clone(),
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(second.source, source);
+            assert_eq!(second.sessions.len(), 1);
+            assert_eq!(second.sessions[0].status, Some(AgentStatus::Working));
+            assert_eq!(
+                second.sessions[0].pane_session_id.as_deref(),
+                Some(pane.to_string().as_str())
+            );
+            assert!(!scoped.operations.lock().await.history_loaded);
+            assert!(native.try_recv().is_err());
+        })
+        .await;
+}
+
 async fn created(rx: &mut mpsc::UnboundedReceiver<NativeCall>, pane: uuid::Uuid) {
     let call = rx.recv().await.unwrap();
     assert_eq!(call.method, "create_tab");
@@ -165,6 +217,333 @@ async fn close(state: &Arc<MasterStateInner>, pane: uuid::Uuid, native_state: &s
         }),
     )
     .await;
+}
+
+fn hook(cli: &str, event: &str, sid: &str) -> crate::ssh_hook_protocol::HookEvent {
+    crate::ssh_hook_protocol::HookEvent {
+        cli_source: cli.into(),
+        event: event.into(),
+        raw_session_id: sid.into(),
+        payload: serde_json::json!({"cwd": "/home/alice/project", "message": "approve", "tool_name": "edit"}),
+    }
+}
+
+#[tokio::test]
+async fn ssh_hook_sessions_use_existing_source_registry_and_preserve_connection_collisions() {
+    let state = make_state();
+    let first = source("alice@remote", Some(2222), "copilot");
+    let route_a = crate::ssh_hook_protocol::RouteId::new();
+    let route_b = crate::ssh_hook_protocol::RouteId::new();
+    let pane_a = uuid::Uuid::new_v4().to_string();
+    let pane_b = uuid::Uuid::new_v4().to_string();
+    hook_event(
+        &state,
+        &first.target,
+        route_a,
+        &pane_a,
+        hook("copilot", "agent.session.start", "same"),
+    )
+    .await
+    .unwrap();
+    hook_event(
+        &state,
+        &first.target,
+        route_b,
+        &pane_b,
+        hook("copilot", "agent.session.start", "same"),
+    )
+    .await
+    .unwrap();
+    let scoped = state.ssh_sessions.source(&first).await;
+    let rows = scoped.registry.snapshot().await;
+    assert_eq!(rows.len(), 2);
+    assert_ne!(rows[0].session_id, rows[1].session_id);
+    for other in [
+        source("bob@remote", Some(2222), "copilot"),
+        source("alice@remote", Some(22), "copilot"),
+        source("alice@other", Some(2222), "copilot"),
+        source("alice@remote", Some(2222), "claude"),
+    ] {
+        hook_event(
+            &state,
+            &other.target,
+            route_a,
+            &pane_a,
+            hook(&other.agent_id, "agent.session.start", "same"),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            state
+                .ssh_sessions
+                .source(&other)
+                .await
+                .registry
+                .snapshot()
+                .await
+                .len(),
+            1
+        );
+    }
+    for (event, status) in [
+        ("agent.prompt.submit", AgentStatus::Working),
+        ("agent.notification", AgentStatus::Attention),
+        ("agent.stop", AgentStatus::Idle),
+        ("agent.error", AgentStatus::Error),
+        ("agent.session.end", AgentStatus::Ended),
+    ] {
+        hook_event(
+            &state,
+            &first.target,
+            route_a,
+            &pane_a,
+            hook("copilot", event, "same"),
+        )
+        .await
+        .unwrap();
+        let row = scoped
+            .registry
+            .lookup(&acp::schema::v1::SessionId::new("same"))
+            .await
+            .unwrap();
+        assert_eq!(row.status, Some(status));
+        assert_eq!(
+            row.location,
+            SessionLocation::Ssh {
+                target: first.target.clone()
+            }
+        );
+    }
+    let untouched = scoped
+        .registry
+        .snapshot()
+        .await
+        .into_iter()
+        .find(|row| row.pane_session_id.as_deref() == Some(pane_b.as_str()))
+        .unwrap();
+    assert_eq!(untouched.status, Some(AgentStatus::Idle));
+    assert!(state.registry.snapshot().await.is_empty());
+}
+
+#[tokio::test]
+async fn ssh_hook_cached_route_cannot_steal_or_end_a_resumed_panes_binding() {
+    let state = make_state();
+    let source = source("alice@remote", None, "copilot");
+    let route_a = crate::ssh_hook_protocol::RouteId::new();
+    let route_b = crate::ssh_hook_protocol::RouteId::new();
+    let pane_a = uuid::Uuid::new_v4().to_string();
+    let pane_b = uuid::Uuid::new_v4().to_string();
+    let sid = acp::schema::v1::SessionId::new("same");
+    for event in ["agent.session.start", "agent.session.end"] {
+        hook_event(
+            &state, &source.target, route_a, &pane_a,
+            hook("copilot", event, "same"),
+        )
+        .await
+        .unwrap();
+    }
+    let scoped = state.ssh_sessions.source(&source).await;
+    scoped.registry.apply_event(SessionEvent::ResumeDispatched {
+        key: "same".into(),
+    }).await;
+    scoped.registry.apply_event(SessionEvent::ResumePaneAssigned {
+        key: "same".into(),
+        pane_session_id: pane_b.clone(),
+    }).await;
+    for recorded_route_b in [false, true] {
+        if recorded_route_b {
+            hook_event(
+                &state, &source.target, route_b, &pane_b,
+                hook("copilot", "agent.prompt.submit", "same"),
+            )
+            .await
+            .unwrap();
+        }
+        for event in ["agent.stop", "agent.notification", "agent.session.end", "agent.error"] {
+            let before = scoped.registry.lookup(&sid).await.unwrap();
+            hook_event(
+                &state, &source.target, route_a, &pane_a,
+                hook("copilot", event, "same"),
+            )
+            .await
+            .unwrap();
+            assert_eq!(scoped.registry.lookup(&sid).await.unwrap(), before);
+        }
+    }
+    hook_event(
+        &state, &source.target, route_a, &pane_a,
+        hook("copilot", "agent.session.start", "same"),
+    )
+    .await
+    .unwrap();
+    let original = scoped.registry.lookup(&sid).await.unwrap();
+    assert_eq!(original.pane_session_id.as_deref(), Some(pane_b.as_str()));
+    assert_eq!(original.status, Some(AgentStatus::Working));
+    let rows = scoped.registry.snapshot().await;
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().any(|row|
+        row.session_id != sid && row.pane_session_id.as_deref() == Some(pane_a.as_str())
+    ));
+}
+
+#[tokio::test]
+async fn ssh_hook_sessionless_notifications_are_pane_bound_and_history_cannot_overwrite_activity() {
+    let state = make_state();
+    let source = source("alice@remote", None, "copilot");
+    let route = crate::ssh_hook_protocol::RouteId::new();
+    let pane = uuid::Uuid::new_v4().to_string();
+    hook_event(
+        &state,
+        &source.target,
+        route,
+        &pane,
+        hook("copilot", "agent.prompt.submit", "live"),
+    )
+    .await
+    .unwrap();
+    let scoped = state.ssh_sessions.source(&source).await;
+    hook_event(
+        &state,
+        &source.target,
+        route,
+        &uuid::Uuid::new_v4().to_string(),
+        hook("copilot", "agent.notification", ""),
+    )
+    .await
+    .unwrap();
+    hook_event(
+        &state,
+        &source.target,
+        route,
+        &pane,
+        hook("copilot", "agent.notification", "sidekick-memory"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(scoped.registry.snapshot().await.len(), 1);
+    merge_history(
+        &state,
+        &source,
+        &scoped,
+        vec![history(&source, "live", "New history title")],
+    )
+    .await;
+    let live = scoped
+        .registry
+        .lookup(&acp::schema::v1::SessionId::new("live"))
+        .await
+        .unwrap();
+    assert_eq!(live.status, Some(AgentStatus::Working));
+    assert_eq!(live.pane_session_id.as_deref(), Some(pane.as_str()));
+    hook_event(
+        &state,
+        &source.target,
+        route,
+        &pane,
+        hook("copilot", "agent.notification", ""),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        scoped
+            .registry
+            .lookup(&live.session_id)
+            .await
+            .unwrap()
+            .status,
+        Some(AgentStatus::Attention)
+    );
+    pane_closed(&state, &pane).await;
+    hook_event(
+        &state,
+        &source.target,
+        route,
+        &pane,
+        hook("copilot", "agent.notification", ""),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        scoped
+            .registry
+            .lookup(&live.session_id)
+            .await
+            .unwrap()
+            .status,
+        Some(AgentStatus::Ended)
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn ssh_hook_managed_resume_preserves_reserved_sid_and_pre_ack_hook_activity() {
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let (mut state, mut native) = harness();
+            Arc::get_mut(&mut state).unwrap().ssh_hooks =
+                super::super::ssh_hooks::Service::new(true);
+            let source = source("alice@remote", Some(2222), "copilot");
+            seed(&state, &source, &["requested"]).await;
+            let caller = caller(&state, 1);
+            let task = activation(&caller, &source, "requested");
+            let create = native.recv().await.unwrap();
+            assert_eq!(create.method, "create_tab");
+            let args = crate::coordinator::split_windows_commandline(
+                create.params["commandline"].as_str().unwrap(),
+            );
+            assert_eq!(args[1], "ssh");
+            assert!(args.iter().any(|arg| arg == "--remote-command"));
+            let pane = uuid::Uuid::new_v4();
+            let route = crate::ssh_hook_protocol::RouteId::new();
+            hook_event(
+                &state,
+                &source.target,
+                route,
+                &pane.to_string(),
+                hook("copilot", "agent.session.start", "bootstrap"),
+            )
+            .await
+            .unwrap();
+            hook_event(
+                &state,
+                &source.target,
+                route,
+                &pane.to_string(),
+                hook("copilot", "agent.prompt.submit", "requested"),
+            )
+            .await
+            .unwrap();
+            hook_event(
+                &state,
+                &source.target,
+                route,
+                &pane.to_string(),
+                hook("copilot", "agent.session.start", "requested"),
+            )
+            .await
+            .unwrap();
+            create
+                .reply
+                .send(Ok(serde_json::json!({"session_id": pane.to_string()})))
+                .unwrap();
+            focused(&mut native, pane).await;
+            let snapshot = task.await.unwrap().unwrap();
+            assert_eq!(snapshot.sessions.len(), 1);
+            let row = &snapshot.sessions[0];
+            assert_eq!(row.session_id.0.as_ref(), "requested");
+            assert_eq!(row.status, Some(AgentStatus::Working));
+            assert_eq!(
+                row.pane_session_id.as_deref(),
+                Some(pane.to_string().as_str())
+            );
+            let focused_task = activation(&caller, &source, "requested");
+            focused(&mut native, pane).await;
+            assert_eq!(
+                focused_task.await.unwrap().unwrap().sessions[0].status,
+                Some(AgentStatus::Working)
+            );
+            assert!(native.try_recv().is_err());
+        })
+        .await;
 }
 
 #[tokio::test(flavor = "current_thread")]

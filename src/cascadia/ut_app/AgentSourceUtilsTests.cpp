@@ -25,6 +25,11 @@ namespace TerminalAppUnitTests
         TEST_METHOD(RejectsMalformedSshSessionsProfiles);
         TEST_METHOD(BuildsSshSessionsHelperArguments);
         TEST_METHOD(WritesSshSessionsRuntimeMetadata);
+        TEST_METHOD(BuildsManagedSshLaunchWithoutChangingSourceIdentity);
+        TEST_METHOD(PreservesManagedSshPtyWithoutPinningGlobalHooksPolicy);
+        TEST_METHOD(LeavesUnsupportedSshLaunchesUnchanged);
+        TEST_METHOD(RecognizesManagedSshSessionSource);
+        TEST_METHOD(RejectsMalformedManagedSshSessionSource);
     };
 
     void AgentSourceUtilsTests::ReadEnvironmentVariableSupportsLongValues()
@@ -340,6 +345,109 @@ namespace TerminalAppUnitTests
                 VERIFY_ARE_EQUAL(args[i].first, std::wstring{ argv[i * 2 + 1] });
                 VERIFY_ARE_EQUAL(args[i].second, std::wstring{ argv[i * 2 + 2] });
             }
+        }
+    }
+
+    void AgentSourceUtilsTests::BuildsManagedSshLaunchWithoutChangingSourceIdentity()
+    {
+        namespace AgentSource = Microsoft::Terminal::AgentSource;
+        const std::wstring wta{ LR"(C:\Program Files\IT; Dev\wta.exe)" };
+        const auto source = AgentSource::ResolveSessionsSshSource(
+            L"Windows.Terminal.SSH", LR"("%SystemRoot%\System32\OpenSSH\ssh.exe" -p2222 -l user Work-Host)");
+        const auto command = AgentSource::BuildManagedSshCommandline(
+            source, wta, LR"(C:\Windows\System32\OpenSSH\ssh.exe)");
+        VERIFY_IS_TRUE(command.has_value());
+        int argc{};
+        const wil::unique_hlocal_ptr<PWSTR[]> argv{ CommandLineToArgvW(command->c_str(), &argc) };
+        VERIFY_IS_NOT_NULL(argv.get());
+        VERIFY_ARE_EQUAL(6, argc);
+        VERIFY_ARE_EQUAL(wta, std::wstring{ argv[0] });
+        VERIFY_ARE_EQUAL(std::wstring{ L"ssh" }, std::wstring{ argv[1] });
+        VERIFY_ARE_EQUAL(std::wstring{ L"--destination" }, std::wstring{ argv[2] });
+        VERIFY_ARE_EQUAL(std::wstring{ L"user@Work-Host" }, std::wstring{ argv[3] });
+        VERIFY_ARE_EQUAL(std::wstring{ L"--port" }, std::wstring{ argv[4] });
+        VERIFY_ARE_EQUAL(std::wstring{ L"2222" }, std::wstring{ argv[5] });
+        VERIFY_ARE_EQUAL(std::wstring{ L"user@Work-Host" }, source.destination);
+        VERIFY_ARE_EQUAL(std::wstring{ L"%SystemRoot%\\System32\\OpenSSH\\ssh.exe" }, source.executable);
+        Json::Value metadata;
+        AgentSource::WriteSessionsSshMetadata(metadata, source);
+        VERIFY_ARE_EQUAL(std::string{ "user@Work-Host" }, metadata["sessions_ssh"]["destination"].asString());
+        VERIFY_ARE_EQUAL(2222u, metadata["sessions_ssh"]["port"].asUInt());
+    }
+
+    void AgentSourceUtilsTests::PreservesManagedSshPtyWithoutPinningGlobalHooksPolicy()
+    {
+        namespace AgentSource = Microsoft::Terminal::AgentSource;
+        for (const auto input : { L"ssh host", L"ssh -t host", L"ssh -T -tt host" })
+        {
+            const auto source = AgentSource::ResolveSessionsSshSource({}, input);
+            VERIFY_IS_TRUE(source.requestPty);
+            const auto command = AgentSource::BuildManagedSshCommandline(source, L"wta.exe", {});
+            VERIFY_IS_TRUE(command.has_value());
+            VERIFY_ARE_EQUAL(std::wstring::npos, command->find(L"--no-pty"));
+            VERIFY_ARE_EQUAL(std::wstring::npos, command->find(L"--no-hooks"));
+        }
+        for (const auto input : { L"ssh -T host", L"ssh -tt -T host", L"ssh -ttT host" })
+        {
+            const auto source = AgentSource::ResolveSessionsSshSource({}, input);
+            VERIFY_IS_FALSE(source.requestPty);
+            const auto command = AgentSource::BuildManagedSshCommandline(source, L"wta.exe", {});
+            VERIFY_IS_TRUE(command.has_value());
+            VERIFY_ARE_NOT_EQUAL(std::wstring::npos, command->find(L"--no-pty"));
+            VERIFY_ARE_EQUAL(std::wstring::npos, command->find(L"--no-hooks"));
+        }
+        const auto system = AgentSource::ResolveSessionsSshSource({}, LR"("C:/Windows/System32/OpenSSH/ssh.exe" host)");
+        VERIFY_IS_TRUE(AgentSource::BuildManagedSshCommandline(
+                           system, L"wta.exe", LR"(C:\Windows\System32\OpenSSH\ssh.exe)")
+                           .has_value());
+    }
+
+    void AgentSourceUtilsTests::LeavesUnsupportedSshLaunchesUnchanged()
+    {
+        namespace AgentSource = Microsoft::Terminal::AgentSource;
+        for (const auto input : {
+                 L"pwsh.exe", L"cmd.exe /c ssh host", L"ssh host uname -a", L"ssh -i key host", LR"("C:\Custom\ssh.exe" host)", L"wta.exe ssh --destination host" })
+        {
+            const auto source = AgentSource::ResolveSessionsSshSource({}, input);
+            VERIFY_IS_FALSE(AgentSource::BuildManagedSshCommandline(
+                                source, L"wta.exe", LR"(C:\Windows\System32\OpenSSH\ssh.exe)")
+                                .has_value());
+        }
+        const auto source = AgentSource::ResolveSessionsSshSource({}, L"ssh host");
+        VERIFY_IS_FALSE(AgentSource::BuildManagedSshCommandline(source, {}, {}).has_value());
+    }
+
+    void AgentSourceUtilsTests::RecognizesManagedSshSessionSource()
+    {
+        namespace AgentSource = Microsoft::Terminal::AgentSource;
+        for (const auto input : {
+                 L"wta.exe ssh --destination user@host --port 2222",
+                 L"wta.exe ssh --destination=user@host --port=2222 --no-hooks",
+                 LR"("C:\Program Files\IT\wta.exe" ssh --destination user@host --port 2222 --remote-command "cd '/repo with spaces' && exec copilot --resume sid")" })
+        {
+            const auto source = AgentSource::ResolveSessionsSshSource({}, input);
+            VERIFY_IS_TRUE(source.kind == AgentSource::SessionsSshKind::ValidTarget);
+            VERIFY_IS_TRUE(source.managedLaunch);
+            VERIFY_ARE_EQUAL(std::wstring{ L"user@host" }, source.destination);
+            VERIFY_ARE_EQUAL(uint16_t{ 2222 }, source.port.value());
+            VERIFY_IS_TRUE(source.requestPty);
+            VERIFY_IS_FALSE(AgentSource::BuildManagedSshCommandline(source, L"wta.exe", {}).has_value());
+        }
+        const auto noPty = AgentSource::ResolveSessionsSshSource(
+            L"Windows.Terminal.SSH", L"wta.exe ssh --destination host --no-pty");
+        VERIFY_IS_TRUE(noPty.kind == AgentSource::SessionsSshKind::ValidTarget);
+        VERIFY_IS_FALSE(noPty.requestPty);
+    }
+
+    void AgentSourceUtilsTests::RejectsMalformedManagedSshSessionSource()
+    {
+        namespace AgentSource = Microsoft::Terminal::AgentSource;
+        for (const auto input : {
+                 L"wta.exe ssh", L"wta.exe ssh --destination", L"wta.exe ssh --destination=", L"wta.exe ssh --destination host --destination other", L"wta.exe ssh --destination host --port 0", L"wta.exe ssh --destination host --port=", L"wta.exe ssh --destination host --port 22 --port 23", L"wta.exe ssh --destination host --unknown value", L"wta.exe ssh --destination \"host; command\"", L"wta.exe ssh --destination host --remote-command first --remote-command second" })
+        {
+            const auto source = AgentSource::ResolveSessionsSshSource({}, input);
+            VERIFY_IS_TRUE(source.kind == AgentSource::SessionsSshKind::UnsupportedSsh);
+            VERIFY_IS_FALSE(source.error.empty());
         }
     }
 

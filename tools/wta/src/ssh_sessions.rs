@@ -138,7 +138,7 @@ fn listing_script(agent_id: &str) -> Result<String> {
     ))
 }
 
-fn ssh_arguments(target: &SshTarget, interactive: bool, script: &str) -> Vec<String> {
+pub(crate) fn ssh_arguments(target: &SshTarget, interactive: bool, script: &str) -> Vec<String> {
     let mut args = vec![if interactive { "-t" } else { "-T" }.to_string()];
     for option in [
         "BatchMode=yes",
@@ -167,7 +167,7 @@ fn ssh_arguments(target: &SshTarget, interactive: bool, script: &str) -> Vec<Str
     args
 }
 
-fn system_ssh_executable() -> Result<PathBuf> {
+pub(crate) fn system_ssh_executable() -> Result<PathBuf> {
     let root = std::env::var_os("SystemRoot").context("SystemRoot is not set")?;
     let root = PathBuf::from(root);
     if !root.is_absolute() {
@@ -176,7 +176,7 @@ fn system_ssh_executable() -> Result<PathBuf> {
     Ok(root.join(r"System32\OpenSSH\ssh.exe"))
 }
 
-fn configure_listing_environment(
+pub(crate) fn configure_listing_environment(
     command: &mut tokio::process::Command,
     environment: impl IntoIterator<Item = (OsString, OsString)>,
 ) {
@@ -298,6 +298,17 @@ pub(crate) fn resume_commandline(
     session_id: &str,
     cwd: &str,
 ) -> Result<String> {
+    let script = resume_script(agent_id, session_id, cwd)?;
+    let mut args = vec!["ssh.exe".to_string()];
+    args.extend(ssh_arguments(target, true, &script));
+    Ok(args
+        .iter()
+        .map(|arg| quote_windows_commandline_arg(arg))
+        .collect::<Vec<_>>()
+        .join(" "))
+}
+
+pub(crate) fn resume_script(agent_id: &str, session_id: &str, cwd: &str) -> Result<String> {
     let profile = known_profile(agent_id)?;
     if profile.resume_flag.is_empty() {
         bail!("The remote agent CLI does not support session resume");
@@ -313,20 +324,13 @@ pub(crate) fn resume_commandline(
     if !cwd.starts_with('/') || cwd.chars().any(char::is_control) {
         bail!("Remote session cwd must be an absolute POSIX directory without controls");
     }
-    let script = format!(
+    Ok(format!(
         "cd -- {} && exec {} {} {}",
         sh_quote(cwd),
         sh_quote(profile.id),
         sh_quote(profile.resume_flag),
         sh_quote(session_id)
-    );
-    let mut args = vec!["ssh.exe".to_string()];
-    args.extend(ssh_arguments(target, true, &script));
-    Ok(args
-        .iter()
-        .map(|arg| quote_windows_commandline_arg(arg))
-        .collect::<Vec<_>>()
-        .join(" "))
+    ))
 }
 
 #[cfg(test)]

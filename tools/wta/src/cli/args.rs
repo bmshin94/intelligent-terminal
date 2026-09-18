@@ -1,8 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use crate::{
-    agent_hooks_installer, agent_registry, agent_sessions, agent_tools::command_resolution,
-};
+use crate::{agent_hooks_installer, agent_registry, agent_sessions, agent_tools::command_resolution};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -258,6 +256,20 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Command {
+    /// Managed ordinary SSH connection with an independent status channel.
+    #[command(hide = true)]
+    Ssh {
+        #[arg(long)]
+        destination: String,
+        #[arg(long)]
+        port: Option<u16>,
+        #[arg(long)]
+        no_pty: bool,
+        #[arg(long)]
+        no_hooks: bool,
+        #[arg(long)]
+        remote_command: Option<String>,
+    },
     /// Show Windows Terminal protocol connection info
     Info,
     /// Test protocol connection to Windows Terminal
@@ -490,10 +502,10 @@ pub(crate) enum Command {
 pub(crate) enum SessionsAction {
     /// List sessions in the master registry, or read remote history over SSH.
     List {
-        /// Override the wta-master named pipe path.
-        #[arg(long, value_name = "PIPE_NAME", conflicts_with = "ssh")]
+        /// Read master (optionally overriding its pipe). With --ssh, read only its source snapshot.
+        #[arg(long, value_name = "PIPE_NAME", num_args = 0..=1, default_missing_value = "")]
         master: Option<String>,
-        /// Read history on an already trusted SSH host or OpenSSH alias.
+        /// Read remote history, or the master's source snapshot when --master is also supplied.
         #[arg(long, value_name = "DESTINATION", value_parser = parse_ssh_destination)]
         ssh: Option<String>,
         /// Override the SSH port (otherwise use the user's SSH configuration).

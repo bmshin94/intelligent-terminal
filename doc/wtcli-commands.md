@@ -148,6 +148,15 @@ forwards agent lifecycle/status events without installing `wtcli` or WTA on
 the remote host. Install it separately in the Linux CLI's hook configuration;
 the existing Windows hook installer does not modify remote machines.
 
+For the end-to-end transport diagrams, implementation map, status transitions,
+and Session Management refresh flow, see the
+[remote tmux agent hook specification](specs/tmux-remote-agent-hooks.md).
+
+Ordinary managed SSH panes use a separate background channel and reuse the
+SSH source registry for status and focus. See
+[ordinary SSH agent hooks](specs/ordinary-ssh-agent-hooks.md); this does not
+intercept arbitrary SSH commands typed inside an unrelated shell.
+
 It uses a shell script, standard Linux utilities, and **tmux 3.4 or newer**;
 Python, Node.js, and `jq` are not required for the sender. Inside tmux, it checks
 `TMUX` and `TMUX_PANE`, verifies that the pane still belongs to its originating

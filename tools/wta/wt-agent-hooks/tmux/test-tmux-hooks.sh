@@ -11,6 +11,7 @@ if [[ ${1:-} == --pane-worker ]]; then
     exec >"$work/pane.stdout" 2>"$work/pane.stderr"
     export TMPDIR="$work/scratch"
     unset WTA_TMUX_HOOKS_DISABLED OPENCODE_CLIENT WT_SESSION WT_COM_CLSID
+    unset IT_SSH_HOOK_ROUTE IT_SSH_HOOK_SOCKET IT_SSH_HOOK_SESSION
     run_sender() {
         local job=$1 mode=$2 source=$3 event=$4
         local -a environment=()
@@ -180,29 +181,39 @@ no_messages() {
 }
 verify() {
     local expected_count=$1 expected_source=${2:-copilot} expected_event=${3:-agent.stop}
+    local wire_version=${4:-2} expected_route=${5:-} second_route=${6:-}
     local index directory file
     if grep -q '^%message ' "$work/client-2.log"; then fail 'other session received a notification'; fi
     for index in 0 1; do
         directory="$work/check-$index"
         mkdir "$directory"
         awk -v directory="$directory" -v session="$origin" -v pane="$pane" \
-            -v source="$expected_source" -v event="$expected_event" -v expected="$expected_count" '
+            -v source="$expected_source" -v event="$expected_event" -v expected="$expected_count" \
+            -v version="$wire_version" -v route="$expected_route" -v second_route="$second_route" '
             /^%message / {
                 line = substr($0, 10)
                 split(line, part, " ")
-                token = part[6]; part_index = part[7]; count = part[8]; data = part[9]
-                if (length(line) > 8192 || part[1] != "IT_AGENT_HOOK/2" ||
-                    part[2] != session || part[3] != pane || part[4] != source || part[5] != event ||
-                    token !~ /^[A-Za-z0-9._-]+$/ || length(token) > 64 ||
+                if(version==2) {
+                    if(part[1]!="IT_AGENT_HOOK/2" || part[2]!=session || part[3]!=pane ||
+                       part[4]!=source || part[5]!=event) exit 1
+                    identity=part[2] " " part[3] " " part[4] " " part[5]
+                    token=part[6]; part_index=part[7]; count=part[8]; data=part[9]
+                } else {
+                    if(part[1]!="IT_AGENT_HOOK/3" || (part[2]!=route && part[2]!=second_route) ||
+                       part[3]!=source || part[4]!=event) exit 1
+                    identity=part[2] " " part[3] " " part[4]
+                    token=part[5]; part_index=part[6]; count=part[7]; data=part[8]
+                }
+                if (length(line) > 8192 || token !~ /^[A-Za-z0-9._-]+$/ || length(token) > 64 ||
                     part_index !~ /^(0|[1-9][0-9]*)$/ || count !~ /^[1-9][0-9]*$/ ||
                     count > 234 || part_index >= count || length(data) > 6000 || length(data) % 4 ||
                     data !~ /^[A-Za-z0-9+\/]*={0,2}$/) exit 1
-                prefix = sprintf("IT_AGENT_HOOK/2 %s %s %s %s %s %s %s ", session, pane, source, event, token, part_index, count)
+                prefix = sprintf("IT_AGENT_HOOK/%s %s %s %s %s ", version, identity, token, part_index, count)
                 if (line != prefix data) exit 2
                 if (part_index + 1 < count && (length(data) != 6000 || data ~ /=/)) exit 3
                 if (length(data) == 0 && !(count == 1 && part_index == 0)) exit 4
-                if (!(token in seen)) { seen[token] = count; transfers++ }
-                if (seen[token] != count || next_index[token] != part_index) exit 5
+                if (!(token in seen)) { seen[token] = count; identities[token]=identity; transfers++ }
+                if (seen[token] != count || identities[token]!=identity || next_index[token] != part_index) exit 5
                 next_index[token]++
                 printf "%s", data > (directory "/" token ".b64")
             }
@@ -210,7 +221,7 @@ verify() {
                 if (transfers != expected) exit 6
                 for (token in seen) if (next_index[token] != seen[token]) exit 7
             }
-        ' "$work/client-$index.log" || fail 'invalid, missing, duplicate or out-of-order v2 frame'
+        ' "$work/client-$index.log" || fail "invalid/missing v$wire_version frame for client $index (validator=$?, messages=$(grep -c '^%message ' "$work/client-$index.log" || :))"
         for file in "$directory"/*.b64; do
             base64 -d "$file" >"${file%.b64}.raw" || fail 'invalid base64'
         done
@@ -365,4 +376,92 @@ no_messages
 [[ -z $(tm capture-pane -p -t "$pane" | tr -d '\n') ]] || fail 'sender wrote terminal output'
 if grep -q 'IT_AGENT_HOOK/' "$work/ordinary.out"; then fail 'ordinary client received hook output'; fi
 pass 'moved pane never reroutes, linked sessions stay isolated, no terminal/status injection'
+
+tm new-session -d -s it-hooks cat
+tm set-option -g @it-ssh-hooks-protocol 3
+for index in 0 1; do
+    printf 'switch-client -t =it-hooks\n' >&"${inputs[index]}"
+done
+drain
+[[ $(tm list-clients -t '=it-hooks' -F '#{client_control_mode}' | grep -c '^1$') == 2 ]] ||
+    fail 'v3 control clients did not switch to the dedicated session'
+[[ $(tm show-options -gqv @it-ssh-hooks-protocol) == 3 ]] || fail 'v3 protocol marker missing'
+route_a=11111111-2222-4333-8444-555555555555
+route_b=aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+emit_v3() {
+    local job=$1 route=$2 mode=${3:-normal} start end code
+    local -a environment=(-u TMUX -u TMUX_PANE -u WTA_TMUX_HOOKS_DISABLED -u OPENCODE_CLIENT)
+    environment+=("IT_SSH_HOOK_ROUTE=$route" "IT_SSH_HOOK_SOCKET=$socket" IT_SSH_HOOK_SESSION=it-hooks "TMPDIR=$work/scratch")
+    case $mode in
+        normal) ;;
+        no-channel)
+            environment+=("IT_SSH_HOOK_SOCKET=$work/absent" "TMUX=$socket,123,${other#\$}" "TMUX_PANE=$pane") ;;
+        bad-session) environment+=(IT_SSH_HOOK_SESSION=other) ;;
+        disabled) environment+=(WTA_TMUX_HOOKS_DISABLED=1) ;;
+        acp) environment+=(OPENCODE_CLIENT=acp) ;;
+    esac
+    start=$(date +%s%N)
+    env "${environment[@]}" /bin/sh "$work/it-agent-hook.sh" --cli-source "${4:-copilot}" --event agent.stop \
+        <"$work/input-$job" >"$work/output-$job" 2>"$work/error-$job"
+    code=$?
+    end=$(date +%s%N)
+    printf '%s %s\n' "$code" "$(( (end - start) / 1000000 ))" >"$work/status-$job"
+}
+for job in raw empty large limit; do
+    clear_logs
+    emit_v3 "$job" "$route_a"
+    check_status "$job"
+    drain
+    verify 1 copilot agent.stop 3 "$route_a"
+    for file in "$work/check-0"/*.raw; do cmp "$work/input-$job" "$file" || fail 'v3 changed raw bytes'; done
+    finish_check
+done
+clear_logs
+emit_v3 over "$route_a"
+check_status over 'stdin size limit exceeded'
+drain
+no_messages
+pass 'v3 ordinary shells preserve raw/Unicode/empty/1MiB bodies and reject overflow'
+
+clear_logs
+emit_v3 concurrent-a "$route_a" &
+first=$!
+emit_v3 concurrent-b "$route_b" &
+second=$!
+wait "$first"
+wait "$second"
+check_status concurrent-a
+check_status concurrent-b
+drain
+verify 2 copilot agent.stop 3 "$route_a" "$route_b"
+for job in concurrent-a concurrent-b; do
+    matched=
+    for file in "$work/check-0"/*.raw; do
+        if cmp -s "$work/input-$job" "$file"; then matched=1; fi
+    done
+    [[ -n $matched ]] || fail 'v3 route body missing'
+done
+finish_check
+for invalid in '' not-a-uuid "$route_a-" 11111111-2222-4333-8444-55555555555z; do
+    clear_logs
+    emit_v3 raw "$invalid"
+    check_status raw 'invalid managed SSH route'
+    drain
+    no_messages
+done
+for mode in no-channel disabled acp bad-session; do
+    clear_logs
+    emit_v3 raw "$route_a" "$mode" opencode
+    if [[ $mode == bad-session ]]; then check_status raw 'invalid managed SSH session'
+    else check_status raw; fi
+    drain
+    no_messages
+done
+tm set-option -gu @it-ssh-hooks-protocol
+clear_logs
+emit_v3 raw "$route_a"
+check_status raw
+drain
+no_messages
+pass 'v3 isolates concurrent routes, rejects malformed routes, and never falls back to v2 or unmarked servers'
 printf 'All shell sender transport tests passed.\n'
