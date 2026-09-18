@@ -60,12 +60,13 @@ impl SshRegistryClient for SharedRegistry {
         }
         let source = match &request {
             Request::Snapshot { source }
+            | Request::Poll { source }
             | Request::List { source, .. }
             | Request::Activate { source, .. } => source.clone(),
         };
         let registry = self.registry(&source);
         match request {
-            Request::Snapshot { .. } => {}
+            Request::Snapshot { .. } | Request::Poll { .. } => {}
             Request::List {
                 refresh_history, ..
             } => {
@@ -416,7 +417,7 @@ fn shared_snapshot_validation_rejects_cross_source_or_cross_agent_rows() {
 }
 
 #[tokio::test]
-async fn cached_polling_updates_open_helpers_without_rescanning_remote_history() {
+async fn ssh_polling_requests_background_history_and_accepts_title_updates_in_the_open_view() {
     let _locale = crate::test_support::lock_locale();
     tokio::task::LocalSet::new()
         .run_until(async {
@@ -432,6 +433,26 @@ async fn cached_polling_updates_open_helpers_without_rescanning_remote_history()
             second.app.handle_event(AppEvent::Tick);
             second.next().await;
             assert_eq!(second.row().status, AgentStatus::Idle);
+            assert!(matches!(
+                registry.requests.lock().unwrap().last().unwrap(),
+                Request::Poll { .. }
+            ));
+            let pane = second.row().pane_session_id;
+            let mut renamed = registry
+                .registry(&source)
+                .lookup(&"same-id".into())
+                .await
+                .unwrap();
+            renamed.title = Some("Generated conversation title".into());
+            registry.registry(&source).upsert(renamed).await;
+            registry.revision.fetch_add(1, Ordering::SeqCst);
+            second
+                .app
+                .handle_event(AppEvent::SshSessionsChanged(source.clone()));
+            second.next().await;
+            assert_eq!(second.row().title, "Generated conversation title");
+            assert_eq!(second.row().status, AgentStatus::Idle);
+            assert_eq!(second.row().pane_session_id, pane);
             assert!(matches!(
                 registry.requests.lock().unwrap().last().unwrap(),
                 Request::List {

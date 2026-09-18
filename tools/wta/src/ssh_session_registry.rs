@@ -21,6 +21,11 @@ pub enum Request {
     Snapshot {
         source: Source,
     },
+    /// Return cached state immediately and refresh remote history in the
+    /// background when this source's shared refresh interval has elapsed.
+    Poll {
+        source: Source,
+    },
     List {
         source: Source,
         refresh_history: bool,

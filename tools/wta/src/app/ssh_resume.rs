@@ -221,6 +221,10 @@ impl App {
     }
 
     pub(super) fn request_cached_ssh_source(&mut self, source: &Source) {
+        self.request_ssh_source_snapshot(source, false);
+    }
+
+    fn request_ssh_source_snapshot(&mut self, source: &Source, poll_history: bool) {
         if !self.tab_sessions.values().any(|tab| {
             tab.current_view == View::Agents
                 && tab.agents_view.snapshot.is_some()
@@ -233,13 +237,20 @@ impl App {
             return;
         }
         let sequence = self.ssh_resumes.next_sequence();
-        match self.spawn_ssh_registry_request(
-            source.clone(),
-            SshRegistryAction::Cached,
+        let request = if poll_history {
+            Request::Poll {
+                source: source.clone(),
+            }
+        } else {
             Request::List {
                 source: source.clone(),
                 refresh_history: false,
-            },
+            }
+        };
+        match self.spawn_ssh_registry_request(
+            source.clone(),
+            SshRegistryAction::Cached,
+            request,
             sequence,
         ) {
             Ok(_) => {
@@ -272,7 +283,7 @@ impl App {
             .filter_map(|tab| tab.agents_view.ssh_source.clone())
             .collect();
         for source in sources {
-            self.request_cached_ssh_source(&source);
+            self.request_ssh_source_snapshot(&source, true);
         }
     }
 

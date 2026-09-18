@@ -180,6 +180,18 @@ then follows the shared hook plan and registry reducer. Source-specific
 `_intellterm.wta/ssh_sessions/changed` notifications refresh the existing
 Session Management view.
 
+Hooks provide activity and lifetime, not the agent's generated conversation
+title. New rows initially use the working directory's basename as a placeholder.
+While an SSH Session Management view is open, its five-second poll returns the
+cached snapshot immediately and asks master to refresh remote ACP `session/list`
+metadata in the background. One shared refresh gate per destination, port, and
+agent coalesces viewers and enforces a minimum five-second interval after each
+completed query, including failures. A title change publishes the same
+source-specific notification; history merging preserves hook status and native
+pane bindings. Background query failures are logged and leave cached state
+intact. Hook notifications and diagnostic `Snapshot` requests do not trigger
+these remote queries or wait for them.
+
 Focus continues to use the registry's stored native pane GUID. The transport
 server's tmux session and panes are never used as focus targets.
 

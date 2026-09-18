@@ -109,10 +109,15 @@ The view shows the SSH destination above the list. Use the existing search and
 arrow keys, **F5** to fetch remote history again, and **Enter** to open a native
 Terminal tab running the remote agent's own resume command in the session's
 remote working directory. The master fetches remote history on entry and
-explicit refresh. Shared status notifications and periodic cached snapshots
-update other views without another remote history scan. Connection failures remain
-visible; a failed refresh keeps the last successful list rather than presenting
-an empty list as success.
+explicit refresh. While the view is open, periodic polls also refresh history
+in the background so new sessions acquire their generated titles and later
+title changes appear without reopening the view. The master coalesces polls
+across tabs for the same SSH source and waits at least five seconds after each
+completed history query before starting another automatic query. Status
+notifications read cached state immediately, without waiting for SSH.
+Connection failures on entry or explicit refresh remain visible; background
+refresh failures are logged. Failed queries keep the last successful list
+rather than presenting an empty list as success.
 
 After Terminal confirms the resumed pane was created, its row shows **Idle**.
 The same row is Idle in other existing or newly opened tabs using the same SSH

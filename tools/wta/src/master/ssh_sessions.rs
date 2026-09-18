@@ -6,6 +6,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use agent_client_protocol as acp;
 use anyhow::{anyhow, Context};
@@ -19,10 +20,11 @@ use crate::agent_sessions::{
 use crate::session_registry::{
     agent_session_to_session_info, title_is_displayable, InMemoryRegistry, SessionRegistry,
 };
-use crate::ssh_session_registry::{build_changed_notification, Request, Snapshot, Source};
 use crate::ssh_hook_protocol::{HookEvent, RouteId};
+use crate::ssh_session_registry::{build_changed_notification, Request, Snapshot, Source};
 
 const MAX_EARLY_CLOSES: usize = 1024;
+const HISTORY_POLL_INTERVAL: Duration = Duration::from_secs(5);
 
 pub(super) struct Service {
     epoch: uuid::Uuid,
@@ -53,7 +55,7 @@ impl Service {
 struct SourceState {
     registry: InMemoryRegistry,
     /// Only history readers wait on SSH; snapshots and mutations do not.
-    refresh: Mutex<()>,
+    refresh: Arc<Mutex<Option<Instant>>>,
     operations: Mutex<SourceMetadata>,
 }
 
@@ -113,6 +115,7 @@ pub(super) async fn handle(
 ) -> acp::Result<acp::schema::v1::ExtResponse> {
     let source = match &request {
         Request::Snapshot { source }
+        | Request::Poll { source }
         | Request::List { source, .. }
         | Request::Activate { source, .. } => source,
     };
@@ -126,6 +129,17 @@ pub(super) async fn handle(
             Request::Snapshot { source } => {
                 let scoped = state.ssh_sessions.source(&source).await;
                 Ok(snapshot(&state, &source, &scoped).await)
+            }
+            Request::Poll { source } => {
+                let history_source = source.clone();
+                Ok(poll(&state, &source, async move {
+                    crate::ssh_sessions::list_sessions(
+                        &history_source.target,
+                        &history_source.agent_id,
+                    )
+                    .await
+                })
+                .await)
             }
             Request::List {
                 source,
@@ -177,26 +191,73 @@ async fn changed(state: &MasterStateInner, source: &Source, metadata: &mut Sourc
     broadcast_ext_to_helpers(state, build_changed_notification(source)).await;
 }
 
+async fn poll<F>(state: &Arc<MasterStateInner>, source: &Source, history: F) -> Snapshot
+where
+    F: Future<Output = anyhow::Result<Vec<AgentSession>>> + 'static,
+{
+    let scoped = state.ssh_sessions.source(source).await;
+    let snapshot = snapshot(state, source, &scoped).await;
+    let Ok(mut last_refresh) = Arc::clone(&scoped.refresh).try_lock_owned() else {
+        return snapshot;
+    };
+    if last_refresh.is_some_and(|last| last.elapsed() < HISTORY_POLL_INTERVAL) {
+        return snapshot;
+    }
+    let state = Arc::clone(state);
+    let source = source.clone();
+    tokio::task::spawn_local(async move {
+        if let Err(error) =
+            refresh_history(&state, &source, &scoped, &mut last_refresh, history).await
+        {
+            tracing::warn!(
+                target: "ssh_sessions",
+                destination = %source.target.display_name(),
+                agent_id = %source.agent_id,
+                ?error,
+                "Background SSH session history refresh failed; retaining cached state"
+            );
+        }
+    });
+    snapshot
+}
+
+async fn refresh_history<F>(
+    state: &MasterStateInner,
+    source: &Source,
+    scoped: &SourceState,
+    last_refresh: &mut Option<Instant>,
+    history: F,
+) -> acp::Result<()>
+where
+    F: Future<Output = anyhow::Result<Vec<AgentSession>>>,
+{
+    let rows = history.await;
+    // Throttle from completion, including failures. Hook-triggered cache
+    // reads remain independent of this potentially slow remote operation.
+    *last_refresh = Some(Instant::now());
+    merge_history(state, source, scoped, rows.map_err(request_error)?).await;
+    Ok(())
+}
+
 async fn list<F>(
     state: &MasterStateInner,
     source: &Source,
-    refresh_history: bool,
+    force_refresh: bool,
     history: F,
 ) -> acp::Result<Snapshot>
 where
     F: Future<Output = anyhow::Result<Vec<AgentSession>>>,
 {
     let scoped = state.ssh_sessions.source(source).await;
-    if !refresh_history
+    if !force_refresh
         && (scoped.operations.lock().await.history_loaded
             || !scoped.registry.snapshot().await.is_empty())
     {
         return Ok(snapshot(state, source, &scoped).await);
     }
-    let _refresh = scoped.refresh.lock().await;
-    if refresh_history || !scoped.operations.lock().await.history_loaded {
-        let rows = history.await.map_err(request_error)?;
-        merge_history(state, source, &scoped, rows).await;
+    let mut last_refresh = scoped.refresh.lock().await;
+    if force_refresh || !scoped.operations.lock().await.history_loaded {
+        refresh_history(state, source, &scoped, &mut last_refresh, history).await?;
     }
     Ok(snapshot(state, source, &scoped).await)
 }

@@ -954,6 +954,9 @@ async fn ssh_registry_initialize_and_policy_do_not_require_a_local_agent() {
                 source("ubuntu", None, "custom:untrusted"),
             ] {
                 for request in [
+                    Request::Poll {
+                        source: source.clone(),
+                    },
                     Request::List {
                         source: source.clone(),
                         refresh_history: true,
@@ -994,6 +997,200 @@ async fn ssh_cached_snapshot_is_available_while_its_history_refresh_gate_is_busy
             assert_eq!(
                 cached(&b, &source).await.sessions[0].pane_session_id,
                 Some(pane.to_string())
+            );
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn ssh_poll_refreshes_hook_titles_without_blocking_status_or_changing_bindings() {
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let state = make_state();
+            let source = source("alice@ubuntu", None, "copilot");
+            let scoped = state.ssh_sessions.source(&source).await;
+            let route = RouteId::new();
+            let pane = uuid::Uuid::new_v4().to_string();
+            let mut start = hook("copilot", "agent.session.start", "live");
+            start.payload["cwd"] = "/home/yuazha".into();
+            hook_event(&state, &source.target, route, &pane, start)
+                .await
+                .unwrap();
+            let (notifications, mut receiver) = mpsc::unbounded_channel();
+            state
+                .helper_ext_subscribers
+                .lock()
+                .await
+                .insert(HelperId(1), notifications);
+            let (started, waiting) = oneshot::channel();
+            let (complete, history_result) = oneshot::channel();
+            let initial = poll(&state, &source, async move {
+                started.send(()).unwrap();
+                history_result.await.unwrap()
+            })
+            .await;
+            assert_eq!(initial.sessions[0].title.as_deref(), Some("yuazha"));
+            waiting.await.unwrap();
+
+            hook_event(
+                &state,
+                &source.target,
+                route,
+                &pane,
+                hook("copilot", "agent.prompt.submit", "live"),
+            )
+            .await
+            .unwrap();
+            let working = list(&state, &source, false, async {
+                panic!("hook notifications must read cache without fetching SSH history")
+            })
+            .await
+            .unwrap();
+            assert_eq!(working.sessions[0].status, Some(AgentStatus::Working));
+            assert_eq!(
+                crate::session_registry::parse_ext_notification(&receiver.try_recv().unwrap()),
+                WtaExtNotification::SshSessionsChanged(source.clone())
+            );
+            assert_eq!(
+                poll(&state, &source, async {
+                    panic!("a second viewer must share the in-flight refresh")
+                })
+                .await
+                .sessions,
+                working.sessions
+            );
+
+            complete
+                .send(Ok(vec![history(&source, "live", "Generated title")]))
+                .unwrap();
+            let mut last_refresh = scoped.refresh.lock().await;
+            assert!(last_refresh.is_some());
+            let updated = snapshot(&state, &source, &scoped).await;
+            assert!(updated.revision > working.revision);
+            let mut expected = working.sessions[0].clone();
+            expected.title = Some("Generated title".into());
+            assert_eq!(updated.sessions, vec![expected]);
+            assert_eq!(
+                crate::session_registry::parse_ext_notification(&receiver.try_recv().unwrap()),
+                WtaExtNotification::SshSessionsChanged(source.clone())
+            );
+            *last_refresh = Some(Instant::now() - HISTORY_POLL_INTERVAL);
+            drop(last_refresh);
+
+            let renamed = history(&source, "live", "Renamed title");
+            poll(&state, &source, async move { Ok(vec![renamed]) }).await;
+            let _refresh = scoped.refresh.lock().await;
+            let updated = snapshot(&state, &source, &scoped).await;
+            assert_eq!(updated.sessions[0].title.as_deref(), Some("Renamed title"));
+            assert_eq!(updated.sessions[0].status, Some(AgentStatus::Working));
+            assert_eq!(
+                updated.sessions[0].pane_session_id.as_deref(),
+                Some(pane.as_str())
+            );
+            assert!(state.registry.snapshot().await.is_empty());
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn ssh_poll_throttles_success_and_failure_but_explicit_refresh_remains_available() {
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let state = make_state();
+            let source = source("ubuntu", None, "copilot");
+            let scoped = state.ssh_sessions.source(&source).await;
+            let initial = list(&state, &source, true, async {
+                Ok(vec![history(&source, "same-id", "Original title")])
+            })
+            .await
+            .unwrap();
+            let cached = poll(&state, &source, async {
+                panic!("automatic polling must respect a recent explicit refresh")
+            })
+            .await;
+            assert_eq!(cached.sessions, initial.sessions);
+
+            *scoped.refresh.lock().await = Some(Instant::now() - HISTORY_POLL_INTERVAL);
+            poll(&state, &source, async {
+                Err(anyhow!("Remote ACP listing unavailable"))
+            })
+            .await;
+            {
+                let last_refresh = scoped.refresh.lock().await;
+                assert!(last_refresh.unwrap().elapsed() < HISTORY_POLL_INTERVAL);
+            }
+            let after_failure = poll(&state, &source, async {
+                panic!("a failed background query must not cause a retry storm")
+            })
+            .await;
+            assert_eq!(after_failure.sessions, initial.sessions);
+            assert_eq!(after_failure.revision, initial.revision);
+
+            let refreshed = list(&state, &source, true, async {
+                Ok(vec![history(&source, "same-id", "Recovered title")])
+            })
+            .await
+            .unwrap();
+            assert_eq!(
+                refreshed.sessions[0].title.as_deref(),
+                Some("Recovered title")
+            );
+            assert!(refreshed.revision > initial.revision);
+            *scoped.refresh.lock().await = Some(Instant::now() - HISTORY_POLL_INTERVAL);
+            let renamed = history(&source, "same-id", "Later title");
+            poll(&state, &source, async move { Ok(vec![renamed]) }).await;
+            let _refresh = scoped.refresh.lock().await;
+            assert_eq!(
+                snapshot(&state, &source, &scoped).await.sessions[0]
+                    .title
+                    .as_deref(),
+                Some("Later title")
+            );
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn ssh_poll_gates_are_source_scoped_and_wire_poll_returns_without_waiting_for_history() {
+    tokio::task::LocalSet::new()
+        .run_until(async {
+            let state = make_state();
+            let first = source("alice@ubuntu", None, "copilot");
+            seed(&state, &first, &["same-id"]).await;
+            let scoped = state.ssh_sessions.source(&first).await;
+            let _refresh = scoped.refresh.lock().await;
+            let handler = caller(&state, 1);
+            let cached = call(
+                &handler,
+                Request::Poll {
+                    source: first.clone(),
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(cached.sessions[0].title.as_deref(), Some("Original title"));
+
+            for other in [
+                source("bob@ubuntu", None, "copilot"),
+                source("alice@ubuntu", Some(2222), "copilot"),
+                source("alice@other", None, "copilot"),
+                source("alice@ubuntu", None, "claude"),
+            ] {
+                let row = history(&other, "same-id", "Independent title");
+                let initial = poll(&state, &other, async move { Ok(vec![row]) }).await;
+                assert!(initial.sessions.is_empty());
+                let other_scoped = state.ssh_sessions.source(&other).await;
+                let _other_refresh = other_scoped.refresh.lock().await;
+                assert_eq!(
+                    snapshot(&state, &other, &other_scoped).await.sessions[0]
+                        .title
+                        .as_deref(),
+                    Some("Independent title")
+                );
+            }
+            assert_eq!(
+                snapshot(&state, &first, &scoped).await.sessions,
+                cached.sessions
             );
         })
         .await;
