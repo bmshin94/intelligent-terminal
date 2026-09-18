@@ -162,7 +162,12 @@ wta sessions list --master --ssh dev@linux-host --cli copilot --json
 
 V3 hook traffic is consumed directly by master and does not appear in
 `wtcli --json listen --event "agent.*"`. That listener still observes local
-hooks and the native tmux-pane v2 path.
+hooks and the native tmux-pane v2 path. Master owns the ordinary SSH control
+reader and existing source registry, so those events do not make a round trip
+through C++/COM. The snapshot command above returns and exits; it is not an
+event-stream replacement and can miss intermediate transitions between polls.
+There is currently no unified hook event listener for both paths. See the
+[transport and diagnostics comparison](../../doc/specs/ordinary-ssh-agent-hooks.md#diagnostics-event-streams-versus-state-snapshots).
 
 Requirements and boundaries:
 

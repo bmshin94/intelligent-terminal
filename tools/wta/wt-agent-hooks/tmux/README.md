@@ -30,6 +30,14 @@ manual tmux-pane integrations continue to use v2 when no managed SSH route is
 present. Neither installation replaces managed local `wt-agent-hooks`
 plugins. The matching Windows receiver is required.
 
+The local receivers differ: v2 is handled by C++ and published through COM,
+so `wtcli --json listen --event "agent.*"` observes it. V3 is read by the
+master-owned background SSH client and updates the existing SSH source
+registry directly; it does not appear in that COM listener.
+`wta sessions list --master --ssh <target> --cli copilot --json` returns one
+current state snapshot, not an event stream. For the reasoning and diagnostic
+boundaries, see the [ordinary SSH specification](../../../../doc/specs/ordinary-ssh-agent-hooks.md).
+
 ## Automatically managed ordinary SSH sessions
 
 The Windows wrapper supplies these variables to the foreground login shell or

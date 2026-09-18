@@ -45,6 +45,31 @@ Foreground SSH carries the user's interactive terminal traffic. The background
 connection is only a hook transport: it does not create a visible tmux window
 or use a dummy tmux pane as the session's focus target.
 
+### Why v3 Does Not Pass Through `wtcli listen`
+
+The two modes have different local owners of the control stream:
+
+| Mode | Control-stream owner | Local event and state path |
+|---|---|---|
+| Native tmux panes, v2 | C++ `TmuxController` | C++ validation/redaction -> COM `agent_event` -> local `wtcli listen` -> master |
+| Ordinary managed SSH, v3 | `wta-master` background reader | Master validation/redaction -> existing SSH source registry |
+
+`wtcli listen` subscribes to IT's COM event service. It does not automatically
+observe all internal WTA events or read arbitrary SSH/tmux stdout.
+
+Master already owns the v3 connection routes, SSH source identity, remote
+session IDs, and native pane bindings. Processing there avoids sending data
+through C++/COM only to deliver it back to master, and keeps updates in the
+correct source-scoped registry. Republishing v3 as the existing `agent_event`
+without changing its routing would risk duplicate processing or attribution
+to the wrong registry.
+
+This is an implementation choice, not a limitation of tmux control mode.
+It trades a shared COM diagnostic stream for direct source-aware processing.
+There is currently no unified post-validation hook event stream for both
+modes. A future observer stream would need separate semantics so observation
+does not apply the same state transition again; it is not implemented here.
+
 ## Native SSH Launch Integration
 
 `AgentSourceUtils.h` recognizes the same destination/user/port subset used by
@@ -158,11 +183,32 @@ Session Management view.
 Focus continues to use the registry's stored native pane GUID. The transport
 server's tmux session and panes are never used as focus targets.
 
-V3 is a master-direct path, unlike the C++/COM v2 frontend. Its messages do
-not appear in `wtcli --json listen --event "agent.*"`. Inspect live rows with
-`wta sessions list --master --ssh <destination> --cli copilot --json`; this
-reads the existing source snapshot without running an SSH history scan.
-Without `--master`, `sessions list --ssh` retains its historical-query behavior.
+## Diagnostics: Event Streams Versus State Snapshots
+
+| Observation point | What it shows | What it does not show |
+|---|---|---|
+| tmux control client's stdout | Raw `%message` frames, including encoded original payloads | Whether master accepted an event or applied a status transition |
+| `wtcli --json listen --event "agent.*"` | COM-published local hooks and native tmux v2 events | Ordinary SSH v3 hook events |
+| `wta sessions list --master --ssh <destination> --cli copilot --json` | One current snapshot of the master's SSH source registry, including status and pane bindings | A live event subscription or every intermediate transition |
+| `wta sessions list --ssh <destination> --cli copilot --json` | A remote history query | The master's live pane bindings and hook-driven status |
+
+For example, run this in a local IT shell to inspect an existing source:
+
+```powershell
+wta sessions list --master --ssh user@host --cli copilot --json
+```
+
+The command returns and exits. Re-running it polls state; it does not turn
+into `listen`, replay missed hooks, or guarantee that brief intermediate
+statuses will be observed. Use the same destination and explicit port, if
+any, as the managed connection so the source identities match.
+
+The master's `wta-main_master.<UTC-date>.log` contains `ssh_hooks` setup,
+connection, and rejection diagnostics. It is not a complete payload/event
+dump. The `_intellterm.wta/ssh_sessions/changed` notification invalidates the
+UI's source snapshot; it is not a forwarded copy of the original hook.
+Inspecting raw tmux traffic can expose unredacted prompts and tool data, so
+do not treat a raw capture as equivalent to the redacted COM stream.
 
 ## Lifecycle and Policy
 

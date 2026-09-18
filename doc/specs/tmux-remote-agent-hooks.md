@@ -14,6 +14,11 @@ For agent CLIs in ordinary managed SSH shells, see
 background v3 control channel and the existing SSH source registry; the
 pane-scoped v2 path described here remains supported.
 
+**The C++/COM/`wtcli listen` diagrams below describe v2 only.** V3's background
+control stream is owned and processed directly by master; it does not publish
+these COM hook events. See the ordinary SSH specification for the routing
+rationale and the distinction between event listeners and state snapshots.
+
 Responsibilities are divided as follows:
 
 | Layer | Responsible for | Not responsible for |
